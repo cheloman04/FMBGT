@@ -85,7 +85,7 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-wrap items-start sm:items-center justify-between gap-3 mb-8">
           <div className="flex items-center gap-4">
             <Image
               src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
@@ -142,8 +142,71 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
           ))}
         </div>
 
-        {/* Bookings table */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
+        {/* Mobile cards (visible below sm breakpoint) */}
+        <div className="sm:hidden space-y-3">
+          {localBookings.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8 text-sm">No bookings found.</p>
+          ) : (
+            localBookings.map((booking) => (
+              <div key={booking.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
+                {/* Name + status badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground text-sm truncate">{booking.customer_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{booking.customer_email}</p>
+                    {booking.customer_phone && (
+                      <p className="text-xs text-muted-foreground">{booking.customer_phone}</p>
+                    )}
+                  </div>
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>
+                    {booking.status}
+                  </span>
+                </div>
+                {/* Location, date, tour details */}
+                <div className="space-y-0.5 text-sm">
+                  <p className="text-foreground font-medium">{booking.location_name}</p>
+                  <p className="text-muted-foreground">{formatDate(booking.date)} · {booking.time_slot}</p>
+                  <p className="text-muted-foreground">
+                    {booking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {booking.duration_hours}hr
+                    {booking.bike_rental && booking.bike_rental !== 'none' ? ` · ${booking.bike_rental}` : ''}
+                  </p>
+                  {(booking.zip_code || booking.marketing_source) && (
+                    <div className="flex gap-1.5 flex-wrap pt-0.5">
+                      {booking.zip_code && (
+                        <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                          ZIP {booking.zip_code}
+                        </span>
+                      )}
+                      {booking.marketing_source && (
+                        <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded capitalize">
+                          {booking.marketing_source}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Price + status action */}
+                <div className="flex items-center justify-between pt-2 border-t border-border">
+                  <span className="font-semibold text-foreground">{formatPrice(booking.total_price)}</span>
+                  <select
+                    value={booking.status}
+                    disabled={updating === booking.id}
+                    onChange={(e) => handleStatusChange(booking.id, e.target.value)}
+                    className="text-xs border border-input bg-background text-foreground rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                  >
+                    <option value="pending">pending</option>
+                    <option value="confirmed">confirmed</option>
+                    <option value="cancelled">cancelled</option>
+                    <option value="refunded">refunded</option>
+                  </select>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table (hidden on mobile) */}
+        <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
           {localBookings.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">No bookings found.</div>
           ) : (
