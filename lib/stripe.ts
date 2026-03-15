@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import type { BookingState } from '@/types/booking';
+import type { BookingState, PriceBreakdown } from '@/types/booking';
 import { getPriceLineItems } from './pricing';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
