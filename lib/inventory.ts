@@ -11,15 +11,33 @@ export const INVENTORY_ITEMS = {
 async function countReservedOnDate(item: string, date: string): Promise<number> {
   const supabase = getSupabaseAdmin();
 
+  // Electric bikes: must sum across lead rider AND additional riders in participant_info JSONB
+  if (item === INVENTORY_ITEMS.ELECTRIC_BIKE) {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('bike_rental, participant_info')
+      .eq('date', date)
+      .in('status', ['pending', 'confirmed']);
+    if (error) throw error;
+
+    let total = 0;
+    for (const booking of data ?? []) {
+      if (booking.bike_rental === 'electric') total++;
+      const participants = booking.participant_info as Array<{ bike_rental?: string }> | null;
+      if (Array.isArray(participants)) {
+        total += participants.filter((p) => p.bike_rental === 'electric').length;
+      }
+    }
+    return total;
+  }
+
   let query = supabase
     .from('bookings')
     .select('id', { count: 'exact' })
     .eq('date', date)
     .in('status', ['pending', 'confirmed']);
 
-  if (item === INVENTORY_ITEMS.ELECTRIC_BIKE) {
-    query = query.eq('bike_rental', 'electric');
-  } else if (item === INVENTORY_ITEMS.GOPRO) {
+  if (item === INVENTORY_ITEMS.GOPRO) {
     query = query.contains('addons', { gopro: true });
   } else if (item === INVENTORY_ITEMS.STANDARD_BIKE) {
     query = query.in('bike_rental', ['standard', 'electric']);
@@ -64,35 +82,45 @@ export async function checkItemAvailability(
 export async function validateBookingInventory(
   date: string,
   bikeRental: BikeRental,
-  addons: Addons
+  addons: Addons,
+  additionalParticipants?: Array<{ bike_rental?: string }>
 ): Promise<{ valid: boolean; errors: string[]; inventory: Record<string, InventoryStatus> }> {
   const errors: string[] = [];
   const inventoryChecks: Record<string, InventoryStatus> = {};
 
-  const checksToRun: Array<{ item: string; needed: boolean; errorMessage: string }> = [
+  // Count total electric riders across all participants
+  const additionalElectric = additionalParticipants?.filter((p) => p.bike_rental === 'electric').length ?? 0;
+  const totalElectricNeeded = (bikeRental === 'electric' ? 1 : 0) + additionalElectric;
+  const totalBikesNeeded = (bikeRental === 'standard' || bikeRental === 'electric' ? 1 : 0)
+    + (additionalParticipants?.filter((p) => p.bike_rental === 'standard' || p.bike_rental === 'electric').length ?? 0);
+
+  const checksToRun: Array<{ item: string; needed: boolean; count: number; errorMessage: string }> = [
     {
       item: INVENTORY_ITEMS.ELECTRIC_BIKE,
-      needed: bikeRental === 'electric' || !!addons.electric_upgrade,
+      needed: totalElectricNeeded > 0 || !!addons.electric_upgrade,
+      count: totalElectricNeeded,
       errorMessage: 'Electric bikes are fully booked for this date. Please choose a standard bike or select a different date.',
     },
     {
       item: INVENTORY_ITEMS.GOPRO,
       needed: !!addons.gopro,
+      count: 1,
       errorMessage: 'GoPro cameras are fully booked for this date. Please select a different date.',
     },
     {
       item: INVENTORY_ITEMS.STANDARD_BIKE,
-      needed: bikeRental === 'standard' || bikeRental === 'electric',
+      needed: totalBikesNeeded > 0,
+      count: totalBikesNeeded,
       errorMessage: 'Bikes are fully booked for this date. Please select a different date or choose "No bike rental".',
     },
   ];
 
   await Promise.all(
-    checksToRun.map(async ({ item, needed, errorMessage }) => {
+    checksToRun.map(async ({ item, needed, count, errorMessage }) => {
       if (!needed) return;
       const status = await checkItemAvailability(item, date);
       inventoryChecks[item] = status;
-      if (status.available <= 0) {
+      if (status.available < count) {
         errors.push(errorMessage);
       }
     })

@@ -13,6 +13,10 @@ const Schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  if (!req.headers.get('content-type')?.includes('application/json')) {
+    return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 });
+  }
+
   try {
     const body = await req.json();
     const parsed = Schema.safeParse(body);

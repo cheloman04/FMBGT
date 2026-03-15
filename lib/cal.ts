@@ -3,6 +3,7 @@ import type { AvailabilitySlot } from '@/types/booking';
 const CAL_API_BASE = 'https://api.cal.com/v1';
 const CAL_API_KEY = process.env.CAL_API_KEY;
 const CAL_EVENT_TYPE_ID = process.env.CAL_EVENT_TYPE_ID;
+const CAL_USERNAME = process.env.CAL_USERNAME;
 
 export interface CalAvailabilityParams {
   dateFrom: string; // YYYY-MM-DD
@@ -18,17 +19,20 @@ export async function getAvailableSlots(
   // Cal.com API v1 endpoint: GET /availability
   // Docs: https://cal.com/docs/api-reference
 
-  if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID) {
+  if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID || !CAL_USERNAME) {
     // Return mock data for development
     return getMockAvailability(params.dateFrom, params.dateTo);
   }
 
   try {
-    const url = new URL(`${CAL_API_BASE}/availability`);
+    // Cal.com v1 uses /slots (not /availability) for available booking times
+    const url = new URL(`${CAL_API_BASE}/slots`);
     url.searchParams.set('apiKey', CAL_API_KEY);
+    url.searchParams.set('username', CAL_USERNAME);
     url.searchParams.set('eventTypeId', CAL_EVENT_TYPE_ID);
-    url.searchParams.set('dateFrom', params.dateFrom);
-    url.searchParams.set('dateTo', params.dateTo);
+    // /slots uses startTime/endTime as full ISO strings
+    url.searchParams.set('startTime', `${params.dateFrom}T00:00:00.000Z`);
+    url.searchParams.set('endTime', `${params.dateTo}T23:59:59.000Z`);
     if (params.timeZone) {
       url.searchParams.set('timeZone', params.timeZone);
     }
@@ -53,22 +57,27 @@ export async function getAvailableSlots(
   }
 }
 
-// Transform Cal.com API response to our AvailabilitySlot format
+// Transform Cal.com /v1/slots response to our AvailabilitySlot format
+// Response shape: { slots: { "2026-04-01": [{ time: "2026-04-01T09:00:00-04:00" }, ...] } }
 function transformCalResponse(data: unknown): AvailabilitySlot[] {
-  // PLACEHOLDER: Adjust based on actual Cal.com response structure
   const slots: AvailabilitySlot[] = [];
-
-  const calData = data as { slots?: Record<string, Array<{ time?: string; startTime?: string }>> };
+  const calData = data as { slots?: Record<string, Array<{ time?: string }>> };
 
   if (calData?.slots) {
     for (const [date, timeSlots] of Object.entries(calData.slots)) {
       if (Array.isArray(timeSlots)) {
         for (const slot of timeSlots) {
-          slots.push({
-            date,
-            time: slot.time ?? slot.startTime ?? '',
-            available: true,
-          });
+          // Extract HH:MM from the ISO time string
+          const isoTime = slot.time ?? '';
+          const time = isoTime ? new Date(isoTime).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'America/New_York',
+          }) : '';
+          if (time) {
+            slots.push({ date, time, available: true });
+          }
         }
       }
     }
@@ -100,6 +109,70 @@ function getMockAvailability(dateFrom: string, dateTo: string): AvailabilitySlot
   }
 
   return slots;
+}
+
+export interface CalBookingParams {
+  startIso: string;   // ISO 8601 UTC e.g. "2026-04-15T13:00:00.000Z"
+  endIso: string;     // startIso + duration_hours
+  name: string;
+  email: string;
+  timeZone?: string;  // default: 'America/New_York'
+  notes?: string;     // shown as booking title in Cal.com
+}
+
+// Create a booking in Cal.com after payment is confirmed.
+// Returns the Cal.com booking uid, or null if credentials are missing or the call fails.
+export async function createCalBooking(
+  params: CalBookingParams
+): Promise<string | null> {
+  if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID) {
+    console.warn('[cal] CAL_API_KEY or CAL_EVENT_TYPE_ID not set — skipping booking creation');
+    return null;
+  }
+
+  try {
+    const url = new URL(`${CAL_API_BASE}/bookings`);
+    url.searchParams.set('apiKey', CAL_API_KEY);
+
+    const body = {
+      eventTypeId: Number(CAL_EVENT_TYPE_ID),
+      start: params.startIso,
+      end: params.endIso,
+      responses: {
+        name: params.name,
+        email: params.email,
+      },
+      timeZone: params.timeZone ?? 'America/New_York',
+      language: 'en',
+      metadata: {},
+      ...(params.notes ? { title: params.notes } : {}),
+    };
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[cal] Booking creation failed: ${response.status}`, errorText);
+      return null;
+    }
+
+    let data: { uid?: string };
+    try {
+      data = await response.json() as { uid?: string };
+    } catch {
+      console.error('[cal] Failed to parse booking response as JSON');
+      return null;
+    }
+    console.log(`[cal] Booking created: uid=${data.uid}`);
+    return data.uid ?? null;
+  } catch (error) {
+    console.error('[cal] createCalBooking error:', error);
+    return null;
+  }
 }
 
 // Group slots by date for easier rendering

@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useBooking } from '@/context/BookingContext';
 import type { DurationHours } from '@/types/booking';
@@ -13,26 +12,13 @@ const DURATION_OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  {
-    hours: 2,
-    label: '2 Hours',
-    description: 'Perfect intro to the trail. Covers the highlights.',
-  },
-  {
-    hours: 3,
-    label: '3 Hours',
-    description: 'Extended ride with more trail coverage. Most popular.',
-  },
-  {
-    hours: 4,
-    label: '4 Hours',
-    description: 'Full adventure. Maximum trail exploration.',
-  },
+  { hours: 2, label: '2 Hours', description: 'Perfect intro to the trail. Covers the highlights.' },
+  { hours: 3, label: '3 Hours', description: 'Extended ride with more trail coverage. Most popular.' },
+  { hours: 4, label: '4 Hours', description: 'Full adventure. Maximum trail exploration.' },
 ];
 
-export default function Step6DurationPage() {
-  const router = useRouter();
-  const { state, setDuration, setPriceBreakdown } = useBooking();
+export function StepDuration() {
+  const { state, setDuration, setPriceBreakdown, goNext, goPrev } = useBooking();
   const [selected, setSelected] = useState<DurationHours | undefined>(state.duration_hours);
 
   const getSurcharge = (hours: DurationHours) => {
@@ -43,30 +29,29 @@ export default function Step6DurationPage() {
   const handleContinue = () => {
     if (!selected) return;
     setDuration(selected);
-
-    // Update price breakdown
     if (state.bike_rental) {
       const breakdown = calculatePriceBreakdown(
         state.bike_rental,
         selected,
-        state.addons ?? {}
+        state.addons ?? {},
+        state.trail_type,
+        state.additional_participants
       );
       setPriceBreakdown(breakdown);
     }
-
-    router.push('/booking/step7-addons');
+    goNext();
   };
 
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Choose Duration</h2>
-        <p className="text-gray-500 mt-1">
+        <h2 className="text-2xl font-bold text-foreground">Choose Duration</h2>
+        <p className="text-muted-foreground mt-1">
           Base tour is 2 hours. Additional hours are {formatPrice(PRICING.ADDITIONAL_HOUR)}/hr.
         </p>
       </div>
 
-      <Button variant="ghost" onClick={() => router.back()} className="mb-4 text-gray-500">
+      <Button variant="ghost" onClick={goPrev} className="mb-4 text-muted-foreground">
         ← Back
       </Button>
 
@@ -82,8 +67,8 @@ export default function Step6DurationPage() {
               <Card
                 className={`transition-all cursor-pointer ${
                   selected === option.hours
-                    ? 'border-green-500 bg-green-50'
-                    : 'hover:border-gray-300'
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950/30'
+                    : 'hover:border-border'
                 }`}
               >
                 <CardHeader className="py-4">
@@ -92,9 +77,9 @@ export default function Step6DurationPage() {
                       <CardTitle className="text-base">{option.label}</CardTitle>
                       <CardDescription>{option.description}</CardDescription>
                     </div>
-                    <div className="text-sm font-semibold text-gray-900 ml-4 whitespace-nowrap">
+                    <div className="text-sm font-semibold ml-4 whitespace-nowrap">
                       {surcharge > 0 ? (
-                        <span className="text-orange-600">+{formatPrice(surcharge)}</span>
+                        <span className="text-amber-500 dark:text-amber-400">+{formatPrice(surcharge)}</span>
                       ) : (
                         <span className="text-green-600">Included</span>
                       )}

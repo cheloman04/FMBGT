@@ -43,6 +43,8 @@ export type Database = {
           bike_rental: BikeRental;
           rider_height_inches: number | null;
           addons: Addons;
+          participant_count: number;
+          participant_info: unknown | null;
           base_price: number;
           addons_price: number;
           total_price: number;
@@ -52,6 +54,8 @@ export type Database = {
           status: BookingStatus;
           waiver_accepted: boolean;
           waiver_accepted_at: string | null;
+          zip_code: string | null;
+          marketing_source: string | null;
           webhook_sent: boolean;
           created_at: string;
           updated_at: string;
@@ -68,6 +72,8 @@ export type Database = {
           bike_rental: BikeRental;
           rider_height_inches?: number | null;
           addons?: Addons;
+          participant_count?: number;
+          participant_info?: unknown | null;
           base_price: number;
           addons_price: number;
           total_price: number;
@@ -77,6 +83,8 @@ export type Database = {
           status?: BookingStatus;
           waiver_accepted?: boolean;
           waiver_accepted_at?: string | null;
+          zip_code?: string | null;
+          marketing_source?: string | null;
           webhook_sent?: boolean;
         };
         Update: {
@@ -86,6 +94,8 @@ export type Database = {
           cal_booking_uid?: string | null;
           waiver_accepted?: boolean;
           waiver_accepted_at?: string | null;
+          zip_code?: string | null;
+          marketing_source?: string | null;
           webhook_sent?: boolean;
         };
         Relationships: [];

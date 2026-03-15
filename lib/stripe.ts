@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
-import type { BookingState, PriceBreakdown } from '@/types/booking';
-import { getPriceLineItems, formatPrice } from './pricing';
+import type { BookingState } from '@/types/booking';
+import { getPriceLineItems } from './pricing';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
   apiVersion: '2026-02-25.clover',
@@ -27,7 +27,7 @@ export async function createCheckoutSession({
     throw new Error('Incomplete booking state for checkout');
   }
 
-  const lineItems = getPriceLineItems(bike_rental, duration_hours, addons);
+  const lineItems = getPriceLineItems(bike_rental, duration_hours, addons, bookingState.trail_type, bookingState.additional_participants);
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
@@ -48,11 +48,14 @@ export async function createCheckoutSession({
       booking_id: bookingId,
       customer_name: customer.name,
       customer_email: customer.email,
+      customer_phone: customer.phone ?? '',
       location: location_name ?? '',
       date: bookingState.date ?? '',
       time: bookingState.time_slot ?? '',
+      zip_code: customer.zip_code ?? '',
+      marketing_source: customer.marketing_source ?? '',
     },
-    success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingId}`,
+    success_url: successUrl,
     cancel_url: cancelUrl,
   });
 

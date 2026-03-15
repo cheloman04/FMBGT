@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useBooking } from '@/context/BookingContext';
 import type { AvailabilitySlot } from '@/types/booking';
@@ -21,10 +20,10 @@ function formatTime(time: string): string {
   return `${displayHour}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 
-// Get next 30 days
 function getDateRange(): { dateFrom: string; dateTo: string } {
   const today = new Date();
-  const future = new Date();
+  today.setDate(today.getDate() + 1);
+  const future = new Date(today);
   future.setDate(today.getDate() + 30);
   return {
     dateFrom: today.toISOString().split('T')[0],
@@ -32,11 +31,9 @@ function getDateRange(): { dateFrom: string; dateTo: string } {
   };
 }
 
-export default function Step5DateTimePage() {
-  const router = useRouter();
-  const { state, setDate, setTimeSlot } = useBooking();
+export function StepDateTime() {
+  const { state, setDate, setTimeSlot, goNext, goPrev } = useBooking();
 
-  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [grouped, setGrouped] = useState<Record<string, AvailabilitySlot[]>>({});
   const [selectedDate, setSelectedDate] = useState<string | undefined>(state.date);
   const [selectedTime, setSelectedTime] = useState<string | undefined>(state.time_slot);
@@ -49,12 +46,9 @@ export default function Step5DateTimePage() {
     fetch(`/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}`)
       .then((r) => r.json())
       .then((data) => {
-        const available = (data.slots as AvailabilitySlot[]) ?? [];
-        setSlots(available);
-
-        // Group by date
+        const slots = (data.slots as AvailabilitySlot[]) ?? [];
         const byDate: Record<string, AvailabilitySlot[]> = {};
-        for (const slot of available) {
+        for (const slot of slots) {
           if (!byDate[slot.date]) byDate[slot.date] = [];
           byDate[slot.date].push(slot);
         }
@@ -76,7 +70,7 @@ export default function Step5DateTimePage() {
     if (!selectedDate || !selectedTime) return;
     setDate(selectedDate);
     setTimeSlot(selectedTime);
-    router.push('/booking/step6-duration');
+    goNext();
   };
 
   const availableDates = Object.keys(grouped).filter(
@@ -86,27 +80,21 @@ export default function Step5DateTimePage() {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Select Date &amp; Time</h2>
-        <p className="text-gray-500 mt-1">Choose when you&apos;d like to ride.</p>
+        <h2 className="text-2xl font-bold text-foreground">Select Date &amp; Time</h2>
+        <p className="text-muted-foreground mt-1">Choose when you&apos;d like to ride.</p>
       </div>
 
-      <Button variant="ghost" onClick={() => router.back()} className="mb-4 text-gray-500">
+      <Button variant="ghost" onClick={goPrev} className="mb-4 text-muted-foreground">
         ← Back
       </Button>
 
-      {loading && (
-        <div className="text-center py-8 text-gray-500">Loading availability...</div>
-      )}
-
-      {error && (
-        <div className="text-center py-8 text-red-500">{error}</div>
-      )}
+      {loading && <div className="text-center py-8 text-muted-foreground">Loading availability...</div>}
+      {error && <div className="text-center py-8 text-destructive">{error}</div>}
 
       {!loading && !error && (
         <>
-          {/* Date selection */}
           <div className="mb-6">
-            <h3 className="font-medium text-gray-900 mb-3">Available Dates</h3>
+            <h3 className="font-medium text-foreground mb-3">Available Dates</h3>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {availableDates.map((date) => {
                 const d = new Date(date + 'T00:00:00');
@@ -116,22 +104,25 @@ export default function Step5DateTimePage() {
                     onClick={() => handleDateSelect(date)}
                     className={`p-2 rounded-lg border text-center text-sm transition-colors ${
                       selectedDate === date
-                        ? 'border-green-500 bg-green-50 text-green-700 font-medium'
-                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                        ? 'border-green-500 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 font-medium'
+                        : 'border-border hover:border-muted-foreground text-foreground'
                     }`}
                   >
-                    <div className="font-medium">{d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-                    <div className="text-xs text-gray-500">{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                    <div className="font-medium">
+                      {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Time selection */}
           {selectedDate && (
             <div className="mb-6">
-              <h3 className="font-medium text-gray-900 mb-3">
+              <h3 className="font-medium text-foreground mb-3">
                 Available Times — {formatDate(selectedDate)}
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -142,16 +133,14 @@ export default function Step5DateTimePage() {
                     onClick={() => slot.available && setSelectedTime(slot.time)}
                     className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
                       !slot.available
-                        ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
+                        ? 'border-border bg-muted text-muted-foreground cursor-not-allowed opacity-50'
                         : selectedTime === slot.time
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                        ? 'border-green-500 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300'
+                        : 'border-border hover:border-muted-foreground text-foreground'
                     }`}
                   >
                     {formatTime(slot.time)}
-                    {!slot.available && (
-                      <div className="text-xs mt-0.5">Booked</div>
-                    )}
+                    {!slot.available && <div className="text-xs mt-0.5">Booked</div>}
                   </button>
                 ))}
               </div>

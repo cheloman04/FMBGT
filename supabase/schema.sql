@@ -29,17 +29,24 @@ CREATE TABLE IF NOT EXISTS locations (
 );
 
 INSERT INTO locations (name, tour_type, skill_levels) VALUES
-  ('Blue Springs', 'paved', NULL),
-  ('Sanford', 'paved', NULL),
-  ('Mount Dora', 'paved', NULL),
-  ('Spruce Creek', 'paved', NULL),
-  ('Orlando MTB Park', 'mtb', ARRAY['beginner', 'intermediate', 'advanced']),
-  ('Soldiers Creek', 'mtb', ARRAY['first_time', 'beginner', 'intermediate']),
-  ('Markham Woods', 'mtb', ARRAY['intermediate', 'advanced']),
-  ('Snow Hill', 'mtb', ARRAY['beginner', 'intermediate']),
-  ('Riverbend', 'mtb', ARRAY['first_time', 'beginner']),
-  ('Santos Trailhead', 'mtb', ARRAY['intermediate', 'advanced']),
-  ('Graham Swamp', 'mtb', ARRAY['advanced']);
+  -- Paved
+  ('Sanford Historic Riverfront Tour',                     'paved', NULL),
+  ('Spring to Spring Trail Tour – Blue Spring State Park', 'paved', NULL),
+  -- MTB: First Time
+  ('Lake Druid Park, Orlando',                             'mtb', ARRAY['first_time']),
+  ('Soldiers Creek Park, Longwood (First Time)',            'mtb', ARRAY['first_time']),
+  -- MTB: Beginner
+  ('Markham Woods Trail, Lake Mary',                       'mtb', ARRAY['beginner']),
+  ('Little Big Econ Jones East – Snow Hill Rd, Chuluota',  'mtb', ARRAY['beginner']),
+  ('Soldiers Creek Park, Longwood',                        'mtb', ARRAY['beginner']),
+  -- MTB: Intermediate
+  ('Mount Dora Mountain Bike Trail, Mount Dora',           'mtb', ARRAY['intermediate']),
+  ('Chuck Lennon Mountain Bike Trailhead, DeLeon Springs', 'mtb', ARRAY['intermediate']),
+  ('River Bend, Ormond Beach',                             'mtb', ARRAY['intermediate']),
+  ('Doris Leeper Spruce Creek MTB Trailhead, Port Orange', 'mtb', ARRAY['intermediate']),
+  -- MTB: Advanced
+  ('Santos Trailhead, Ocala',                              'mtb', ARRAY['advanced']),
+  ('Graham Swamp East Trailhead MTB, Palm Coast',          'mtb', ARRAY['advanced']);
 
 -- =====================
 -- TOURS
@@ -57,8 +64,8 @@ CREATE TABLE IF NOT EXISTS tours (
 );
 
 INSERT INTO tours (name, type, base_duration_hours, base_price_no_bike, base_price_with_bike) VALUES
-  ('Paved Trail Guided Tour', 'paved', 2, 8900, 18900),
-  ('Mountain Bike Trail Guided Tour', 'mtb', 2, 8900, 18900);
+  ('Paved Trail Guided Tour',          'paved', 2,  11500, 11500),
+  ('Mountain Bike Trail Guided Tour',  'mtb',   2,   8900, 18900);
 
 -- =====================
 -- INVENTORY
@@ -113,6 +120,10 @@ CREATE TABLE IF NOT EXISTS bookings (
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'refunded')),
   waiver_accepted BOOLEAN DEFAULT FALSE,
   waiver_accepted_at TIMESTAMPTZ,
+
+  -- Marketing data
+  zip_code TEXT,
+  marketing_source TEXT,
 
   -- n8n webhook tracking
   webhook_sent BOOLEAN DEFAULT FALSE,

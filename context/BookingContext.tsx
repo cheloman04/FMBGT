@@ -1,11 +1,54 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import type { BookingState, TrailType, SkillLevel, BikeRental, Addons, DurationHours, Customer, PriceBreakdown } from '@/types/booking';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+} from 'react';
+import type {
+  BookingState,
+  TrailType,
+  SkillLevel,
+  BikeRental,
+  Addons,
+  DurationHours,
+  Customer,
+  PriceBreakdown,
+  AdditionalParticipant,
+} from '@/types/booking';
+import {
+  DEFAULT_STEP_ID,
+  getNextStepId,
+  getPrevStepId,
+  isStepActive,
+  type StepId,
+} from '@/lib/steps';
 
-// =====================
-// Actions
-// =====================
+// ─── Persistence ─────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'fmtg_booking_v1';
+
+type Persisted = {
+  booking: Omit<BookingState, 'price_breakdown'>;
+  stepId: StepId;
+};
+
+function loadPersisted(): Persisted {
+  if (typeof window === 'undefined') return { booking: {}, stepId: DEFAULT_STEP_ID };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Persisted) : { booking: {}, stepId: DEFAULT_STEP_ID };
+  } catch {
+    return { booking: {}, stepId: DEFAULT_STEP_ID };
+  }
+}
+
+// ─── Reducer ─────────────────────────────────────────────────────────────────
+
 type BookingAction =
   | { type: 'SET_TRAIL_TYPE'; payload: TrailType }
   | { type: 'SET_SKILL_LEVEL'; payload: SkillLevel }
@@ -19,22 +62,19 @@ type BookingAction =
   | { type: 'SET_WAIVER_ACCEPTED'; payload: boolean }
   | { type: 'SET_CUSTOMER'; payload: Customer }
   | { type: 'SET_PRICE_BREAKDOWN'; payload: PriceBreakdown }
+  | { type: 'SET_PARTICIPANTS'; payload: { count: number; additional: AdditionalParticipant[] } }
   | { type: 'SET_BOOKING_ID'; payload: string }
   | { type: 'RESET' };
 
-// =====================
-// Reducer
-// =====================
 function bookingReducer(state: BookingState, action: BookingAction): BookingState {
   switch (action.type) {
     case 'SET_TRAIL_TYPE':
-      // Reset downstream when trail type changes
-      return {
-        trail_type: action.payload,
-        skill_level: undefined,
-        location_id: undefined,
-        location_name: undefined,
-      };
+      // Changing trail type resets all downstream selections.
+      // For paved: bike is always included (standard) and duration is fixed at 2hrs.
+      if (action.payload === 'paved') {
+        return { trail_type: action.payload, bike_rental: 'standard', duration_hours: 2 };
+      }
+      return { trail_type: action.payload };
 
     case 'SET_SKILL_LEVEL':
       return {
@@ -42,6 +82,8 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
         skill_level: action.payload,
         location_id: undefined,
         location_name: undefined,
+        // First-time riders are locked to 2-hour tours; clear any prior duration choice for others
+        duration_hours: action.payload === 'first_time' ? 2 : undefined,
       };
 
     case 'SET_LOCATION':
@@ -82,6 +124,13 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
     case 'SET_PRICE_BREAKDOWN':
       return { ...state, price_breakdown: action.payload };
 
+    case 'SET_PARTICIPANTS':
+      return {
+        ...state,
+        participant_count: action.payload.count,
+        additional_participants: action.payload.additional,
+      };
+
     case 'SET_BOOKING_ID':
       return { ...state, booking_id: action.payload };
 
@@ -93,11 +142,17 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
   }
 }
 
-// =====================
-// Context
-// =====================
+// ─── Context Interface ────────────────────────────────────────────────────────
+
 interface BookingContextValue {
   state: BookingState;
+  currentStepId: StepId;
+
+  // Step navigation
+  goNext: (stateOverride?: BookingState) => void;
+  goPrev: () => void;
+
+  // Booking data setters
   setTrailType: (type: TrailType) => void;
   setSkillLevel: (level: SkillLevel) => void;
   setLocation: (id: string, name: string) => void;
@@ -110,34 +165,134 @@ interface BookingContextValue {
   setWaiverAccepted: (accepted: boolean) => void;
   setCustomer: (customer: Customer) => void;
   setPriceBreakdown: (breakdown: PriceBreakdown) => void;
+  setParticipants: (count: number, additional: AdditionalParticipant[]) => void;
   setBookingId: (id: string) => void;
   reset: () => void;
 }
 
 const BookingContext = createContext<BookingContextValue | null>(null);
 
-export function BookingProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(bookingReducer, {});
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
-  const setTrailType = useCallback((type: TrailType) => dispatch({ type: 'SET_TRAIL_TYPE', payload: type }), []);
-  const setSkillLevel = useCallback((level: SkillLevel) => dispatch({ type: 'SET_SKILL_LEVEL', payload: level }), []);
-  const setLocation = useCallback((id: string, name: string) => dispatch({ type: 'SET_LOCATION', payload: { id, name } }), []);
-  const setBikeRental = useCallback((rental: BikeRental) => dispatch({ type: 'SET_BIKE_RENTAL', payload: rental }), []);
-  const setRiderHeight = useCallback((inches: number) => dispatch({ type: 'SET_RIDER_HEIGHT', payload: inches }), []);
-  const setDate = useCallback((date: string) => dispatch({ type: 'SET_DATE', payload: date }), []);
-  const setTimeSlot = useCallback((time: string) => dispatch({ type: 'SET_TIME_SLOT', payload: time }), []);
-  const setDuration = useCallback((hours: DurationHours) => dispatch({ type: 'SET_DURATION', payload: hours }), []);
-  const setAddons = useCallback((addons: Addons) => dispatch({ type: 'SET_ADDONS', payload: addons }), []);
-  const setWaiverAccepted = useCallback((accepted: boolean) => dispatch({ type: 'SET_WAIVER_ACCEPTED', payload: accepted }), []);
-  const setCustomer = useCallback((customer: Customer) => dispatch({ type: 'SET_CUSTOMER', payload: customer }), []);
-  const setPriceBreakdown = useCallback((breakdown: PriceBreakdown) => dispatch({ type: 'SET_PRICE_BREAKDOWN', payload: breakdown }), []);
-  const setBookingId = useCallback((id: string) => dispatch({ type: 'SET_BOOKING_ID', payload: id }), []);
-  const reset = useCallback(() => dispatch({ type: 'RESET' }), []);
+export function BookingProvider({ children }: { children: React.ReactNode }) {
+  // Load initial state from localStorage once on mount
+  const initial = useMemo(() => loadPersisted(), []);
+
+  const [state, dispatch] = useReducer(bookingReducer, initial.booking as BookingState);
+  const [currentStepId, setCurrentStepId] = useState<StepId>(initial.stepId);
+
+  // Keep localStorage in sync — exclude derived price_breakdown
+  useEffect(() => {
+    const { price_breakdown, ...booking } = state;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ booking, stepId: currentStepId }));
+    } catch {
+      // quota exceeded or private browsing — fail silently
+    }
+  }, [state, currentStepId]);
+
+  // If persisted currentStepId is no longer in active steps (e.g. user was on
+  // 'skill' with mtb, cleared cache, restored with paved), snap back to 'trail'.
+  useEffect(() => {
+    if (!isStepActive(currentStepId, state)) {
+      setCurrentStepId(DEFAULT_STEP_ID);
+    }
+  }, [currentStepId, state]);
+
+  // ─── Navigation ────────────────────────────────────────────────────────────
+
+  const goNext = useCallback((stateOverride?: BookingState) => {
+    setCurrentStepId((prev) => {
+      const next = getNextStepId(prev, stateOverride ?? state);
+      return next ?? prev;
+    });
+  }, [state]);
+
+  const goPrev = useCallback(() => {
+    setCurrentStepId((prev) => {
+      const previous = getPrevStepId(prev, state);
+      return previous ?? prev;
+    });
+  }, [state]);
+
+  // ─── Booking Data Setters ───────────────────────────────────────────────────
+
+  const setTrailType = useCallback(
+    (type: TrailType) => dispatch({ type: 'SET_TRAIL_TYPE', payload: type }),
+    []
+  );
+  const setSkillLevel = useCallback(
+    (level: SkillLevel) => dispatch({ type: 'SET_SKILL_LEVEL', payload: level }),
+    []
+  );
+  const setLocation = useCallback(
+    (id: string, name: string) => dispatch({ type: 'SET_LOCATION', payload: { id, name } }),
+    []
+  );
+  const setBikeRental = useCallback(
+    (rental: BikeRental) => dispatch({ type: 'SET_BIKE_RENTAL', payload: rental }),
+    []
+  );
+  const setRiderHeight = useCallback(
+    (inches: number) => dispatch({ type: 'SET_RIDER_HEIGHT', payload: inches }),
+    []
+  );
+  const setDate = useCallback(
+    (date: string) => dispatch({ type: 'SET_DATE', payload: date }),
+    []
+  );
+  const setTimeSlot = useCallback(
+    (time: string) => dispatch({ type: 'SET_TIME_SLOT', payload: time }),
+    []
+  );
+  const setDuration = useCallback(
+    (hours: DurationHours) => dispatch({ type: 'SET_DURATION', payload: hours }),
+    []
+  );
+  const setAddons = useCallback(
+    (addons: Addons) => dispatch({ type: 'SET_ADDONS', payload: addons }),
+    []
+  );
+  const setWaiverAccepted = useCallback(
+    (accepted: boolean) => dispatch({ type: 'SET_WAIVER_ACCEPTED', payload: accepted }),
+    []
+  );
+  const setCustomer = useCallback(
+    (customer: Customer) => dispatch({ type: 'SET_CUSTOMER', payload: customer }),
+    []
+  );
+  const setPriceBreakdown = useCallback(
+    (breakdown: PriceBreakdown) => dispatch({ type: 'SET_PRICE_BREAKDOWN', payload: breakdown }),
+    []
+  );
+  const setParticipants = useCallback(
+    (count: number, additional: AdditionalParticipant[]) =>
+      dispatch({ type: 'SET_PARTICIPANTS', payload: { count, additional } }),
+    []
+  );
+
+  const setBookingId = useCallback(
+    (id: string) => dispatch({ type: 'SET_BOOKING_ID', payload: id }),
+    []
+  );
+
+  const reset = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    setCurrentStepId(DEFAULT_STEP_ID);
+    dispatch({ type: 'RESET' });
+  }, []);
 
   return (
     <BookingContext.Provider
       value={{
         state,
+        currentStepId,
+        goNext,
+        goPrev,
         setTrailType,
         setSkillLevel,
         setLocation,
@@ -150,6 +305,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         setWaiverAccepted,
         setCustomer,
         setPriceBreakdown,
+        setParticipants,
         setBookingId,
         reset,
       }}
@@ -158,6 +314,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     </BookingContext.Provider>
   );
 }
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useBooking(): BookingContextValue {
   const context = useContext(BookingContext);

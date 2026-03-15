@@ -39,20 +39,29 @@ export interface Addons {
   electric_upgrade?: boolean;
 }
 
+export interface AdditionalParticipant {
+  name: string;
+  bike_rental?: BikeRental;  // MTB only; paved always 'standard'
+  height_inches?: number;    // required if renting (or paved)
+}
+
 export interface Customer {
   id?: string;
   name: string;
   email: string;
   phone?: string;
   height_inches?: number;
+  zip_code?: string;
+  marketing_source?: string;
 }
 
 export interface PriceBreakdown {
-  base_price: number;       // in cents
-  duration_surcharge: number; // in cents
-  addons_price: number;     // in cents
-  total: number;            // in cents
+  base_price: number;         // in cents — total base for all participants
+  duration_surcharge: number; // in cents — total duration surcharge for all participants
+  addons_price: number;       // in cents — total addons for all participants
+  total: number;              // in cents
   currency: 'usd';
+  participant_count?: number; // for display
 }
 
 export interface InventoryStatus {
@@ -76,6 +85,8 @@ export interface BookingState {
   // Step 4
   bike_rental?: BikeRental;
   rider_height_inches?: number;
+  participant_count?: number;                        // total riders incl. lead (default 1)
+  additional_participants?: AdditionalParticipant[]; // riders 2..N
 
   // Step 5
   date?: string; // ISO date string YYYY-MM-DD

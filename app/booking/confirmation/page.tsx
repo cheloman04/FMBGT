@@ -1,87 +1,78 @@
-'use client';
+import { Suspense } from 'react';
+import { getSupabaseAdmin, type Database } from '@/lib/supabase';
+import { ConfirmationClient } from './ConfirmationClient';
 
-import { useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { buttonVariants } from '@/components/ui/button';
-import { useBooking } from '@/context/BookingContext';
-import { cn } from '@/lib/utils';
+type BookingRow = Database['public']['Tables']['bookings']['Row'];
 
-function ConfirmationContent() {
-  const searchParams = useSearchParams();
-  const { reset } = useBooking();
-  const bookingId = searchParams.get('booking_id');
-
-  useEffect(() => {
-    // Reset booking state after confirmation
-    return () => {
-      reset();
-    };
-  }, [reset]);
-
-  return (
-    <div className="text-center py-12">
-      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
-      </div>
-
-      <h2 className="text-3xl font-bold text-gray-900 mb-2">Booking Confirmed!</h2>
-      <p className="text-gray-500 mb-2">
-        Your guided tour is booked. Get ready to ride!
-      </p>
-
-      {bookingId && (
-        <p className="text-sm text-gray-400 mb-6">
-          Booking ID: <span className="font-mono font-medium text-gray-600">{bookingId}</span>
-        </p>
-      )}
-
-      <div className="bg-green-50 border border-green-200 rounded-lg p-5 max-w-md mx-auto mb-8 text-left">
-        <h3 className="font-semibold text-green-900 mb-3">What happens next?</h3>
-        <ul className="space-y-2 text-sm text-green-800">
-          <li className="flex items-start gap-2">
-            <span className="mt-0.5">📧</span>
-            <span>A confirmation email has been sent to you with your booking details.</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="mt-0.5">📅</span>
-            <span>A calendar invite will be sent so you don&apos;t forget your ride.</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="mt-0.5">📞</span>
-            <span>Our team will reach out 24 hours before your tour with meeting point details.</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="mt-0.5">🚴</span>
-            <span>Wear comfortable clothing and closed-toe shoes. Helmets are provided.</span>
-          </li>
-        </ul>
-      </div>
-
-      <div className="flex gap-3 justify-center">
-        <Link
-          href="/booking/step1-trail"
-          className={cn(buttonVariants({ variant: 'outline' }))}
-        >
-          Book Another Tour
-        </Link>
-        <a
-          href="https://floridamtbguidedtours.com"
-          className={cn(buttonVariants({ variant: 'default' }), 'bg-green-600 hover:bg-green-700 text-white')}
-        >
-          Return to Website
-        </a>
-      </div>
-    </div>
-  );
+interface PageProps {
+  searchParams: Promise<{ booking_id?: string; session_id?: string }>;
 }
 
-export default function ConfirmationPage() {
+async function getBookingDetails(bookingId: string) {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { data: rawBooking, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', bookingId)
+      .single();
+
+    if (error || !rawBooking) return null;
+    const booking = rawBooking as BookingRow;
+
+    // Fetch location name via FK
+    let locationName: string | null = null;
+    if (booking.location_id) {
+      const { data: loc } = await supabase
+        .from('locations')
+        .select('name')
+        .eq('id', booking.location_id)
+        .single();
+      locationName = loc?.name ?? null;
+    }
+
+    // Fetch customer details
+    let customerName: string | null = null;
+    let customerEmail: string | null = null;
+    if (booking.customer_id) {
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('name, email')
+        .eq('id', booking.customer_id)
+        .single();
+      customerName = customer?.name ?? null;
+      customerEmail = customer?.email ?? null;
+    }
+
+    return {
+      id: booking.id,
+      trail_type: booking.trail_type,
+      location_name: locationName,
+      date: booking.date,
+      time_slot: booking.time_slot,
+      duration_hours: booking.duration_hours,
+      bike_rental: booking.bike_rental,
+      addons: (booking.addons ?? {}) as Record<string, boolean>,
+      participant_count: booking.participant_count ?? 1,
+      participant_info: (booking.participant_info ?? []) as Array<{ name: string; bike_rental?: string }>,
+      total_price: booking.total_price,
+      status: booking.status,
+      customer_name: customerName,
+      customer_email: customerEmail,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export default async function ConfirmationPage({ searchParams }: PageProps) {
+  const { booking_id } = await searchParams;
+  const booking = booking_id ? await getBookingDetails(booking_id) : null;
+
   return (
-    <Suspense fallback={<div className="text-center py-12 text-gray-500">Loading...</div>}>
-      <ConfirmationContent />
+    <Suspense fallback={<div className="text-center py-12 text-muted-foreground">Loading...</div>}>
+      <ConfirmationClient booking={booking} bookingId={booking_id ?? null} />
     </Suspense>
   );
 }

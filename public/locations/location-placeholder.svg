@@ -1,0 +1,13 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="900" fill="#E9EFE8"/>
+  <rect y="555" width="1200" height="345" fill="#7E8F78"/>
+  <path d="M0 590L170 412L325 553L505 352L720 579L905 424L1200 626V900H0V590Z" fill="#A0B29B"/>
+  <circle cx="970" cy="168" r="74" fill="#F9E7A6"/>
+  <path d="M304 690C356 604 406 561 456 561C512 561 566 621 616 744" stroke="#1F3D2D" stroke-width="25" stroke-linecap="round"/>
+  <circle cx="396" cy="521" r="33" fill="#1F3D2D"/>
+  <path d="M290 642L380 595L443 630" stroke="#1F3D2D" stroke-width="18" stroke-linecap="round"/>
+  <path d="M385 596L470 559L544 607" stroke="#1F3D2D" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="312" cy="744" r="70" stroke="#1F3D2D" stroke-width="22"/>
+  <circle cx="585" cy="744" r="70" stroke="#1F3D2D" stroke-width="22"/>
+  <text x="70" y="804" fill="#233528" font-family="Arial, sans-serif" font-size="44" font-weight="700">Add your trail photo in /public/locations</text>
+</svg>
