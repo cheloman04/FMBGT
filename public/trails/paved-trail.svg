@@ -1,0 +1,47 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sky -->
+  <rect width="1200" height="900" fill="#D6EAF8"/>
+  <!-- Sun -->
+  <circle cx="1050" cy="160" r="80" fill="#FFF1B8"/>
+  <!-- Clouds -->
+  <ellipse cx="220" cy="180" rx="90" ry="40" fill="white" opacity="0.8"/>
+  <ellipse cx="290" cy="165" rx="70" ry="35" fill="white" opacity="0.8"/>
+  <ellipse cx="150" cy="195" rx="65" ry="30" fill="white" opacity="0.8"/>
+  <ellipse cx="620" cy="140" rx="80" ry="34" fill="white" opacity="0.7"/>
+  <ellipse cx="700" cy="128" rx="60" ry="28" fill="white" opacity="0.7"/>
+  <!-- Ground / grass -->
+  <rect y="560" width="1200" height="340" fill="#7EBE6A"/>
+  <!-- Horizon grass wave -->
+  <path d="M0 540C200 500 400 520 600 510C800 500 1000 530 1200 510V600H0Z" fill="#6BAD58"/>
+  <!-- Paved road -->
+  <path d="M0 720L180 600H1020L1200 720V900H0Z" fill="#8A9BAD"/>
+  <path d="M0 900V730L170 610H200L20 740V900Z" fill="#7A8B9D"/>
+  <!-- Road center dashes -->
+  <rect x="540" y="660" width="120" height="16" rx="8" fill="#F5D05A" opacity="0.85"/>
+  <rect x="390" y="710" width="130" height="16" rx="8" fill="#F5D05A" opacity="0.85"/>
+  <rect x="680" y="710" width="130" height="16" rx="8" fill="#F5D05A" opacity="0.85"/>
+  <!-- Road edge lines -->
+  <path d="M130 900L310 610" stroke="#C8D6E2" stroke-width="5" opacity="0.6"/>
+  <path d="M1070 900L890 610" stroke="#C8D6E2" stroke-width="5" opacity="0.6"/>
+  <!-- Palm tree left -->
+  <rect x="118" y="390" width="18" height="200" rx="9" fill="#7A5C3A"/>
+  <path d="M127 395C80 340 40 310 10 320C35 365 80 380 127 395Z" fill="#4DAD5B"/>
+  <path d="M127 395C170 330 210 305 250 318C220 368 175 382 127 395Z" fill="#5EC46B"/>
+  <path d="M127 390C100 320 110 270 140 250C158 290 155 348 127 390Z" fill="#53B861"/>
+  <!-- Palm tree right -->
+  <rect x="1060" y="370" width="18" height="210" rx="9" fill="#7A5C3A"/>
+  <path d="M1069 375C1022 318 982 290 952 302C978 348 1022 364 1069 375Z" fill="#4DAD5B"/>
+  <path d="M1069 375C1116 308 1156 283 1196 296C1166 348 1121 362 1069 375Z" fill="#5EC46B"/>
+  <path d="M1069 370C1042 298 1052 248 1082 228C1100 268 1097 328 1069 370Z" fill="#53B861"/>
+  <!-- Small tree mid-left -->
+  <rect x="290" y="460" width="14" height="130" rx="7" fill="#7A5C3A"/>
+  <circle cx="297" cy="440" r="50" fill="#5AB868"/>
+  <circle cx="270" cy="458" r="36" fill="#4DAD5B"/>
+  <circle cx="324" cy="452" r="38" fill="#62C071"/>
+  <!-- Small tree mid-right -->
+  <rect x="890" y="460" width="14" height="130" rx="7" fill="#7A5C3A"/>
+  <circle cx="897" cy="440" r="50" fill="#5AB868"/>
+  <circle cx="870" cy="458" r="36" fill="#4DAD5B"/>
+  <circle cx="924" cy="452" r="38" fill="#62C071"/>
+  <!-- Label -->
+</svg>

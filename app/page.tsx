@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import FloridaMountainBikeGuidesLanding from '@/components/landing/FloridaMountainBikeGuidesLanding';
 
 export default function HomePage() {
-  redirect('/booking');
+  return <FloridaMountainBikeGuidesLanding />;
 }

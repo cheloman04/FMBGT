@@ -1,0 +1,35 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sky -->
+  <rect width="1200" height="900" fill="#C8DCCC"/>
+  <!-- Distant hills -->
+  <path d="M0 550L180 380L360 550Z" fill="#7AAA72"/>
+  <path d="M250 550L480 300L720 550Z" fill="#6E9E66"/>
+  <path d="M600 550L820 340L1040 550Z" fill="#7AAA72"/>
+  <path d="M900 550L1100 380L1200 480V550Z" fill="#6E9E66"/>
+  <!-- Ground -->
+  <rect y="540" width="1200" height="360" fill="#6A9E58"/>
+  <!-- Ground wave -->
+  <path d="M0 520C200 480 400 510 600 498C800 486 1000 515 1200 498V580H0Z" fill="#5C9048"/>
+  <!-- Technical trail with climbs -->
+  <path d="M0 880C60 830 120 800 220 780C340 755 380 730 420 700C460 670 480 650 500 640C520 630 540 635 570 650C600 665 620 660 660 640C700 620 740 600 800 590C860 580 920 600 980 630C1040 660 1100 700 1200 730V900H0Z" fill="#B89060"/>
+  <path d="M0 880C60 830 120 800 220 780C340 755 380 730 420 700C460 670 480 650 500 640C520 630 540 635 570 650C600 665 620 660 660 640C700 620 740 600 800 590C860 580 920 600 980 630C1040 660 1100 700 1200 730" stroke="#A07848" stroke-width="10" fill="none"/>
+  <!-- Roots across trail -->
+  <path d="M340 758C360 745 380 752 400 742" stroke="#6B4A28" stroke-width="7" stroke-linecap="round"/>
+  <path d="M660 638C680 628 700 634 720 622" stroke="#6B4A28" stroke-width="6" stroke-linecap="round"/>
+  <path d="M880 592C900 582 920 588 940 578" stroke="#6B4A28" stroke-width="6" stroke-linecap="round"/>
+  <!-- Rocks -->
+  <ellipse cx="460" cy="680" rx="20" ry="13" fill="#8A7A62"/>
+  <ellipse cx="750" cy="600" rx="18" ry="11" fill="#8A7A62"/>
+  <!-- Trees -->
+  <rect x="60" y="420" width="14" height="160" fill="#5C3D22"/>
+  <polygon points="67,320 18,458 116,458" fill="#3A7A3A"/>
+  <polygon points="67,360 25,468 109,468" fill="#458245"/>
+  <rect x="160" y="440" width="12" height="140" fill="#5C3D22"/>
+  <polygon points="166,345 122,468 210,468" fill="#3A7A3A"/>
+  <rect x="1060" y="420" width="14" height="160" fill="#5C3D22"/>
+  <polygon points="1067,320 1018,458 1116,458" fill="#3A7A3A"/>
+  <polygon points="1067,360 1025,468 1109,468" fill="#458245"/>
+  <rect x="960" y="440" width="12" height="140" fill="#5C3D22"/>
+  <polygon points="966,345 922,468 1010,468" fill="#3A7A3A"/>
+  <!-- Label -->
+</svg>

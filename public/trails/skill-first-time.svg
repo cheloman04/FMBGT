@@ -1,0 +1,37 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sky -->
+  <rect width="1200" height="900" fill="#E8F5E0"/>
+  <!-- Sun -->
+  <circle cx="1060" cy="150" r="75" fill="#FFF1B8"/>
+  <!-- Soft clouds -->
+  <ellipse cx="280" cy="170" rx="100" ry="42" fill="white" opacity="0.9"/>
+  <ellipse cx="360" cy="155" rx="80" ry="36" fill="white" opacity="0.9"/>
+  <ellipse cx="200" cy="190" rx="70" ry="32" fill="white" opacity="0.9"/>
+  <!-- Flat ground -->
+  <rect y="600" width="1200" height="300" fill="#82C06A"/>
+  <!-- Very gentle rolling terrain -->
+  <path d="M0 570C150 540 350 555 550 550C750 545 950 558 1200 545V640H0Z" fill="#72AE5C"/>
+  <!-- Smooth flat trail -->
+  <path d="M0 780L1200 780" stroke="#D4B483" stroke-width="60" fill="none"/>
+  <path d="M0 780L1200 780" stroke="#C4A070" stroke-width="40" fill="none"/>
+  <!-- Center trail line -->
+  <path d="M0 780L1200 780" stroke="#B89060" stroke-width="4" stroke-dasharray="40 30" fill="none" opacity="0.5"/>
+  <!-- Gentle flowers / grass -->
+  <circle cx="200" cy="660" r="8" fill="#F5C842"/>
+  <circle cx="400" cy="645" r="7" fill="#F0A8B0"/>
+  <circle cx="700" cy="658" r="9" fill="#F5C842"/>
+  <circle cx="950" cy="650" r="7" fill="#A8D8A8"/>
+  <circle cx="1100" cy="660" r="8" fill="#F0A8B0"/>
+  <!-- Simple trees (round friendly) -->
+  <rect x="140" y="420" width="16" height="180" rx="8" fill="#7A5C3A"/>
+  <circle cx="148" cy="400" r="65" fill="#5ABE6A"/>
+  <circle cx="118" cy="420" r="48" fill="#4DAD5B"/>
+  <circle cx="178" cy="418" r="50" fill="#62C071"/>
+  <rect x="1040" y="420" width="16" height="180" rx="8" fill="#7A5C3A"/>
+  <circle cx="1048" cy="400" r="65" fill="#5ABE6A"/>
+  <circle cx="1018" cy="420" r="48" fill="#4DAD5B"/>
+  <circle cx="1078" cy="418" r="50" fill="#62C071"/>
+  <!-- Rider silhouette (simple) -->
+  <circle cx="600" cy="700" r="22" fill="#3A5A3A" opacity="0.2"/>
+  <!-- Leaf accents -->
+</svg>

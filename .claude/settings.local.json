@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(node -e \"require\\(''@upstash/redis''\\); console.log\\(''ok''\\)\")",
+      "Bash(npx vercel:*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

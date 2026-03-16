@@ -1,0 +1,40 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sky — dramatic -->
+  <rect width="1200" height="900" fill="#B8CCD4"/>
+  <!-- Dramatic mountains -->
+  <path d="M-20 680L220 200L460 680Z" fill="#687A88"/>
+  <path d="M200 680L520 100L840 680Z" fill="#566878"/>
+  <path d="M650 680L920 220L1220 680Z" fill="#607080"/>
+  <!-- Snow caps -->
+  <path d="M520 100L470 240L572 240Z" fill="white" opacity="0.9"/>
+  <path d="M220 200L188 300L252 300Z" fill="white" opacity="0.8"/>
+  <path d="M920 220L892 308L948 308Z" fill="white" opacity="0.8"/>
+  <!-- Ground -->
+  <rect y="660" width="1200" height="240" fill="#556A50"/>
+  <!-- Ground wave -->
+  <path d="M0 640C180 600 380 628 600 615C820 602 1020 630 1200 615V700H0Z" fill="#486040"/>
+  <!-- Steep technical trail with drops -->
+  <path d="M0 900L80 820L160 750L200 720L230 660L240 620L260 610L290 625L320 660L380 720L440 760L520 780L580 760L620 700L640 640L660 610L680 600L700 610L730 640L780 700L860 760L960 790L1060 760L1140 700L1200 660V900Z" fill="#A87848"/>
+  <path d="M0 900L80 820L160 750L200 720L230 660L240 620L260 610L290 625L320 660L380 720L440 760L520 780L580 760L620 700L640 640L660 610L680 600L700 610L730 640L780 700L860 760L960 790L1060 760L1140 700L1200 660" stroke="#906030" stroke-width="8" fill="none"/>
+  <!-- Drop feature -->
+  <rect x="238" y="610" width="22" height="30" rx="3" fill="#7A5030"/>
+  <rect x="660" y="600" width="22" height="28" rx="3" fill="#7A5030"/>
+  <!-- Rocks on trail -->
+  <ellipse cx="300" cy="648" rx="18" ry="12" fill="#7A6A55"/>
+  <ellipse cx="600" cy="762" rx="22" ry="14" fill="#7A6A55"/>
+  <ellipse cx="850" cy="756" rx="16" ry="10" fill="#7A6A55"/>
+  <!-- Bold roots -->
+  <path d="M420 755C445 740 468 748 490 736" stroke="#4A3015" stroke-width="9" stroke-linecap="round"/>
+  <path d="M740 700C762 688 782 695 802 683" stroke="#4A3015" stroke-width="8" stroke-linecap="round"/>
+  <!-- Dark pines -->
+  <rect x="40" y="540" width="14" height="150" fill="#3A2810"/>
+  <polygon points="47,430 0,578 94,578" fill="#2A5A2A"/>
+  <polygon points="47,480 8,590 86,590" fill="#336633"/>
+  <rect x="130" y="560" width="12" height="130" fill="#3A2810"/>
+  <polygon points="136,455 92,578 180,578" fill="#2A5A2A"/>
+  <rect x="1060" y="540" width="14" height="150" fill="#3A2810"/>
+  <polygon points="1067,430 1020,578 1114,578" fill="#2A5A2A"/>
+  <polygon points="1067,480 1028,590 1106,590" fill="#336633"/>
+  <rect x="1050" y="560" width="12" height="130" fill="#3A2810"/>
+  <!-- Label -->
+</svg>

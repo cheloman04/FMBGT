@@ -1,0 +1,36 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sky -->
+  <rect width="1200" height="900" fill="#D6EDD8"/>
+  <!-- Sun -->
+  <circle cx="160" cy="160" r="68" fill="#FFF1B8"/>
+  <!-- Gentle rolling hills background -->
+  <path d="M0 560C120 500 260 490 400 510C540 530 680 480 840 500C1000 520 1120 490 1200 480V620H0Z" fill="#6BAA58"/>
+  <!-- Ground -->
+  <rect y="610" width="1200" height="290" fill="#78B865"/>
+  <!-- Easy undulating trail -->
+  <path d="M0 820C150 790 280 810 420 800C560 790 680 815 820 805C960 795 1080 820 1200 810V870H0Z" fill="#C8A46A"/>
+  <path d="M0 820C150 790 280 810 420 800C560 790 680 815 820 805C960 795 1080 820 1200 810" stroke="#B8935A" stroke-width="12" fill="none"/>
+  <!-- Small bump -->
+  <path d="M520 800C560 760 620 755 660 800" stroke="#A88348" stroke-width="8" fill="none"/>
+  <!-- Scattered rocks -->
+  <ellipse cx="320" cy="808" rx="16" ry="10" fill="#9A8870"/>
+  <ellipse cx="840" cy="810" rx="14" ry="9" fill="#9A8870"/>
+  <!-- Forest left -->
+  <rect x="60" y="450" width="14" height="180" fill="#6B4A28"/>
+  <polygon points="67,350 15,495 119,495" fill="#3E7840"/>
+  <polygon points="67,390 22,505 112,505" fill="#4A8F4A"/>
+  <rect x="160" y="470" width="12" height="160" fill="#6B4A28"/>
+  <polygon points="166,375 118,505 214,505" fill="#3E7840"/>
+  <!-- Forest right -->
+  <rect x="1120" y="450" width="14" height="180" fill="#6B4A28"/>
+  <polygon points="1127,350 1075,495 1179,495" fill="#3E7840"/>
+  <polygon points="1127,390 1082,505 1172,505" fill="#4A8F4A"/>
+  <rect x="1020" y="470" width="12" height="160" fill="#6B4A28"/>
+  <polygon points="1026,375 978,505 1074,505" fill="#3E7840"/>
+  <!-- Mid trees -->
+  <rect x="390" y="490" width="12" height="145" fill="#6B4A28"/>
+  <polygon points="396,400 352,518 440,518" fill="#458245"/>
+  <rect x="790" y="490" width="12" height="145" fill="#6B4A28"/>
+  <polygon points="796,400 752,518 840,518" fill="#458245"/>
+  <!-- Label -->
+</svg>

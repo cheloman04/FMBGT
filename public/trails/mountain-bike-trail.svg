@@ -1,0 +1,39 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sky -->
+  <rect width="1200" height="900" fill="#C8DCEA"/>
+  <!-- Sun -->
+  <circle cx="200" cy="140" r="70" fill="#FFF1B8"/>
+  <!-- Mountains back -->
+  <path d="M0 620L220 220L440 620Z" fill="#8FAEC2"/>
+  <path d="M300 620L580 160L860 620Z" fill="#7A9DB5"/>
+  <path d="M700 620L960 240L1200 620Z" fill="#8FAEC2"/>
+  <!-- Mountain snow caps -->
+  <path d="M580 160L540 280L620 280Z" fill="white" opacity="0.85"/>
+  <path d="M220 220L188 320L252 320Z" fill="white" opacity="0.75"/>
+  <path d="M960 240L930 330L990 330Z" fill="white" opacity="0.75"/>
+  <!-- Ground -->
+  <rect y="600" width="1200" height="300" fill="#6B8F5A"/>
+  <!-- Ground wave -->
+  <path d="M0 580C200 540 420 570 600 558C780 546 980 575 1200 555V640H0Z" fill="#5E8050"/>
+  <!-- Dirt trail -->
+  <path d="M0 900C80 820 200 760 340 710C480 660 560 650 600 648C640 646 720 660 860 710C1000 760 1120 820 1200 900" stroke="#C8A96E" stroke-width="52" stroke-linecap="round" fill="none"/>
+  <path d="M0 900C80 820 200 760 340 710C480 660 560 650 600 648C640 646 720 660 860 710C1000 760 1120 820 1200 900" stroke="#B89758" stroke-width="36" stroke-linecap="round" fill="none"/>
+  <!-- Rocks on trail -->
+  <ellipse cx="400" cy="740" rx="22" ry="14" fill="#9A8A72"/>
+  <ellipse cx="780" cy="740" rx="18" ry="12" fill="#9A8A72"/>
+  <ellipse cx="600" cy="660" rx="14" ry="9" fill="#9A8A72"/>
+  <!-- Pine trees left -->
+  <rect x="80" y="520" width="14" height="120" fill="#5C3D22"/>
+  <polygon points="87,420 30,580 144,580" fill="#3A7A3A"/>
+  <polygon points="87,460 40,590 134,590" fill="#4A8F4A"/>
+  <!-- Pine trees right -->
+  <rect x="1100" y="520" width="14" height="120" fill="#5C3D22"/>
+  <polygon points="1107,420 1050,580 1164,580" fill="#3A7A3A"/>
+  <polygon points="1107,460 1060,590 1154,590" fill="#4A8F4A"/>
+  <!-- Mid pine -->
+  <rect x="190" y="545" width="12" height="100" fill="#5C3D22"/>
+  <polygon points="196,460 148,570 244,570" fill="#3D7A3D"/>
+  <rect x="990" y="545" width="12" height="100" fill="#5C3D22"/>
+  <polygon points="996,460 948,570 1044,570" fill="#3D7A3D"/>
+  <!-- Label -->
+</svg>
