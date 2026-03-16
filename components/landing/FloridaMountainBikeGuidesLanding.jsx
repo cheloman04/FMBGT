@@ -367,8 +367,8 @@ export default function FloridaMountainBikeGuidesLanding() {
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Interactive Map"
-              title="A map-led section designed for discovery, booking, and local context"
-              text="This section is intentionally built to be replaced by a real interactive map Claude Code can generate later. For now, it sells the idea while keeping the design premium and conversion-friendly."
+              title="Explore Our Central Florida Trails"
+              text="Discover where your next ride begins. Our guided tours take you through some of Central Florida's most scenic routes—from riverfront paths in historic Sanford to nature-filled trails near Blue Spring and beyond. Use the map to explore locations, see trail highlights, and find the perfect ride for your adventure. 🚵‍♂️"
             />
 
             <div className="mt-12">
@@ -495,8 +495,8 @@ export default function FloridaMountainBikeGuidesLanding() {
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Photo Gallery"
-              title="A visual section designed to feel active, warm, and modern"
-              text="Replace these placeholders with real client photography. The layout already supports a premium gallery vibe similar to a modern outdoor travel brand."
+              title="Trail Moments & Florida Ride Experiences"
+              text="A glimpse into the rides, landscapes, and unforgettable moments that make every tour unique. From shaded singletrack and scenic riverfront paths to crystal-clear springs and friendly trail stops, these photos capture the spirit of riding Central Florida with Florida Mountain Bike Guides."
             />
 
             <motion.div
@@ -540,10 +540,10 @@ export default function FloridaMountainBikeGuidesLanding() {
                 Ready to Ride?
               </p>
               <h2 className="mt-6 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
-                Choose your trail, meet your guide, and experience Central Florida with less hassle and more adventure.
+                Ready to Ride?
               </h2>
               <p className="mt-5 max-w-2xl text-base leading-7 text-white/85 sm:text-lg">
-                From scenic paved rides to guided mountain bike tours, the redesigned page is built to make booking feel easy while still showcasing the premium outdoor vibe of the brand.
+                Choose your trail, meet your guide, and experience the best of Central Florida on two wheels. From scenic paved rides to guided mountain bike adventures, we make it easy to show up, ride, and enjoy the journey.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <a href="/booking" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f7efdf] px-5 py-3 text-sm font-semibold text-[#173a2c] transition hover:-translate-y-0.5 hover:bg-white">
@@ -565,8 +565,8 @@ export default function FloridaMountainBikeGuidesLanding() {
               <div>
                 <SectionHeading
                   eyebrow="Get In Touch"
-                  title="Contact and social, kept simple and welcoming"
-                  text="Keep the adventure going by staying connected. This section is designed to support questions, lead capture, and later integrations with real booking or CRM flows."
+                  title="Get in Touch"
+                  text="Have questions or ready to plan your ride? Reach out and we'll help you choose the right tour, answer any details, and get you set for an unforgettable Central Florida biking experience."
                 />
 
                 <div className="mt-8 grid gap-4">
