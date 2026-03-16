@@ -20,6 +20,7 @@ import {
   Camera,
   ChevronRight,
   Clock3,
+  Compass,
   Mail,
   MapPin,
   Mountain,
@@ -648,28 +649,6 @@ export default function FloridaMountainBikeGuidesLanding() {
           </div>
         </section>
 
-        <section id="claude-prompt" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-          <div className="rounded-[2rem] border border-[#ddd2be] bg-white/80 p-6 shadow-[0_16px_50px_rgba(16,38,29,0.05)] sm:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7b5a2e]">Claude Code Prompt</p>
-            <h2 className="mt-3 text-2xl font-bold text-[#10261d] sm:text-3xl">Interactive map component prompt</h2>
-            <pre className="mt-6 overflow-x-auto rounded-[1.5rem] border border-[#e2d7c6] bg-[#faf7f1] p-5 text-sm leading-7 text-[#2d3d37]">
-{`Create a React component called InteractiveTrailMap for a mountain bike tour website.
-
-Requirements:
-- Use React + React Leaflet.
-- The map must display Central Florida.
-- Add location pins for: Sanford Riverwalk, Blue Spring State Park, Bearford Lake, Central Florida trail network, and Bicikleta Bike Shop.
-- Each pin should open a popup containing: trail name, short description, difficulty level, and a button labeled "Book Tour".
-- Add a subtle pulsing animation effect to the markers.
-- The map must be fully responsive.
-- On mobile, collapse the map into a card list view with a toggle back to the map.
-- On desktop, show the full interactive map.
-- Style it with Tailwind CSS to match a premium outdoor brand with Patagonia + AllTrails energy and warm Florida sandy-green tones.
-- Export the component so it can be imported into a Next.js page.
-- Keep the code clean, modular, and production-friendly.`}
-            </pre>
-          </div>
-        </section>
       </main>
 
       <footer className="border-t border-[#ddd2be] bg-[#efe8da]">
