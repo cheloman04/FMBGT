@@ -20,12 +20,9 @@ import {
   Calendar,
   ChevronRight,
   Clock3,
-  Compass,
-  Mail,
   MapPin,
   Menu,
   Mountain,
-  Phone,
   Route,
   ShieldCheck,
   Star,
@@ -424,59 +421,46 @@ export default function FloridaMountainBikeGuidesLanding() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-          <SectionHeading
-            eyebrow="Trails"
-            title="Central Florida trails presented like a premium outdoor experience"
-            text="Instead of a plain info block, this section frames the trail offering with the kind of clarity and aspiration you'd expect from Patagonia, AllTrails, or a modern outdoor travel brand."
-          />
+        <section className="border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
+          <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+            <SectionHeading
+              eyebrow="Photo Gallery"
+              title="Trail Moments & Florida Ride Experiences"
+              text="A glimpse into the rides, landscapes, and unforgettable moments that make every tour unique. From shaded singletrack and scenic riverfront paths to crystal-clear springs and friendly trail stops, these photos capture the spirit of riding Central Florida with Florida Mountain Bike Guides."
+            />
 
-          <motion.div
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, amount: 0.2 }}
-            variants={stagger}
-            className="mt-12 grid gap-6 lg:grid-cols-3"
-          >
-            {trailHighlights.map((item) => (
-              <motion.div key={item.title} variants={fadeUp} className="rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-7 shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
-                <h3 className="text-xl font-bold text-[var(--lp-text)]">{item.title}</h3>
-                <p className="mt-4 text-sm leading-7 text-[var(--lp-text-body)]">{item.text}</p>
-                <a href="#map" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)]">
-                  Explore trails
-                  <ChevronRight className="h-4 w-4" />
-                </a>
-              </motion.div>
-            ))}
-          </motion.div>
+            <div className="mt-12 px-5">
+              <GalleryCarousel items={galleryItems} />
+            </div>
+          </div>
         </section>
 
         <section id="guides" className="border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Guides"
-              title="A team of friendly and professional experts"
-              text="The guide section highlights trust, local knowledge, and a safe enjoyable ride — exactly what matters when someone is booking an outdoor experience in a place they may not know well."
+              title="Your guide — friendly, local, and ready to ride"
+              text="Florida Mountain Bike Guides is built around friendly and professional expertise dedicated to making each ride safe, enjoyable, and easy to navigate for every skill level."
             />
 
             <motion.div
-              initial="hidden"
-              whileInView="show"
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              variants={stagger}
-              className="mt-12 grid gap-6 lg:grid-cols-3"
+              transition={{ duration: 0.7 }}
+              className="mt-12 overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.04)] lg:flex"
             >
-              {guides.map((guide) => (
-                <motion.div key={guide.title} variants={fadeUp} className="overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
-                  <div className="h-56 bg-[linear-gradient(135deg,rgba(31,90,67,0.18),rgba(215,195,161,0.22),rgba(117,196,210,0.12))]" />
-                  <div className="p-6">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--lp-badge-text)]">Guide Profile</p>
-                    <h3 className="mt-3 text-2xl font-bold text-[var(--lp-text)]">{guide.title}</h3>
-                    <p className="mt-2 text-sm font-medium text-[var(--lp-text-nav)]">{guide.subtitle}</p>
-                    <p className="mt-4 text-sm leading-7 text-[var(--lp-text-body)]">{guide.text}</p>
-                  </div>
-                </motion.div>
-              ))}
+              <div className="h-64 shrink-0 bg-[linear-gradient(135deg,rgba(31,90,67,0.18),rgba(215,195,161,0.22),rgba(117,196,210,0.12))] lg:h-auto lg:w-80" />
+              <div className="p-8">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--lp-badge-text)]">Guide Profile</p>
+                <h3 className="mt-3 text-2xl font-bold text-[var(--lp-text)]">{guides[0].title}</h3>
+                <p className="mt-2 text-sm font-medium text-[var(--lp-text-nav)]">{guides[0].subtitle}</p>
+                <p className="mt-4 text-sm leading-7 text-[var(--lp-text-body)]">{guides[0].text}</p>
+                <a href="/booking" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]">
+                  Book a ride
+                  <ChevronRight className="h-4 w-4" />
+                </a>
+              </div>
             </motion.div>
           </div>
         </section>
@@ -510,45 +494,14 @@ export default function FloridaMountainBikeGuidesLanding() {
               transition={{ duration: 0.7 }}
               className="rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-5 shadow-[0_18px_60px_rgba(16,38,29,0.06)]"
             >
-              <div className="rounded-[1.5rem] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.85),rgba(247,241,231,0.92))] p-6">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-5">
-                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Bike shop</p>
-                    <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Bicikleta, Sanford FL</h3>
-                    <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
-                      A local shop experience that supports riders who want premium bike rentals without the extra hassle.
-                    </p>
-                  </div>
-                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-5">
-                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Rental focus</p>
-                    <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Ride-ready setup</h3>
-                    <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
-                      Specialized Stumpjumpers and electric bike options positioned as part of an effortless Florida ride experience.
-                    </p>
-                  </div>
-                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-5 sm:col-span-2">
-                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Why this matters</p>
-                    <p className="mt-3 text-sm leading-7 text-[var(--lp-text-body)]">
-                      The new landing supports both customer paths: visitors looking for a fully guided experience and riders who simply want to rent a high-quality bike.
-                    </p>
-                  </div>
-                </div>
+              <div className="rounded-[1.5rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-6">
+                <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Bike shop</p>
+                <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Bicikleta, Sanford FL</h3>
+                <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
+                  A local shop experience that supports riders who want premium bike rentals without the extra hassle.
+                </p>
               </div>
             </motion.div>
-          </div>
-        </section>
-
-        <section className="border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
-          <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-            <SectionHeading
-              eyebrow="Photo Gallery"
-              title="Trail Moments & Florida Ride Experiences"
-              text="A glimpse into the rides, landscapes, and unforgettable moments that make every tour unique. From shaded singletrack and scenic riverfront paths to crystal-clear springs and friendly trail stops, these photos capture the spirit of riding Central Florida with Florida Mountain Bike Guides."
-            />
-
-            <div className="mt-12 px-5">
-              <GalleryCarousel items={galleryItems} />
-            </div>
           </div>
         </section>
 
@@ -585,93 +538,62 @@ export default function FloridaMountainBikeGuidesLanding() {
         </section>
 
         <section id="contact" className="border-t border-[var(--lp-border)] bg-[var(--lp-surface)]">
-          <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-            <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
-              <div>
-                <SectionHeading
-                  eyebrow="Get In Touch"
-                  title="Get in Touch"
-                  text="Have questions or ready to plan your ride? Reach out and we'll help you choose the right tour, answer any details, and get you set for an unforgettable Central Florida biking experience."
-                />
+          <div className="mx-auto max-w-2xl px-4 py-20 sm:px-6 lg:px-8">
+            <SectionHeading
+              eyebrow="Get In Touch"
+              title="Get in Touch"
+              text="Have questions or ready to plan your ride? Reach out and we'll help you choose the right tour, answer any details, and get you set for an unforgettable Central Florida biking experience."
+            />
 
-                <div className="mt-8 grid gap-4">
-                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card)] p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
-                    <div className="flex items-center gap-3 text-[var(--lp-text-dark)]">
-                      <Mail className="h-5 w-5 text-[var(--lp-green)]" />
-                      <span>Email inquiries</span>
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card)] p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
-                    <div className="flex items-center gap-3 text-[var(--lp-text-dark)]">
-                      <Phone className="h-5 w-5 text-[var(--lp-green)]" />
-                      <span>Tour questions & logistics</span>
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card)] p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
-                    <div className="flex items-center gap-3 text-[var(--lp-text-dark)]">
-                      <MapPin className="h-5 w-5 text-[var(--lp-green)]" />
-                      <span>Based out of Sanford, Florida</span>
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card)] p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
-                    <div className="flex items-center gap-3 text-[var(--lp-text-dark)]">
-                      <Compass className="h-5 w-5 text-[var(--lp-green)]" />
-                      <span>Sanford Tours & Experiences</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-80)] p-6 shadow-[0_16px_50px_rgba(16,38,29,0.05)] sm:p-8">
-                <form className="grid gap-5">
-                  <div className="grid gap-5 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Name</label>
-                      <input
-                        type="text"
-                        placeholder="Your name"
-                        className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Email</label>
-                      <input
-                        type="email"
-                        placeholder="you@example.com"
-                        className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
-                      />
-                    </div>
-                  </div>
-
+            <div className="mt-10 rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-80)] p-6 shadow-[0_16px_50px_rgba(16,38,29,0.05)] sm:p-8">
+              <form className="grid gap-5">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Phone Number (optional)</label>
+                    <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Name</label>
                     <input
                       type="text"
-                      placeholder="(555) 555-5555"
+                      placeholder="Your name"
                       className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                     />
                   </div>
-
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Questions?</label>
-                    <textarea
-                      rows={5}
-                      placeholder="Tell us about your ideal ride, your skill level, or the type of tour you're looking for."
+                    <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Email</label>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
                       className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                     />
                   </div>
+                </div>
 
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--lp-green)] px-5 py-3 text-sm font-semibold text-[var(--lp-surface)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-green-dark)]"
-                    >
-                      Submit
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </form>
-              </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Phone Number (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="(555) 555-5555"
+                    className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Questions?</label>
+                  <textarea
+                    rows={5}
+                    placeholder="Tell us about your ideal ride, your skill level, or the type of tour you're looking for."
+                    className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--lp-green)] px-5 py-3 text-sm font-semibold text-[var(--lp-surface)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-green-dark)]"
+                  >
+                    Submit
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </section>
