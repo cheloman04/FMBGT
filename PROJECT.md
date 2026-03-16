@@ -199,22 +199,25 @@ The project has two distinct surfaces:
 
 The marketing home page lives at `/` and is rendered by `app/page.tsx` importing `FloridaMountainBikeGuidesLanding`.
 
-### Sections
+### Navbar
 
-| Section | Description |
-|---|---|
-| **Header** | Sticky nav with logo, links (Tours, Map, Guides, Fleet, Contact), CTA button |
-| **Hero** | Animated headline, subtext, dual CTA, 3 stat cards, feature card widget |
-| **Value Props** | 4 icon cards (trailhead gear, skill levels, booking simplicity, pickup) |
-| **Tours** | Two tour cards: Mountain Bike Tours (Signature) + Scenic Paved Trail Tours (Relaxed) |
-| **Map** | Interactive React Leaflet map — 5 location pins with pulsing animation and popups |
-| **Trails** | 3 highlight cards: Central Florida Trails, Sunshine State scenery, Ride-ready logistics |
-| **Guides** | 3 guide profile cards (image placeholder + bio) |
-| **Fleet** | Rental fleet section + Bicikleta Bike Shop partnership details |
-| **Gallery** | 6-card photo grid (gradient placeholders — replace with real photos) |
-| **CTA** | Full-width dark green banner with Book a Tour + Meet Our Guides buttons |
-| **Contact** | Contact info cards + inquiry form |
-| **Footer** | Copyright + nav links |
+- **Desktop:** logo (52×52 rounded-full Next.js Image served from Supabase storage) + company name and tagline | nav links (Tours, Map, Guides, Fleet, Contact) | ThemeToggle + "Book a Guide" CTA button
+- **Mobile:** logo + company name | ThemeToggle + hamburger button; collapsible drawer with nav links + CTA
+- Logo URL: `https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png`
+
+### Sections (in order)
+
+| # | Section | Description |
+|---|---|---|
+| 1 | **Hero** | Animated headline, CTA buttons, 3 stat cards. Decorative feature card hidden on mobile (`hidden lg:block`), visible on desktop only. |
+| 2 | **Value Props** | 4 feature cards in a grid |
+| 3 | **Tours** | 2 tour cards: Mountain Bike Tours + Paved Trail Tours |
+| 4 | **Interactive Map** | Full-width React Leaflet map; location cards grid rendered below the map |
+| 5 | **Photo Gallery** | Horizontal scroll carousel (`GalleryCarousel.jsx`) — scroll snap, prev/next arrow buttons that appear/hide based on scroll position, dot indicators, touch/swipe support |
+| 6 | **Guides** | Single guide card in horizontal layout (image left, text right on desktop) |
+| 7 | **Rental Fleet** | Left: heading + feature chips; right: single "Bike Shop" card (Bicikleta, Sanford FL) |
+| 8 | **CTA Banner** | Full-width green gradient banner |
+| 9 | **Contact** | Centered `max-w-2xl` layout — `SectionHeading` + contact form only (no contact info sidebar) |
 
 ### Architecture
 
@@ -226,6 +229,11 @@ components/landing/FloridaMountainBikeGuidesLanding.jsx   ← main component ('u
     - @/components/ui/CTAButton
     - @/components/ui/SectionHeading
     - @/components/ui/StatCard
+    - @/components/landing/GalleryCarousel
+
+components/landing/GalleryCarousel.jsx                    ← horizontal scroll carousel ('use client')
+  - Scroll snap container; prev/next arrow buttons shown/hidden based on scroll position
+  - Dot indicators; touch/swipe support
 
 components/map/InteractiveTrailMap.jsx                    ← Leaflet map ('use client')
   - CartoDB Voyager tile layer (no API key required)
@@ -234,27 +242,46 @@ components/map/InteractiveTrailMap.jsx                    ← Leaflet map ('use 
   - Mobile: card list view (default) with "Map View" toggle
   - Desktop: map + card list side-by-side (xl:grid-cols-[1.1fr_0.9fr])
   - SSR guard: mounted state — map only renders after useEffect
+
+components/ui/ThemeToggle.jsx                             ← sun/moon toggle ('use client')
+  - Uses next-themes useTheme(); mounted guard for hydration safety
+  - Rendered in both desktop nav and mobile navbar drawer
+
+components/ui/SectionHeading.jsx                          ← eyebrow + h2 + description
+  - Uses CSS variables (--lp-*) for dark mode compatibility
+
+components/ui/StatCard.jsx                                ← frosted-glass stat card (hero)
+  - Uses CSS variables (--lp-*) for dark mode compatibility
 ```
+
+### Dark Mode
+
+- **Provider:** `next-themes` — `ThemeProvider` wraps the app with `attribute="class"` in `app/layout.tsx`
+- **CSS variables:** 20 `--lp-*` custom properties defined in `app/globals.css` under `:root` (light) and `.dark`
+- **Usage:** All landing page colors use `[var(--lp-xxx)]` Tailwind arbitrary values throughout all section components
+- **Toggle:** `ThemeToggle` appears in both desktop nav and mobile navbar
 
 ### Design Tokens (landing palette)
 
-| Token | Value | Usage |
+All values are defined as CSS variables (`--lp-*`) in `app/globals.css` with separate light and dark overrides. Representative light-mode values:
+
+| Token | Light Value | Usage |
 |---|---|---|
-| `bg-page` | `#f6f1e7` | Page background |
-| `text-dark` | `#10261d` | Headings |
-| `brand-green` | `#1f5a43` | Primary CTA, links, icons |
-| `text-muted` | `#4d5d56` / `#5b6b64` | Body copy |
-| `card-border` | `#ddd2be` | Card borders |
-| `card-bg` | `#faf7f1` / `white/70` | Card backgrounds |
-| `badge-bg` | `#efe4cf` | Eyebrow badges |
-| `badge-text` | `#7b5a2e` | Eyebrow text |
+| `--lp-bg-page` | `#f6f1e7` | Page background |
+| `--lp-text-dark` | `#10261d` | Headings |
+| `--lp-brand-green` | `#1f5a43` | Primary CTA, links, icons |
+| `--lp-text-muted` | `#4d5d56` / `#5b6b64` | Body copy |
+| `--lp-card-border` | `#ddd2be` | Card borders |
+| `--lp-card-bg` | `#faf7f1` / `white/70` | Card backgrounds |
+| `--lp-badge-bg` | `#efe4cf` | Eyebrow badges |
+| `--lp-badge-text` | `#7b5a2e` | Eyebrow text |
 
 ### Adding Real Photos
 
 Drop photos into `public/images/` subfolders and update the corresponding section component:
 
-- `public/images/gallery/` → replace gradient divs in `GallerySection` with `<Image>` from `next/image`
-- `public/images/guides/` → replace `h-56` gradient div in `GuidesSection` guide cards
+- `public/images/gallery/` → replace gradient placeholder slides in `GalleryCarousel` with `<Image>` from `next/image`
+- `public/images/guides/` → replace gradient placeholder in the `GuidesSection` guide card
 - `public/images/fleet/` → replace right-column placeholder in `FleetSection`
 
 ### Leaflet SSR Notes
