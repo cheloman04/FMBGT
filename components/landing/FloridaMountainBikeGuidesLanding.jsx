@@ -396,10 +396,12 @@ export default function FloridaMountainBikeGuidesLanding() {
                       ))}
                     </div>
 
-                    <a href="/booking" className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]">
-                      {tour.cta}
-                      <ChevronRight className="h-4 w-4" />
-                    </a>
+                    <div className="mt-8 flex justify-center sm:justify-start">
+                      <a href="/booking" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]">
+                        {tour.cta}
+                        <ChevronRight className="h-4 w-4" />
+                      </a>
+                    </div>
                   </div>
                 </motion.div>
               );
@@ -584,7 +586,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                   />
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 flex justify-center sm:justify-start">
                   <button
                     type="button"
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--lp-green)] px-5 py-3 text-sm font-semibold text-[var(--lp-surface)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-green-dark)]"

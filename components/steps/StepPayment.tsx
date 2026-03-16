@@ -98,8 +98,8 @@ export function StepPayment() {
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <Button variant="ghost" onClick={goPrev} className="px-0 text-muted-foreground">
-            {'<-'} Back
+          <Button variant="outline" onClick={goPrev} className="mb-2 gap-1.5 border-border text-foreground hover:bg-muted">
+            ← Back
           </Button>
 
           <div>

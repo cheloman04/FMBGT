@@ -255,7 +255,7 @@ export function StepBike() {
           </p>
         </div>
 
-        <Button variant="ghost" onClick={goPrev} className="mb-4 text-muted-foreground">← Back</Button>
+        <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">← Back</Button>
 
         <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
           <p className="text-sm font-medium text-green-800 dark:text-green-300">

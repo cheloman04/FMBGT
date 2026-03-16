@@ -26,7 +26,7 @@ export function StepWaiver() {
         <p className="text-muted-foreground mt-1">Please read and accept before proceeding to payment.</p>
       </div>
 
-      <Button variant="ghost" onClick={goPrev} className="mb-4 text-muted-foreground">
+      <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
         ← Back
       </Button>
 

@@ -54,7 +54,7 @@ export function StepSkill() {
         </p>
       </div>
 
-      <Button variant="ghost" onClick={goPrev} className="mb-4 text-muted-foreground">
+      <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
         ← Back
       </Button>
 
