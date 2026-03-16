@@ -1,6 +1,6 @@
 # Florida Mountain Bike Trail Guided Tours — Project Reference
 
-> MVP booking platform for guided bike tours. Built to be embedded externally from a Carrd.co main website.
+> Full-stack booking platform + marketing landing page for guided bike tours.
 > Last updated: March 2026
 
 ---
@@ -10,24 +10,29 @@
 1. [Project Overview](#1-project-overview)
 2. [Tech Stack](#2-tech-stack)
 3. [Project Structure](#3-project-structure)
-4. [User Booking Flow](#4-user-booking-flow)
-5. [Step Engine](#5-step-engine)
-6. [Database Schema](#6-database-schema)
-7. [Pricing Logic](#7-pricing-logic)
-8. [Inventory Logic](#8-inventory-logic)
-9. [API Routes](#9-api-routes)
-10. [Third-Party Integrations](#10-third-party-integrations)
-11. [Environment Variables](#11-environment-variables)
-12. [Local Development](#12-local-development)
-13. [Deployment (Vercel)](#13-deployment-vercel)
-14. [Known Gotchas](#14-known-gotchas)
-15. [Future Improvements](#15-future-improvements)
+4. [Landing Page](#4-landing-page)
+5. [User Booking Flow](#5-user-booking-flow)
+6. [Step Engine](#6-step-engine)
+7. [Database Schema](#7-database-schema)
+8. [Pricing Logic](#8-pricing-logic)
+9. [Inventory Logic](#9-inventory-logic)
+10. [API Routes](#10-api-routes)
+11. [Third-Party Integrations](#11-third-party-integrations)
+12. [Environment Variables](#12-environment-variables)
+13. [Local Development](#13-local-development)
+14. [Deployment (Vercel)](#14-deployment-vercel)
+15. [Known Gotchas](#15-known-gotchas)
+16. [Future Improvements](#16-future-improvements)
 
 ---
 
 ## 1. Project Overview
 
-A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users flow through up to 9 steps (some skipped dynamically based on selections) to configure and pay for a guided tour. The platform handles:
+The project has two distinct surfaces:
+
+**1. Marketing landing page (`/`)** — a premium, animated marketing page for Florida Mountain Bike Guides. Features hero, tours, interactive Leaflet map, guides, rental fleet, photo gallery, CTA, and contact sections. Built with Framer Motion animations and a warm Florida sandy-green design system.
+
+**2. Booking platform (`/booking`)** — a multi-step booking wizard. Users flow through up to 9 steps (some skipped dynamically based on selections) to configure and pay for a guided tour. Handles:
 
 - Trail type and skill-level selection
 - Location filtering based on trail type + skill
@@ -42,8 +47,6 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 - Admin dashboard for booking management
 - Dark/light mode with system preference detection
 
-**The UI is intentionally minimal (MVP).** A design pass is planned after the functional foundation is stable.
-
 ---
 
 ## 2. Tech Stack
@@ -54,6 +57,8 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 | Language | TypeScript | ^5 |
 | Styling | TailwindCSS | ^4 |
 | UI Components | shadcn/ui | ^4 (base-ui) |
+| Animation | Framer Motion | latest |
+| Map | React Leaflet + Leaflet | latest |
 | Database | Supabase (PostgreSQL) | ^2.99 |
 | Payments | Stripe Checkout | ^20.4 |
 | Scheduling | Cal.com API | v1 |
@@ -71,7 +76,7 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 /
 ├── app/
 │   ├── layout.tsx                        # Root layout — wraps in ThemeProvider
-│   ├── page.tsx                          # Redirects → /booking
+│   ├── page.tsx                          # Renders FloridaMountainBikeGuidesLanding (marketing home)
 │   ├── not-found.tsx                     # Custom 404 page
 │   ├── booking/
 │   │   ├── layout.tsx                    # Wraps all booking routes in BookingProvider
@@ -82,6 +87,11 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 │   │   └── confirmation/
 │   │       ├── page.tsx                  # Server Component — fetches booking data from Supabase
 │   │       └── ConfirmationClient.tsx    # Client Component — handles reset + UI
+│   ├── admin/
+│   │   ├── page.tsx                      # Server Component — fetches bookings + stats (cookie auth)
+│   │   ├── login/
+│   │   │   └── page.tsx                  # Branded login page — password form, client logo
+│   │   └── AdminClient.tsx               # Client Component — mobile cards + desktop table, filters, sign-out
 │   └── api/
 │       ├── create-checkout/route.ts      # POST — validates + creates Stripe session
 │       ├── validate-inventory/route.ts   # POST — checks item availability for a date
@@ -94,6 +104,20 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 │           └── stripe/route.ts           # POST — handles Stripe events + triggers n8n
 │
 ├── components/
+│   ├── landing/
+│   │   ├── FloridaMountainBikeGuidesLanding.jsx  # Full marketing landing page ('use client', framer-motion)
+│   │   └── sections/                             # Stub section components — ready to extract
+│   │       ├── HeroSection.jsx
+│   │       ├── ToursSection.jsx
+│   │       ├── MapSection.jsx
+│   │       ├── GuidesSection.jsx
+│   │       ├── TrailsSection.jsx
+│   │       ├── FleetSection.jsx
+│   │       ├── GallerySection.jsx
+│   │       ├── CTASection.jsx
+│   │       └── ContactSection.jsx
+│   ├── map/
+│   │   └── InteractiveTrailMap.jsx       # React Leaflet map — 5 pins, pulsing icons, popups, mobile toggle
 │   ├── BookingStepper.tsx                # Progress bar + step labels (context-driven)
 │   ├── PriceSummary.tsx                  # Live price breakdown panel (multi-participant aware)
 │   ├── ThemeProvider.tsx                 # next-themes wrapper (attribute="class")
@@ -108,12 +132,21 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 │   │   ├── StepAddons.tsx                # Step: GoPro, Pickup/Dropoff
 │   │   ├── StepWaiver.tsx                # Step: Liability waiver — covers all participants
 │   │   └── StepPayment.tsx               # Step: Customer details → Stripe redirect
-│   └── ui/                               # shadcn/ui primitives (auto-generated)
+│   └── ui/                               # shadcn/ui primitives + extracted landing UI components
+│       ├── CTAButton.jsx                 # Primary/secondary CTA anchor button (landing)
+│       ├── SectionHeading.jsx            # Eyebrow + h2 + description (landing)
+│       ├── StatCard.jsx                  # Frosted-glass stat card (landing hero)
+│       └── [shadcn primitives...]        # button, card, input, select, etc.
+│
+├── data/
+│   └── landing.ts                        # Extracted data constants for landing page sections
+│                                         # (tours, guides, mapLocations, trailHighlights, etc.)
 │
 ├── context/
 │   └── BookingContext.tsx                # Global booking state + step navigation engine
 │
 ├── lib/
+│   ├── animations.ts                     # Shared Framer Motion variants (fadeUp, stagger)
 │   ├── steps.ts                          # Step engine: IDs, skip/complete logic, nav helpers
 │   ├── pricing.ts                        # Price calculation logic (server-side truth)
 │   ├── inventory.ts                      # Electric bike / GoPro availability checks
@@ -137,12 +170,6 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 │       ├── 006_fix_participant_info.sql  # Fixes participant_info JSONB extraction for electric trigger
 │       └── 007_indexes.sql              # Partial index on stripe_payment_intent_id (refund query perf)
 │
-├── app/admin/
-│   ├── page.tsx                          # Server Component — fetches bookings + stats (cookie auth)
-│   ├── login/
-│   │   └── page.tsx                      # Branded login page — password form, client logo
-│   └── AdminClient.tsx                   # Client Component — table, filters, status updates, sign-out
-│
 ├── public/
 │   ├── trails/                           # SVG illustrations for Trail Type + Skill Level cards
 │   │   ├── paved-trail.svg
@@ -151,10 +178,15 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 │   │   ├── skill-beginner.svg
 │   │   ├── skill-intermediate.svg
 │   │   └── skill-advanced.svg
-│   └── locations/                        # SVG illustrations for Location cards
-│       ├── blue-spring-state-park.svg
-│       ├── sanford-historic-downtown.svg
-│       └── location-placeholder.svg
+│   ├── locations/                        # SVG illustrations for Location cards
+│   │   ├── blue-spring-state-park.svg
+│   │   ├── sanford-historic-downtown.svg
+│   │   └── location-placeholder.svg
+│   └── images/                           # Real photography — replace placeholders in landing
+│       ├── gallery/                      # 6 gallery slots (GallerySection)
+│       ├── guides/                       # Guide profile photos (GuidesSection)
+│       ├── trails/                       # Trail photography
+│       └── fleet/                        # Bike fleet photos
 ├── .env.local                            # Local secrets (git-ignored)
 ├── .env.example                          # Template — safe to commit
 ├── README.md                             # Quick-start guide
@@ -163,7 +195,80 @@ A multi-step booking system for Florida Mountain Bike Trail Guided Tours. Users 
 
 ---
 
-## 4. User Booking Flow
+## 4. Landing Page
+
+The marketing home page lives at `/` and is rendered by `app/page.tsx` importing `FloridaMountainBikeGuidesLanding`.
+
+### Sections
+
+| Section | Description |
+|---|---|
+| **Header** | Sticky nav with logo, links (Tours, Map, Guides, Fleet, Contact), CTA button |
+| **Hero** | Animated headline, subtext, dual CTA, 3 stat cards, feature card widget |
+| **Value Props** | 4 icon cards (trailhead gear, skill levels, booking simplicity, pickup) |
+| **Tours** | Two tour cards: Mountain Bike Tours (Signature) + Scenic Paved Trail Tours (Relaxed) |
+| **Map** | Interactive React Leaflet map — 5 location pins with pulsing animation and popups |
+| **Trails** | 3 highlight cards: Central Florida Trails, Sunshine State scenery, Ride-ready logistics |
+| **Guides** | 3 guide profile cards (image placeholder + bio) |
+| **Fleet** | Rental fleet section + Bicikleta Bike Shop partnership details |
+| **Gallery** | 6-card photo grid (gradient placeholders — replace with real photos) |
+| **CTA** | Full-width dark green banner with Book a Tour + Meet Our Guides buttons |
+| **Contact** | Contact info cards + inquiry form |
+| **Footer** | Copyright + nav links |
+
+### Architecture
+
+```
+components/landing/FloridaMountainBikeGuidesLanding.jsx   ← main component ('use client')
+  imports:
+    - framer-motion (fadeUp + stagger variants from lib/animations.ts)
+    - next/dynamic → InteractiveTrailMap (ssr: false — Leaflet requires browser)
+    - @/components/ui/CTAButton
+    - @/components/ui/SectionHeading
+    - @/components/ui/StatCard
+
+components/map/InteractiveTrailMap.jsx                    ← Leaflet map ('use client')
+  - CartoDB Voyager tile layer (no API key required)
+  - Custom pulsing DivIcons with per-location colors
+  - Popup per pin: type badge, name, description, difficulty, "Book Tour" → /booking
+  - Mobile: card list view (default) with "Map View" toggle
+  - Desktop: map + card list side-by-side (xl:grid-cols-[1.1fr_0.9fr])
+  - SSR guard: mounted state — map only renders after useEffect
+```
+
+### Design Tokens (landing palette)
+
+| Token | Value | Usage |
+|---|---|---|
+| `bg-page` | `#f6f1e7` | Page background |
+| `text-dark` | `#10261d` | Headings |
+| `brand-green` | `#1f5a43` | Primary CTA, links, icons |
+| `text-muted` | `#4d5d56` / `#5b6b64` | Body copy |
+| `card-border` | `#ddd2be` | Card borders |
+| `card-bg` | `#faf7f1` / `white/70` | Card backgrounds |
+| `badge-bg` | `#efe4cf` | Eyebrow badges |
+| `badge-text` | `#7b5a2e` | Eyebrow text |
+
+### Adding Real Photos
+
+Drop photos into `public/images/` subfolders and update the corresponding section component:
+
+- `public/images/gallery/` → replace gradient divs in `GallerySection` with `<Image>` from `next/image`
+- `public/images/guides/` → replace `h-56` gradient div in `GuidesSection` guide cards
+- `public/images/fleet/` → replace right-column placeholder in `FleetSection`
+
+### Leaflet SSR Notes
+
+React Leaflet accesses browser globals (`window`, `document`) at import time. The `InteractiveTrailMap` component uses:
+
+1. A `mounted` state guard — `MapContainer` is only rendered after `useEffect` fires
+2. `dynamic(() => import(...), { ssr: false })` in the landing page — prevents the module from being bundled on the server
+
+Do **not** remove the `dynamic()` wrapper or the `mounted` check — both are required.
+
+---
+
+## 5. User Booking Flow
 
 ```
 Step 1 → Trail Type
@@ -253,7 +358,7 @@ Confirmation Page (/booking/confirmation?booking_id=&session_id=)
 
 ---
 
-## 5. Step Engine
+## 6. Step Engine
 
 The booking flow is a single route (`/booking`) with a dynamic step renderer. Steps are defined in `lib/steps.ts` as a config array and rendered by `app/booking/page.tsx`.
 
@@ -310,7 +415,7 @@ State is stored in `localStorage` under the key `fmtg_booking_v1`. The persisted
 
 ---
 
-## 6. Database Schema
+## 7. Database Schema
 
 All tables live in Supabase (PostgreSQL). Run `supabase/schema.sql` to initialize, then run any files in `supabase/migrations/` in numeric order.
 
@@ -436,7 +541,7 @@ Migration: `supabase/migrations/002_participant_columns.sql` — adds `participa
 
 ---
 
-## 7. Pricing Logic
+## 8. Pricing Logic
 
 > **Important:** All pricing is calculated server-side in `/api/create-checkout`. Client-side calculations are display-only and are never trusted.
 
@@ -503,7 +608,7 @@ total = rider_prices + duration_cost + gopro_cost + pickup_cost + electric_cost
 
 ---
 
-## 8. Inventory Logic
+## 9. Inventory Logic
 
 Source of truth: `lib/inventory.ts`
 
@@ -523,7 +628,7 @@ This two-layer approach gives instant UI feedback (application check) and preven
 
 ---
 
-## 9. API Routes
+## 10. API Routes
 
 ### `POST /api/create-checkout`
 
@@ -694,7 +799,7 @@ Sets the `admin_session` httpOnly cookie (8 hours, secure in production). Used b
 
 ---
 
-## 10. Third-Party Integrations
+## 11. Third-Party Integrations
 
 ### Stripe
 
@@ -738,7 +843,7 @@ Sets the `admin_session` httpOnly cookie (8 hours, secure in production). Used b
 
 ---
 
-## 11. Environment Variables
+## 12. Environment Variables
 
 ```bash
 # Supabase
@@ -780,7 +885,7 @@ UPSTASH_REDIS_REST_TOKEN=your_upstash_token
 
 ---
 
-## 12. Local Development
+## 13. Local Development
 
 ```bash
 # 1. Install dependencies
@@ -803,7 +908,8 @@ cp .env.example .env.local
 npm run dev
 
 # 5. Open in browser
-# http://localhost:3000  → redirects to /booking
+# http://localhost:3000         → landing page (marketing home)
+# http://localhost:3000/booking → booking wizard
 ```
 
 **Stripe webhook testing locally:**
@@ -823,7 +929,7 @@ http://localhost:3000/admin/login
 
 ---
 
-## 13. Deployment (Vercel)
+## 14. Deployment (Vercel)
 
 ```bash
 # Deploy via Vercel CLI
@@ -843,10 +949,11 @@ vercel
 
 ---
 
-## 14. Known Gotchas
+## 15. Known Gotchas
 
 | Issue | Details |
 |---|---|
+| **Leaflet + Next.js SSR** | `react-leaflet` and `leaflet` access `window`/`document` at import time. `InteractiveTrailMap` uses a `mounted` guard and must always be imported via `next/dynamic` with `ssr: false`. Removing either guard causes `ReferenceError: window is not defined` during Vercel build. |
 | **Single booking route** | The entire booking wizard lives at `/booking`. There are no individual step URLs. Step routing is driven by `currentStepId` in `BookingContext`, not by the URL. Deep-linking to a specific step is not supported by design. |
 | **Supabase v2.99 types** | `Database` type requires `Relationships: []` on every table definition. Using app-level types directly in `createClient<Database>` causes build errors. |
 | **Supabase lazy singleton** | Do not initialize the Supabase client at module level — it reads env vars at import time, which breaks the Next.js build. Use the lazy getter `getSupabaseClient()`. |
@@ -871,7 +978,7 @@ vercel
 
 ---
 
-## 15. Future Improvements
+## 16. Future Improvements
 
 ### High Priority (pre-launch)
 - [x] Wire Cal.com booking creation — done (`createCalBooking()` in `lib/cal.ts`; called from Stripe webhook after `checkout.session.completed`; uses `GET /slots` endpoint; requires `CAL_API_KEY` + `CAL_EVENT_TYPE_ID` + `CAL_USERNAME`; skips gracefully when any var is unset)
@@ -898,6 +1005,12 @@ vercel
 - [ ] Waitlist — when dates are fully booked
 - [ ] Dynamic pricing — peak/off-peak by day of week
 - [ ] Internationalization — if expanding beyond English
-- [ ] UI redesign — design system upgrade pass
+- [x] Marketing landing page — done (framer-motion animations, interactive Leaflet map, mobile-responsive, sandy-green palette)
+- [x] Interactive trail map — done (React Leaflet, 5 pins, pulsing DivIcons, popups with Book Tour, mobile card/map toggle)
+- [x] Admin dashboard mobile layout — done (card view on mobile, table on desktop, header flex-wrap)
+- [ ] Replace gallery image placeholders with real client photography (`public/images/gallery/`)
+- [ ] Replace guide profile image placeholders with real photos (`public/images/guides/`)
+- [ ] Wire contact form to server action or n8n webhook
+- [ ] UI redesign — booking flow design pass (landing page design is complete)
 - [ ] Admin: inventory override panel (adjust quantities without DB edits)
 - [ ] Admin: block specific dates from accepting bookings
