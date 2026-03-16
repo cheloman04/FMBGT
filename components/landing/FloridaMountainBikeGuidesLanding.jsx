@@ -13,6 +13,7 @@ const InteractiveTrailMap = dynamic(
     </div>
   )}
 );
+import Image from "next/image";
 import {
   ArrowRight,
   Bike,
@@ -157,9 +158,14 @@ export default function FloridaMountainBikeGuidesLanding() {
       <header className="sticky top-0 z-50 border-b border-[#d8cdb8] bg-[#f6f1e7]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e4dccb] ring-1 ring-[#cfc1aa]">
-              <Bike className="h-5 w-5 text-[#1f5a43]" />
-            </div>
+            <Image
+              src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
+              alt="Florida Mountain Bike Guides logo"
+              width={52}
+              height={52}
+              className="rounded-full"
+              priority
+            />
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#1f5a43]">
                 Florida Mountain Bike Guides
