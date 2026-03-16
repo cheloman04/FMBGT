@@ -24,6 +24,7 @@ import {
   Compass,
   Mail,
   MapPin,
+  Menu,
   Mountain,
   Phone,
   Route,
@@ -32,6 +33,7 @@ import {
   Trees,
   Users,
   Waves,
+  X,
 } from "lucide-react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
@@ -146,7 +148,17 @@ const galleryItems = [
 ];
 
 
+const NAV_LINKS = [
+  { href: '#tours',   label: 'Tours'   },
+  { href: '#map',     label: 'Map'     },
+  { href: '#guides',  label: 'Guides'  },
+  { href: '#fleet',   label: 'Fleet'   },
+  { href: '#contact', label: 'Contact' },
+];
+
 export default function FloridaMountainBikeGuidesLanding() {
+  const [menuOpen, setMenuOpen] = React.useState(false);
+
   return (
     <div className="min-h-screen bg-[#f6f1e7] text-[#10261d]">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -157,6 +169,7 @@ export default function FloridaMountainBikeGuidesLanding() {
 
       <header className="sticky top-0 z-50 border-b border-[#d8cdb8] bg-[#f6f1e7]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          {/* Logo */}
           <div className="flex items-center gap-3">
             <Image
               src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
@@ -174,18 +187,47 @@ export default function FloridaMountainBikeGuidesLanding() {
             </div>
           </div>
 
+          {/* Desktop nav */}
           <nav className="hidden items-center gap-8 text-sm text-[#56665f] md:flex">
-            <a href="#tours" className="transition hover:text-[#10261d]">Tours</a>
-            <a href="#map" className="transition hover:text-[#10261d]">Map</a>
-            <a href="#guides" className="transition hover:text-[#10261d]">Guides</a>
-            <a href="#fleet" className="transition hover:text-[#10261d]">Fleet</a>
-            <a href="#contact" className="transition hover:text-[#10261d]">Contact</a>
+            {NAV_LINKS.map(({ href, label }) => (
+              <a key={href} href={href} className="transition hover:text-[#10261d]">{label}</a>
+            ))}
           </nav>
 
           <div className="hidden md:block">
             <CTAButton>Book a Guide</CTAButton>
           </div>
+
+          {/* Hamburger button — mobile only */}
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#d8cdb8] bg-white/60 text-[#1f5a43] transition hover:bg-white md:hidden"
+            aria-label="Toggle menu"
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
+
+        {/* Mobile drawer */}
+        {menuOpen && (
+          <div className="border-t border-[#d8cdb8] bg-[#f6f1e7]/95 backdrop-blur-xl md:hidden">
+            <nav className="mx-auto flex max-w-7xl flex-col px-4 py-4 sm:px-6">
+              {NAV_LINKS.map(({ href, label }) => (
+                <a
+                  key={href}
+                  href={href}
+                  onClick={() => setMenuOpen(false)}
+                  className="border-b border-[#e8dfd0] py-3.5 text-sm font-medium text-[#3a4a43] transition hover:text-[#1f5a43]"
+                >
+                  {label}
+                </a>
+              ))}
+              <div className="pt-4">
+                <CTAButton>Book a Guide</CTAButton>
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
 
       <main className="relative z-10">
