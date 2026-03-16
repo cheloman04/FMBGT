@@ -106,6 +106,7 @@ The project has two distinct surfaces:
 ├── components/
 │   ├── landing/
 │   │   ├── FloridaMountainBikeGuidesLanding.jsx  # Full marketing landing page ('use client', framer-motion)
+│   │   ├── GalleryCarousel.jsx                   # Horizontal scroll carousel (scroll snap, arrows, dots)
 │   │   └── sections/                             # Stub section components — ready to extract
 │   │       ├── HeroSection.jsx
 │   │       ├── ToursSection.jsx
@@ -117,7 +118,8 @@ The project has two distinct surfaces:
 │   │       ├── CTASection.jsx
 │   │       └── ContactSection.jsx
 │   ├── map/
-│   │   └── InteractiveTrailMap.jsx       # React Leaflet map — 5 pins, pulsing icons, popups, mobile toggle
+│   │   └── InteractiveTrailMap.jsx       # React Leaflet map — 11 real trail pins, difficulty color coding,
+│   │                                     #   legend, inline TrailCarousel; center 29.0°N/81.5°W zoom 8
 │   ├── BookingStepper.tsx                # Progress bar + step labels (context-driven)
 │   ├── PriceSummary.tsx                  # Live price breakdown panel (multi-participant aware)
 │   ├── ThemeProvider.tsx                 # next-themes wrapper (attribute="class")
@@ -212,7 +214,7 @@ The marketing home page lives at `/` and is rendered by `app/page.tsx` importing
 | 1 | **Hero** | Animated headline, CTA buttons, 3 stat cards. Decorative feature card hidden on mobile (`hidden lg:block`), visible on desktop only. |
 | 2 | **Value Props** | 4 feature cards in a grid |
 | 3 | **Tours** | 2 tour cards: Mountain Bike Tours + Paved Trail Tours |
-| 4 | **Interactive Map** | Full-width React Leaflet map; location cards grid rendered below the map |
+| 4 | **Interactive Map** | Full-width React Leaflet map (center 29.0°N/81.5°W, zoom 8) with 11 real trail pins color-coded by difficulty (First Time/Beginner/Intermediate/Advanced), difficulty legend, and inline `TrailCarousel` — scroll-snap cards with "Open in Maps" links |
 | 5 | **Photo Gallery** | Horizontal scroll carousel (`GalleryCarousel.jsx`) — scroll snap, prev/next arrow buttons that appear/hide based on scroll position, dot indicators, touch/swipe support |
 | 6 | **Guides** | Single guide card in horizontal layout (image left, text right on desktop) |
 | 7 | **Rental Fleet** | Left: heading + feature chips; right: single "Bike Shop" card (Bicikleta, Sanford FL) |
@@ -237,10 +239,11 @@ components/landing/GalleryCarousel.jsx                    ← horizontal scroll 
 
 components/map/InteractiveTrailMap.jsx                    ← Leaflet map ('use client')
   - CartoDB Voyager tile layer (no API key required)
-  - Custom pulsing DivIcons with per-location colors
-  - Popup per pin: type badge, name, description, difficulty, "Book Tour" → /booking
-  - Mobile: card list view (default) with "Map View" toggle
-  - Desktop: map + card list side-by-side (xl:grid-cols-[1.1fr_0.9fr])
+  - 11 real trail locations across 4 difficulty levels with color-coded pulsing DivIcons
+  - Difficulty colors: First Time #10b981 | Beginner #1f7a54 | Intermediate #d97706 | Advanced #dc2626
+  - Popup per pin: difficulty badge, name, location, description, "Open in Maps" + "Book Tour →"
+  - Difficulty legend rendered below the map
+  - Inline TrailCarousel: scroll-snap cards, prev/next arrows, dot indicators, "Open in Maps" external link
   - SSR guard: mounted state — map only renders after useEffect
 
 components/ui/ThemeToggle.jsx                             ← sun/moon toggle ('use client')
