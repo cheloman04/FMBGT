@@ -18,7 +18,6 @@ import {
   ArrowRight,
   Bike,
   Calendar,
-  Camera,
   ChevronRight,
   Clock3,
   Compass,
@@ -39,6 +38,7 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { StatCard } from "@/components/ui/StatCard";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { GalleryCarousel } from "@/components/landing/GalleryCarousel";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -276,7 +276,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
-              className="relative"
+              className="relative hidden lg:block"
             >
               <div className="relative overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[linear-gradient(135deg,rgba(31,90,67,0.16),rgba(215,195,161,0.22),rgba(255,255,255,0.55))] p-4 shadow-[0_25px_80px_rgba(16,38,29,0.12)]">
                 <div className="aspect-[4/5] rounded-[1.5rem] border border-white/60 bg-[radial-gradient(circle_at_top,_rgba(31,90,67,0.18),_transparent_35%),linear-gradient(135deg,rgba(255,255,255,0.75),rgba(255,255,255,0.45))] p-5">
@@ -546,31 +546,9 @@ export default function FloridaMountainBikeGuidesLanding() {
               text="A glimpse into the rides, landscapes, and unforgettable moments that make every tour unique. From shaded singletrack and scenic riverfront paths to crystal-clear springs and friendly trail stops, these photos capture the spirit of riding Central Florida with Florida Mountain Bike Guides."
             />
 
-            <motion.div
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, amount: 0.2 }}
-              variants={stagger}
-              className="mt-12 grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
-            >
-              {galleryItems.map((item, index) => (
-                <motion.div key={item.title} variants={fadeUp} className="group overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
-                  <div className="relative h-64 overflow-hidden bg-[linear-gradient(135deg,rgba(31,90,67,0.18),rgba(215,195,161,0.28),rgba(117,196,210,0.14))]">
-                    <div className="absolute inset-0 transition duration-500 group-hover:scale-110 group-hover:rotate-1">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.22),transparent_22%),linear-gradient(180deg,transparent,rgba(16,38,29,0.24))]" />
-                    </div>
-                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/60 px-3 py-1 text-xs font-medium text-[#2c3a35] backdrop-blur-md">
-                      <Camera className="h-3.5 w-3.5" />
-                      {item.category}
-                    </div>
-                    <div className="absolute bottom-4 left-4 right-4">
-                      <h3 className="text-xl font-bold text-white">{item.title}</h3>
-                      <p className="mt-1 text-sm text-white/85">Image slot {index + 1}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
+            <div className="mt-12 px-5">
+              <GalleryCarousel items={galleryItems} />
+            </div>
           </div>
         </section>
 
