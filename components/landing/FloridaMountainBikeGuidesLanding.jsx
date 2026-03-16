@@ -9,8 +9,7 @@ import {
   Camera,
   ChevronRight,
   Clock3,
-  Compass,
- ExternalLink,
+  ExternalLink,
   Mail,
   MapPin,
   Mountain,
@@ -22,6 +21,9 @@ import {
   Users,
   Waves,
 } from "lucide-react";
+import { CTAButton } from "@/components/ui/CTAButton";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { StatCard } from "@/components/ui/StatCard";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -173,45 +175,6 @@ const galleryItems = [
   { title: "Florida Trail Views", category: "Photo Gallery" },
 ];
 
-function SectionHeading({ eyebrow, title, text, center = false }) {
-  return (
-    <div className={center ? "mx-auto max-w-3xl text-center" : "max-w-3xl"}>
-      <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-900/10 bg-[#efe7d7] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-900">
-        <Compass className="h-3.5 w-3.5" />
-        {eyebrow}
-      </div>
-      <h2 className="text-3xl font-bold tracking-tight text-[#10261d] sm:text-4xl lg:text-5xl">
-        {title}
-      </h2>
-      <p className="mt-4 text-base leading-7 text-[#4d5d56] sm:text-lg">{text}</p>
-    </div>
-  );
-}
-
-function CTAButton({ children, secondary = false }) {
-  return (
-    <a
-      href="#contact"
-      className={
-        secondary
-          ? "inline-flex items-center justify-center gap-2 rounded-2xl border border-[#cfc3ad] bg-white/60 px-5 py-3 text-sm font-semibold text-[#183328] transition hover:bg-white"
-          : "inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1f5a43] px-5 py-3 text-sm font-semibold text-[#f8f3e8] transition hover:-translate-y-0.5 hover:bg-[#174b37]"
-      }
-    >
-      {children}
-      <ArrowRight className="h-4 w-4" />
-    </a>
-  );
-}
-
-function StatCard({ title, text }) {
-  return (
-    <div className="rounded-3xl border border-white/50 bg-white/70 p-4 backdrop-blur-sm shadow-[0_10px_40px_rgba(16,38,29,0.06)]">
-      <p className="text-sm font-semibold text-[#10261d]">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-[#5f6f69]">{text}</p>
-    </div>
-  );
-}
 
 export default function FloridaMountainBikeGuidesLanding() {
   return (
