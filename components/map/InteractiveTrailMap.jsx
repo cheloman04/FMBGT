@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { useState, useEffect } from 'react';
-import { MapPin, ChevronRight, Map, List } from 'lucide-react';
+import { MapPin, ChevronRight } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Data
@@ -155,7 +155,6 @@ function createPinIcon(color) {
 
 export default function InteractiveTrailMap() {
   const [mounted, setMounted] = useState(false);
-  const [mobileView, setMobileView] = useState('list'); // 'list' | 'map'
 
   useEffect(() => {
     injectMapStyles();
@@ -163,133 +162,105 @@ export default function InteractiveTrailMap() {
   }, []);
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-8">
 
-      {/* ── Mobile toggle ─────────────────────────────────────────────── */}
-      <div className="mb-5 flex gap-2 sm:hidden">
-        {[
-          { id: 'list', Icon: List, label: 'Trail List' },
-          { id: 'map',  Icon: Map,  label: 'Map View'  },
-        ].map(({ id, Icon, label }) => (
-          <button
-            key={id}
-            onClick={() => setMobileView(id)}
-            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
-              mobileView === id
-                ? 'border-[#1f5a43] bg-[#1f5a43] text-white'
-                : 'border-[#ddd2be] bg-white/70 text-[#5b6b64] hover:border-[#1f5a43]/40'
-            }`}
+      {/* ── Map panel (full width) ─────────────────────────────────────── */}
+      <div
+        className="relative overflow-hidden rounded-[2rem] border border-[#d8ccba] shadow-[0_20px_70px_rgba(16,38,29,0.08)]"
+        style={{ height: 'clamp(360px, 55vh, 480px)' }}
+      >
+        {mounted ? (
+          <MapContainer
+            center={[28.87, -81.33]}
+            zoom={11}
+            style={{ height: '100%', width: '100%', background: '#f8f3ea' }}
+            scrollWheelZoom={false}
           >
-            <Icon className="h-4 w-4" />
-            {label}
-          </button>
+            <TileLayer
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              maxZoom={19}
+            />
+            {LOCATIONS.map((loc) => (
+              <Marker
+                key={loc.id}
+                position={[loc.lat, loc.lng]}
+                icon={createPinIcon(loc.pinColor)}
+              >
+                <Popup minWidth={224}>
+                  <div className="w-56 bg-[#f6f1e7] p-4">
+                    <span className="inline-block rounded-full bg-[#efe4cf] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7b5a2e]">
+                      {loc.type}
+                    </span>
+                    <h3 className="mt-2 text-sm font-bold leading-snug text-[#10261d]">
+                      {loc.name}
+                    </h3>
+                    <p className="mt-1.5 text-xs leading-5 text-[#5b6b64]">
+                      {loc.desc}
+                    </p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${loc.difficultyClass}`}>
+                        {loc.difficulty}
+                      </span>
+                      <a
+                        href="/booking"
+                        className="flex items-center gap-1 text-xs font-semibold text-[#1f5a43] transition hover:text-[#153a2c]"
+                      >
+                        Book Tour
+                        <ChevronRight className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center bg-[#f8f3ea]">
+            <div className="text-center">
+              <MapPin className="mx-auto mb-3 h-8 w-8 animate-pulse text-[#1f5a43]" />
+              <p className="text-sm text-[#5b6b64]">Loading map…</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Location cards grid (below map) ───────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {LOCATIONS.map((loc) => (
+          <div
+            key={loc.id}
+            className="rounded-[1.5rem] border border-[#ddd2be] bg-white/75 p-5 backdrop-blur-sm shadow-[0_10px_35px_rgba(16,38,29,0.04)] transition hover:border-[#cbb99c] hover:bg-white"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div
+                className="rounded-2xl p-2.5 shrink-0"
+                style={{ background: `${loc.pinColor}1a`, color: loc.pinColor }}
+              >
+                <MapPin className="h-4 w-4" />
+              </div>
+              <span className="rounded-full border border-[#e2d7c6] bg-[#faf7f1] px-2.5 py-0.5 text-[11px] font-medium text-[#586861]">
+                {loc.difficulty}
+              </span>
+            </div>
+            <div className="mt-3">
+              <h3 className="text-[14px] font-semibold leading-tight text-[#10261d]">
+                {loc.name}
+              </h3>
+              <p className="mt-0.5 text-xs text-[#62726c]">{loc.type}</p>
+            </div>
+            <p className="mt-2.5 text-xs leading-5 text-[#4d5d56]">{loc.desc}</p>
+            <a
+              href="/booking"
+              className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#1f5a43] transition hover:text-[#153a2c]"
+            >
+              Book Tour
+              <ChevronRight className="h-3 w-3" />
+            </a>
+          </div>
         ))}
       </div>
 
-      {/* ── Grid: map left, cards right ───────────────────────────────── */}
-      <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-
-        {/* Map panel */}
-        <div className={mobileView === 'list' ? 'hidden sm:block' : 'block'}>
-          <div
-            className="relative overflow-hidden rounded-[2rem] border border-[#d8ccba] shadow-[0_20px_70px_rgba(16,38,29,0.08)]"
-            style={{ height: 'clamp(360px, 65vh, 520px)' }}
-          >
-            {mounted ? (
-              <MapContainer
-                center={[28.87, -81.33]}
-                zoom={11}
-                style={{ height: '100%', width: '100%', background: '#f8f3ea' }}
-                scrollWheelZoom={false}
-              >
-                <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                  maxZoom={19}
-                />
-                {LOCATIONS.map((loc) => (
-                  <Marker
-                    key={loc.id}
-                    position={[loc.lat, loc.lng]}
-                    icon={createPinIcon(loc.pinColor)}
-                  >
-                    <Popup minWidth={224}>
-                      <div className="w-56 bg-[#f6f1e7] p-4">
-                        <span className="inline-block rounded-full bg-[#efe4cf] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7b5a2e]">
-                          {loc.type}
-                        </span>
-                        <h3 className="mt-2 text-sm font-bold leading-snug text-[#10261d]">
-                          {loc.name}
-                        </h3>
-                        <p className="mt-1.5 text-xs leading-5 text-[#5b6b64]">
-                          {loc.desc}
-                        </p>
-                        <div className="mt-3 flex items-center justify-between">
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${loc.difficultyClass}`}>
-                            {loc.difficulty}
-                          </span>
-                          <a
-                            href="/booking"
-                            className="flex items-center gap-1 text-xs font-semibold text-[#1f5a43] transition hover:text-[#153a2c]"
-                          >
-                            Book Tour
-                            <ChevronRight className="h-3 w-3" />
-                          </a>
-                        </div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
-              </MapContainer>
-            ) : (
-              /* Loading skeleton */
-              <div className="flex h-full items-center justify-center bg-[#f8f3ea]">
-                <div className="text-center">
-                  <MapPin className="mx-auto mb-3 h-8 w-8 animate-pulse text-[#1f5a43]" />
-                  <p className="text-sm text-[#5b6b64]">Loading map…</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Card list */}
-        <div className={`${mobileView === 'map' ? 'hidden sm:grid' : 'grid'} content-start gap-4`}>
-          {LOCATIONS.map((loc) => (
-            <div
-              key={loc.id}
-              className="rounded-[1.5rem] border border-[#ddd2be] bg-white/75 p-5 backdrop-blur-sm shadow-[0_10px_35px_rgba(16,38,29,0.04)] transition hover:border-[#cbb99c] hover:bg-white"
-            >
-              <div className="flex flex-wrap items-center gap-3">
-                <div
-                  className="rounded-2xl p-3"
-                  style={{ background: `${loc.pinColor}1a`, color: loc.pinColor }}
-                >
-                  <MapPin className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] font-semibold leading-tight text-[#10261d]">
-                    {loc.name}
-                  </h3>
-                  <p className="text-sm text-[#62726c]">{loc.type}</p>
-                </div>
-                <span className="rounded-full border border-[#e2d7c6] bg-[#faf7f1] px-3 py-1 text-xs font-medium text-[#586861]">
-                  {loc.difficulty}
-                </span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[#4d5d56]">{loc.desc}</p>
-              <a
-                href="/booking"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1f5a43] transition hover:text-[#153a2c]"
-              >
-                Book Tour
-                <ChevronRight className="h-4 w-4" />
-              </a>
-            </div>
-          ))}
-        </div>
-
-      </div>
     </div>
   );
 }
