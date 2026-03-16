@@ -439,7 +439,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               <SectionHeading
                 eyebrow="Rental Fleet"
                 title="Specialized bikes and a local bike shop partner riders can trust"
-                text="No guide needed? Bicikleta Bike Shop in Sanford offers full-suspension Specialized Stumpjumpers for rent, combining top-notch hospitality with the charm of a local bike shop."
+                text="We're proud to partner with Bicikleta Bike Shop in Sanford, giving riders access to full-suspension mountain bikes and e-bikes, along with the welcoming charm of a trusted local bike shop that complements our guided tour experience."
               />
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 {fleetFeatures.map((item) => (
@@ -447,10 +447,6 @@ export default function FloridaMountainBikeGuidesLanding() {
                     {item}
                   </div>
                 ))}
-              </div>
-              <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <CTAButton href="/booking">Check Out our Rental Fleet</CTAButton>
-                <CTAButton secondary href="#fleet">Bicikleta Bike Rentals</CTAButton>
               </div>
             </motion.div>
 
