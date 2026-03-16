@@ -8,8 +8,8 @@ import { motion } from "framer-motion";
 const InteractiveTrailMap = dynamic(
   () => import('@/components/map/InteractiveTrailMap'),
   { ssr: false, loading: () => (
-    <div className="flex h-[420px] items-center justify-center rounded-[2rem] border border-[#d8ccba] bg-[#f8f3ea]">
-      <p className="text-sm text-[#5b6b64]">Loading map…</p>
+    <div className="flex h-[420px] items-center justify-center rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-surface)]">
+      <p className="text-sm text-[var(--lp-text-body)]">Loading map…</p>
     </div>
   )}
 );
@@ -38,6 +38,7 @@ import {
 import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { StatCard } from "@/components/ui/StatCard";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -71,7 +72,7 @@ const valueProps = [
   },
   {
     title: "Optional rider pickup",
-    text: "Short on time or can’t get the car? Pickup and drop-off can be arranged for added convenience.",
+    text: "Short on time or can't get the car? Pickup and drop-off can be arranged for added convenience.",
     icon: Route,
   },
 ];
@@ -81,7 +82,7 @@ const tours = [
     title: "Mountain Bike Tours",
     badge: "Signature Experience",
     description:
-      "Guided mountain bike tours designed for riders of every skill level, focused on making Florida’s best trails easy, fun, and unforgettable.",
+      "Guided mountain bike tours designed for riders of every skill level, focused on making Florida's best trails easy, fun, and unforgettable.",
     icon: Mountain,
     points: ["Guided singletrack", "Bikes & gear included", "Beginner to advanced"],
     cta: "Book a Guide",
@@ -160,14 +161,14 @@ export default function FloridaMountainBikeGuidesLanding() {
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   return (
-    <div className="min-h-screen bg-[#f6f1e7] text-[#10261d]">
+    <div className="min-h-screen bg-[var(--lp-bg)] text-[var(--lp-text)]">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-[-10rem] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
         <div className="absolute right-[-8rem] top-[24rem] h-[22rem] w-[22rem] rounded-full bg-[#d7c3a1]/35 blur-3xl" />
         <div className="absolute left-[-8rem] top-[58rem] h-[20rem] w-[20rem] rounded-full bg-cyan-200/30 blur-3xl" />
       </div>
 
-      <header className="sticky top-0 z-50 border-b border-[#d8cdb8] bg-[#f6f1e7]/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-[var(--lp-border)] bg-[var(--lp-bg)]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           {/* Logo */}
           <div className="flex items-center gap-3">
@@ -180,44 +181,48 @@ export default function FloridaMountainBikeGuidesLanding() {
               priority
             />
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#1f5a43]">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--lp-green)]">
                 Florida Mountain Bike Guides
               </p>
-              <p className="text-xs text-[#6a7b73]">Mountain biking in the land of no mountains</p>
+              <p className="text-xs text-[var(--lp-text-muted)]">Mountain biking in the land of no mountains</p>
             </div>
           </div>
 
           {/* Desktop nav */}
-          <nav className="hidden items-center gap-8 text-sm text-[#56665f] md:flex">
+          <nav className="hidden items-center gap-8 text-sm text-[var(--lp-text-nav)] md:flex">
             {NAV_LINKS.map(({ href, label }) => (
-              <a key={href} href={href} className="transition hover:text-[#10261d]">{label}</a>
+              <a key={href} href={href} className="transition hover:text-[var(--lp-text)]">{label}</a>
             ))}
           </nav>
 
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center gap-3">
+            <ThemeToggle />
             <CTAButton>Book a Guide</CTAButton>
           </div>
 
           {/* Hamburger button — mobile only */}
-          <button
-            onClick={() => setMenuOpen((o) => !o)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#d8cdb8] bg-white/60 text-[#1f5a43] transition hover:bg-white md:hidden"
-            aria-label="Toggle menu"
-          >
-            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-2 md:hidden">
+            <ThemeToggle />
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--lp-border)] bg-[var(--lp-card-60)] text-[var(--lp-green)] transition hover:bg-[var(--lp-card-solid)]"
+              aria-label="Toggle menu"
+            >
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile drawer */}
         {menuOpen && (
-          <div className="border-t border-[#d8cdb8] bg-[#f6f1e7]/95 backdrop-blur-xl md:hidden">
+          <div className="border-t border-[var(--lp-border)] bg-[var(--lp-bg)]/95 backdrop-blur-xl md:hidden">
             <nav className="mx-auto flex max-w-7xl flex-col px-4 py-4 sm:px-6">
               {NAV_LINKS.map(({ href, label }) => (
                 <a
                   key={href}
                   href={href}
                   onClick={() => setMenuOpen(false)}
-                  className="border-b border-[#e8dfd0] py-3.5 text-sm font-medium text-[#3a4a43] transition hover:text-[#1f5a43]"
+                  className="border-b border-[var(--lp-border-soft)] py-3.5 text-sm font-medium text-[var(--lp-text-dark)] transition hover:text-[var(--lp-green)]"
                 >
                   {label}
                 </a>
@@ -234,24 +239,24 @@ export default function FloridaMountainBikeGuidesLanding() {
         <section className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 sm:pb-24 lg:px-8 lg:pt-20">
           <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
             <motion.div initial="hidden" animate="show" variants={stagger} className="max-w-3xl">
-              <motion.div variants={fadeUp} className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#d7c5a9] bg-[#efe4ce] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#7b5a2e]">
+              <motion.div variants={fadeUp} className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--lp-border)] bg-[var(--lp-badge-bg)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--lp-badge-text)]">
                 <Star className="h-3.5 w-3.5" />
                 Where Adventure Meets Simplicity
               </motion.div>
 
-              <motion.p variants={fadeUp} className="text-sm font-semibold uppercase tracking-[0.22em] text-[#1f5a43]">
+              <motion.p variants={fadeUp} className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--lp-green)]">
                 Welcome to Florida Mountain Bike Guides
               </motion.p>
 
-              <motion.h1 variants={fadeUp} className="mt-4 text-4xl font-black leading-tight tracking-tight text-[#10261d] sm:text-5xl lg:text-7xl">
-                Mountain biking in the <span className="text-[#1f5a43]">land of no mountains</span>
+              <motion.h1 variants={fadeUp} className="mt-4 text-4xl font-black leading-tight tracking-tight text-[var(--lp-text)] sm:text-5xl lg:text-7xl">
+                Mountain biking in the <span className="text-[var(--lp-green)]">land of no mountains</span>
               </motion.h1>
 
-              <motion.p variants={fadeUp} className="mt-6 max-w-2xl text-lg leading-8 text-[#4d5d56] sm:text-xl">
+              <motion.p variants={fadeUp} className="mt-6 max-w-2xl text-lg leading-8 text-[var(--lp-text-body)] sm:text-xl">
                 Guided mountain bike tours and scenic paved trail rides across Central Florida — with quality bikes, essential gear, and friendly local guides waiting right at the trailhead.
               </motion.p>
 
-              <motion.p variants={fadeUp} className="mt-4 max-w-2xl text-base leading-7 text-[#5b6b64]">
+              <motion.p variants={fadeUp} className="mt-4 max-w-2xl text-base leading-7 text-[var(--lp-text-body)]">
                 Just choose your location and date, show up ready to ride, and let the adventure begin. For riders who need a little extra convenience, pickup and drop-off can also be arranged.
               </motion.p>
 
@@ -273,48 +278,48 @@ export default function FloridaMountainBikeGuidesLanding() {
               transition={{ duration: 0.8 }}
               className="relative"
             >
-              <div className="relative overflow-hidden rounded-[2rem] border border-[#d7cdb9] bg-[linear-gradient(135deg,rgba(31,90,67,0.16),rgba(215,195,161,0.22),rgba(255,255,255,0.55))] p-4 shadow-[0_25px_80px_rgba(16,38,29,0.12)]">
+              <div className="relative overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[linear-gradient(135deg,rgba(31,90,67,0.16),rgba(215,195,161,0.22),rgba(255,255,255,0.55))] p-4 shadow-[0_25px_80px_rgba(16,38,29,0.12)]">
                 <div className="aspect-[4/5] rounded-[1.5rem] border border-white/60 bg-[radial-gradient(circle_at_top,_rgba(31,90,67,0.18),_transparent_35%),linear-gradient(135deg,rgba(255,255,255,0.75),rgba(255,255,255,0.45))] p-5">
-                  <div className="flex h-full flex-col justify-between rounded-[1.25rem] border border-white/50 bg-[#f7f1e5]/85 p-5">
+                  <div className="flex h-full flex-col justify-between rounded-[1.25rem] border border-white/50 bg-[var(--lp-surface)]/85 p-5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.25em] text-[#7a847f]">Featured Experience</p>
-                        <h3 className="mt-2 text-2xl font-bold text-[#10261d]">Central Florida Trail Adventures</h3>
+                        <p className="text-xs uppercase tracking-[0.25em] text-[var(--lp-text-muted)]">Featured Experience</p>
+                        <h3 className="mt-2 text-2xl font-bold text-[var(--lp-text)]">Central Florida Trail Adventures</h3>
                       </div>
-                      <div className="rounded-2xl bg-[#e5d8bf] p-3">
-                        <Trees className="h-6 w-6 text-[#1f5a43]" />
+                      <div className="rounded-2xl bg-[var(--lp-tan)] p-3">
+                        <Trees className="h-6 w-6 text-[var(--lp-green)]" />
                       </div>
                     </div>
 
                     <div className="grid gap-4">
-                      <div className="rounded-3xl border border-white/60 bg-white/70 p-4">
-                        <div className="flex items-center gap-3 text-sm text-[#42514a]">
-                          <Clock3 className="h-4 w-4 text-[#1f5a43]" />
+                      <div className="rounded-3xl border border-white/60 bg-[var(--lp-card-70)] p-4">
+                        <div className="flex items-center gap-3 text-sm text-[var(--lp-text-dark)]">
+                          <Clock3 className="h-4 w-4 text-[var(--lp-green)]" />
                           Easy to book, easy to show up for, unforgettable to ride.
                         </div>
                       </div>
-                      <div className="rounded-3xl border border-white/60 bg-white/70 p-4">
-                        <div className="flex items-center gap-3 text-sm text-[#42514a]">
-                          <MapPin className="h-4 w-4 text-[#1f5a43]" />
+                      <div className="rounded-3xl border border-white/60 bg-[var(--lp-card-70)] p-4">
+                        <div className="flex items-center gap-3 text-sm text-[var(--lp-text-dark)]">
+                          <MapPin className="h-4 w-4 text-[var(--lp-green)]" />
                           Sanford, Blue Spring, riverfront routes, and trail access points.
                         </div>
                       </div>
-                      <div className="rounded-3xl border border-white/60 bg-white/70 p-4">
-                        <div className="flex items-center gap-3 text-sm text-[#42514a]">
-                          <Users className="h-4 w-4 text-[#1f5a43]" />
+                      <div className="rounded-3xl border border-white/60 bg-[var(--lp-card-70)] p-4">
+                        <div className="flex items-center gap-3 text-sm text-[var(--lp-text-dark)]">
+                          <Users className="h-4 w-4 text-[var(--lp-green)]" />
                           Friendly guides who make the ride smoother, safer, and more fun.
                         </div>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="rounded-3xl border border-white/60 bg-white/70 p-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-[#7a847f]">Tour styles</p>
-                        <p className="mt-2 text-3xl font-black text-[#10261d]">2</p>
+                      <div className="rounded-3xl border border-white/60 bg-[var(--lp-card-70)] p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-[var(--lp-text-muted)]">Tour styles</p>
+                        <p className="mt-2 text-3xl font-black text-[var(--lp-text)]">2</p>
                       </div>
-                      <div className="rounded-3xl border border-white/60 bg-white/70 p-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-[#7a847f]">Vibe</p>
-                        <p className="mt-2 text-3xl font-black text-[#10261d]">Florida</p>
+                      <div className="rounded-3xl border border-white/60 bg-[var(--lp-card-70)] p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-[var(--lp-text-muted)]">Vibe</p>
+                        <p className="mt-2 text-3xl font-black text-[var(--lp-text)]">Florida</p>
                       </div>
                     </div>
                   </div>
@@ -338,13 +343,13 @@ export default function FloridaMountainBikeGuidesLanding() {
                 <motion.div
                   key={item.title}
                   variants={fadeUp}
-                  className="rounded-[1.75rem] border border-[#ddd2be] bg-white/70 p-6 backdrop-blur-sm shadow-[0_10px_40px_rgba(16,38,29,0.05)] transition hover:-translate-y-1 hover:bg-white"
+                  className="rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-6 backdrop-blur-sm shadow-[0_10px_40px_rgba(16,38,29,0.05)] transition hover:-translate-y-1 hover:bg-[var(--lp-card-solid)]"
                 >
-                  <div className="mb-4 inline-flex rounded-2xl bg-[#e8dcc6] p-3 text-[#1f5a43] ring-1 ring-[#d8c7ad]">
+                  <div className="mb-4 inline-flex rounded-2xl bg-[var(--lp-tan)] p-3 text-[var(--lp-green)] ring-1 ring-[var(--lp-border-soft)]">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="text-lg font-semibold text-[#10261d]">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#5b6b64]">{item.text}</p>
+                  <h3 className="text-lg font-semibold text-[var(--lp-text)]">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[var(--lp-text-body)]">{item.text}</p>
                 </motion.div>
               );
             })}
@@ -371,30 +376,30 @@ export default function FloridaMountainBikeGuidesLanding() {
                 <motion.div
                   key={tour.title}
                   variants={fadeUp}
-                  className="group relative overflow-hidden rounded-[2rem] border border-[#ddd2be] bg-white/75 p-8 backdrop-blur-sm shadow-[0_15px_50px_rgba(16,38,29,0.06)]"
+                  className="group relative overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] p-8 backdrop-blur-sm shadow-[0_15px_50px_rgba(16,38,29,0.06)]"
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-[#d9c6a6]/10 to-transparent opacity-0 transition duration-500 group-hover:opacity-100" />
                   <div className="relative z-10">
                     <div className="flex items-center justify-between gap-4">
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[#efe4cf] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#7b5a2e]">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-[var(--lp-badge-bg)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--lp-badge-text)]">
                         {tour.badge}
                       </div>
-                      <div className="rounded-2xl bg-[#e8dcc6] p-3 ring-1 ring-[#d8c7ad]">
-                        <Icon className="h-6 w-6 text-[#1f5a43]" />
+                      <div className="rounded-2xl bg-[var(--lp-tan)] p-3 ring-1 ring-[var(--lp-border-soft)]">
+                        <Icon className="h-6 w-6 text-[var(--lp-green)]" />
                       </div>
                     </div>
-                    <h3 className="mt-6 text-2xl font-bold text-[#10261d] sm:text-3xl">{tour.title}</h3>
-                    <p className="mt-4 max-w-2xl text-base leading-7 text-[#51615a]">{tour.description}</p>
+                    <h3 className="mt-6 text-2xl font-bold text-[var(--lp-text)] sm:text-3xl">{tour.title}</h3>
+                    <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--lp-text-body)]">{tour.description}</p>
 
                     <div className="mt-6 grid gap-3 sm:grid-cols-3">
                       {tour.points.map((point) => (
-                        <div key={point} className="rounded-2xl border border-[#e2d7c6] bg-[#faf7f1] px-4 py-3 text-sm text-[#34423d]">
+                        <div key={point} className="rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-3 text-sm text-[var(--lp-text-dark)]">
                           {point}
                         </div>
                       ))}
                     </div>
 
-                    <a href="/booking" className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[#1f5a43] transition hover:text-[#153a2c]">
+                    <a href="/booking" className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]">
                       {tour.cta}
                       <ChevronRight className="h-4 w-4" />
                     </a>
@@ -405,7 +410,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           </motion.div>
         </section>
 
-        <section id="map" className="border-y border-[#ddd2be] bg-[#efe8da]">
+        <section id="map" className="border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Interactive Map"
@@ -423,7 +428,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           <SectionHeading
             eyebrow="Trails"
             title="Central Florida trails presented like a premium outdoor experience"
-            text="Instead of a plain info block, this section frames the trail offering with the kind of clarity and aspiration you’d expect from Patagonia, AllTrails, or a modern outdoor travel brand."
+            text="Instead of a plain info block, this section frames the trail offering with the kind of clarity and aspiration you'd expect from Patagonia, AllTrails, or a modern outdoor travel brand."
           />
 
           <motion.div
@@ -434,10 +439,10 @@ export default function FloridaMountainBikeGuidesLanding() {
             className="mt-12 grid gap-6 lg:grid-cols-3"
           >
             {trailHighlights.map((item) => (
-              <motion.div key={item.title} variants={fadeUp} className="rounded-[2rem] border border-[#ddd2be] bg-white/70 p-7 shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
-                <h3 className="text-xl font-bold text-[#10261d]">{item.title}</h3>
-                <p className="mt-4 text-sm leading-7 text-[#586861]">{item.text}</p>
-                <a href="#map" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#1f5a43]">
+              <motion.div key={item.title} variants={fadeUp} className="rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-7 shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
+                <h3 className="text-xl font-bold text-[var(--lp-text)]">{item.title}</h3>
+                <p className="mt-4 text-sm leading-7 text-[var(--lp-text-body)]">{item.text}</p>
+                <a href="#map" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)]">
                   Explore trails
                   <ChevronRight className="h-4 w-4" />
                 </a>
@@ -446,7 +451,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           </motion.div>
         </section>
 
-        <section id="guides" className="border-y border-[#ddd2be] bg-[#f1ebdf]">
+        <section id="guides" className="border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Guides"
@@ -462,13 +467,13 @@ export default function FloridaMountainBikeGuidesLanding() {
               className="mt-12 grid gap-6 lg:grid-cols-3"
             >
               {guides.map((guide) => (
-                <motion.div key={guide.title} variants={fadeUp} className="overflow-hidden rounded-[2rem] border border-[#ddd2be] bg-white/75 shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
+                <motion.div key={guide.title} variants={fadeUp} className="overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
                   <div className="h-56 bg-[linear-gradient(135deg,rgba(31,90,67,0.18),rgba(215,195,161,0.22),rgba(117,196,210,0.12))]" />
                   <div className="p-6">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7b5a2e]">Guide Profile</p>
-                    <h3 className="mt-3 text-2xl font-bold text-[#10261d]">{guide.title}</h3>
-                    <p className="mt-2 text-sm font-medium text-[#62726c]">{guide.subtitle}</p>
-                    <p className="mt-4 text-sm leading-7 text-[#4f5f58]">{guide.text}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--lp-badge-text)]">Guide Profile</p>
+                    <h3 className="mt-3 text-2xl font-bold text-[var(--lp-text)]">{guide.title}</h3>
+                    <p className="mt-2 text-sm font-medium text-[var(--lp-text-nav)]">{guide.subtitle}</p>
+                    <p className="mt-4 text-sm leading-7 text-[var(--lp-text-body)]">{guide.text}</p>
                   </div>
                 </motion.div>
               ))}
@@ -491,7 +496,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               />
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
                 {fleetFeatures.map((item) => (
-                  <div key={item} className="rounded-2xl border border-[#e2d7c6] bg-white/70 px-4 py-4 text-sm text-[#34423d] shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
+                  <div key={item} className="rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-70)] px-4 py-4 text-sm text-[var(--lp-text-dark)] shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
                     {item}
                   </div>
                 ))}
@@ -503,27 +508,27 @@ export default function FloridaMountainBikeGuidesLanding() {
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.7 }}
-              className="rounded-[2rem] border border-[#ddd2be] bg-white/70 p-5 shadow-[0_18px_60px_rgba(16,38,29,0.06)]"
+              className="rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-5 shadow-[0_18px_60px_rgba(16,38,29,0.06)]"
             >
               <div className="rounded-[1.5rem] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.85),rgba(247,241,231,0.92))] p-6">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-3xl border border-[#e5dac8] bg-[#faf7f1] p-5">
-                    <p className="text-xs uppercase tracking-[0.22em] text-[#7c847f]">Bike shop</p>
-                    <h3 className="mt-2 text-xl font-bold text-[#10261d]">Bicikleta, Sanford FL</h3>
-                    <p className="mt-3 text-sm leading-6 text-[#4f5f58]">
+                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Bike shop</p>
+                    <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Bicikleta, Sanford FL</h3>
+                    <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
                       A local shop experience that supports riders who want premium bike rentals without the extra hassle.
                     </p>
                   </div>
-                  <div className="rounded-3xl border border-[#e5dac8] bg-[#faf7f1] p-5">
-                    <p className="text-xs uppercase tracking-[0.22em] text-[#7c847f]">Rental focus</p>
-                    <h3 className="mt-2 text-xl font-bold text-[#10261d]">Ride-ready setup</h3>
-                    <p className="mt-3 text-sm leading-6 text-[#4f5f58]">
+                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Rental focus</p>
+                    <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Ride-ready setup</h3>
+                    <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
                       Specialized Stumpjumpers and electric bike options positioned as part of an effortless Florida ride experience.
                     </p>
                   </div>
-                  <div className="rounded-3xl border border-[#e5dac8] bg-[#faf7f1] p-5 sm:col-span-2">
-                    <p className="text-xs uppercase tracking-[0.22em] text-[#7c847f]">Why this matters</p>
-                    <p className="mt-3 text-sm leading-7 text-[#4f5f58]">
+                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-5 sm:col-span-2">
+                    <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Why this matters</p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--lp-text-body)]">
                       The new landing supports both customer paths: visitors looking for a fully guided experience and riders who simply want to rent a high-quality bike.
                     </p>
                   </div>
@@ -533,7 +538,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           </div>
         </section>
 
-        <section className="border-y border-[#ddd2be] bg-[#efe8da]">
+        <section className="border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Photo Gallery"
@@ -549,7 +554,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               className="mt-12 grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
             >
               {galleryItems.map((item, index) => (
-                <motion.div key={item.title} variants={fadeUp} className="group overflow-hidden rounded-[1.75rem] border border-[#ddd2be] bg-white/75 shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
+                <motion.div key={item.title} variants={fadeUp} className="group overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.04)]">
                   <div className="relative h-64 overflow-hidden bg-[linear-gradient(135deg,rgba(31,90,67,0.18),rgba(215,195,161,0.28),rgba(117,196,210,0.14))]">
                     <div className="absolute inset-0 transition duration-500 group-hover:scale-110 group-hover:rotate-1">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.22),transparent_22%),linear-gradient(180deg,transparent,rgba(16,38,29,0.24))]" />
@@ -588,7 +593,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                 Choose your trail, meet your guide, and experience the best of Central Florida on two wheels. From scenic paved rides to guided mountain bike adventures, we make it easy to show up, ride, and enjoy the journey.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <a href="/booking" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f7efdf] px-5 py-3 text-sm font-semibold text-[#173a2c] transition hover:-translate-y-0.5 hover:bg-white">
+                <a href="/booking" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f7efdf] px-5 py-3 text-sm font-semibold text-[var(--lp-green-dark)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-card-solid)]">
                   Book a Tour
                   <ArrowRight className="h-4 w-4" />
                 </a>
@@ -601,7 +606,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           </motion.div>
         </section>
 
-        <section id="contact" className="border-t border-[#ddd2be] bg-[#f7f2e8]">
+        <section id="contact" className="border-t border-[var(--lp-border)] bg-[var(--lp-surface)]">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
               <div>
@@ -612,76 +617,76 @@ export default function FloridaMountainBikeGuidesLanding() {
                 />
 
                 <div className="mt-8 grid gap-4">
-                  <div className="rounded-3xl border border-[#e2d7c6] bg-white/75 p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
-                    <div className="flex items-center gap-3 text-[#3c4b45]">
-                      <Mail className="h-5 w-5 text-[#1f5a43]" />
+                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card)] p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
+                    <div className="flex items-center gap-3 text-[var(--lp-text-dark)]">
+                      <Mail className="h-5 w-5 text-[var(--lp-green)]" />
                       <span>Email inquiries</span>
                     </div>
                   </div>
-                  <div className="rounded-3xl border border-[#e2d7c6] bg-white/75 p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
-                    <div className="flex items-center gap-3 text-[#3c4b45]">
-                      <Phone className="h-5 w-5 text-[#1f5a43]" />
+                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card)] p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
+                    <div className="flex items-center gap-3 text-[var(--lp-text-dark)]">
+                      <Phone className="h-5 w-5 text-[var(--lp-green)]" />
                       <span>Tour questions & logistics</span>
                     </div>
                   </div>
-                  <div className="rounded-3xl border border-[#e2d7c6] bg-white/75 p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
-                    <div className="flex items-center gap-3 text-[#3c4b45]">
-                      <MapPin className="h-5 w-5 text-[#1f5a43]" />
+                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card)] p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
+                    <div className="flex items-center gap-3 text-[var(--lp-text-dark)]">
+                      <MapPin className="h-5 w-5 text-[var(--lp-green)]" />
                       <span>Based out of Sanford, Florida</span>
                     </div>
                   </div>
-                  <div className="rounded-3xl border border-[#e2d7c6] bg-white/75 p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
-                    <div className="flex items-center gap-3 text-[#3c4b45]">
-                      <Compass className="h-5 w-5 text-[#1f5a43]" />
+                  <div className="rounded-3xl border border-[var(--lp-border-soft)] bg-[var(--lp-card)] p-5 shadow-[0_8px_25px_rgba(16,38,29,0.03)]">
+                    <div className="flex items-center gap-3 text-[var(--lp-text-dark)]">
+                      <Compass className="h-5 w-5 text-[var(--lp-green)]" />
                       <span>Sanford Tours & Experiences</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-[#ddd2be] bg-white/80 p-6 shadow-[0_16px_50px_rgba(16,38,29,0.05)] sm:p-8">
+              <div className="rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-80)] p-6 shadow-[0_16px_50px_rgba(16,38,29,0.05)] sm:p-8">
                 <form className="grid gap-5">
                   <div className="grid gap-5 sm:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-[#44544d]">Name</label>
+                      <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Name</label>
                       <input
                         type="text"
                         placeholder="Your name"
-                        className="w-full rounded-2xl border border-[#dfd4c2] bg-[#fbf8f2] px-4 py-3 text-[#10261d] outline-none placeholder:text-[#8a948f] focus:border-[#1f5a43]/40"
+                        className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                       />
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-[#44544d]">Email</label>
+                      <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Email</label>
                       <input
                         type="email"
                         placeholder="you@example.com"
-                        className="w-full rounded-2xl border border-[#dfd4c2] bg-[#fbf8f2] px-4 py-3 text-[#10261d] outline-none placeholder:text-[#8a948f] focus:border-[#1f5a43]/40"
+                        className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#44544d]">Phone Number (optional)</label>
+                    <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Phone Number (optional)</label>
                     <input
                       type="text"
                       placeholder="(555) 555-5555"
-                      className="w-full rounded-2xl border border-[#dfd4c2] bg-[#fbf8f2] px-4 py-3 text-[#10261d] outline-none placeholder:text-[#8a948f] focus:border-[#1f5a43]/40"
+                      className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-[#44544d]">Questions?</label>
+                    <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Questions?</label>
                     <textarea
                       rows={5}
-                      placeholder="Tell us about your ideal ride, your skill level, or the type of tour you’re looking for."
-                      className="w-full rounded-2xl border border-[#dfd4c2] bg-[#fbf8f2] px-4 py-3 text-[#10261d] outline-none placeholder:text-[#8a948f] focus:border-[#1f5a43]/40"
+                      placeholder="Tell us about your ideal ride, your skill level, or the type of tour you're looking for."
+                      className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                     />
                   </div>
 
                   <div className="pt-2">
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1f5a43] px-5 py-3 text-sm font-semibold text-[#f8f3e8] transition hover:-translate-y-0.5 hover:bg-[#174b37]"
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--lp-green)] px-5 py-3 text-sm font-semibold text-[var(--lp-surface)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-green-dark)]"
                     >
                       Submit
                       <ArrowRight className="h-4 w-4" />
@@ -695,14 +700,14 @@ export default function FloridaMountainBikeGuidesLanding() {
 
       </main>
 
-      <footer className="border-t border-[#ddd2be] bg-[#efe8da]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-[#6a7b73] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+      <footer className="border-t border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-[var(--lp-text-muted)] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <p>© Florida Mountain Bike Guides LLC — Redesign concept landing page.</p>
           <div className="flex flex-wrap gap-5">
-            <a href="#tours" className="transition hover:text-[#10261d]">Mountain bike tours</a>
-            <a href="#guides" className="transition hover:text-[#10261d]">Meet Our Guides</a>
-            <a href="#fleet" className="transition hover:text-[#10261d]">Rental Fleet</a>
-            <a href="/booking" className="transition hover:text-[#10261d]">Book a Tour</a>
+            <a href="#tours" className="transition hover:text-[var(--lp-text)]">Mountain bike tours</a>
+            <a href="#guides" className="transition hover:text-[var(--lp-text)]">Meet Our Guides</a>
+            <a href="#fleet" className="transition hover:text-[var(--lp-text)]">Rental Fleet</a>
+            <a href="/booking" className="transition hover:text-[var(--lp-text)]">Book a Tour</a>
           </div>
         </div>
       </footer>

@@ -127,3 +127,52 @@
     @apply font-sans;
   }
 }
+
+/* ─── Landing Page Color Palette ─────────────────────────────────────────── */
+:root {
+  --lp-bg:           #f6f1e7;
+  --lp-bg-alt:       #efe8da;
+  --lp-surface:      #f8f3ea;
+  --lp-card-light:   #faf7f1;
+  --lp-text:         #10261d;
+  --lp-text-body:    #5b6b64;
+  --lp-text-muted:   #6a7b73;
+  --lp-text-nav:     #56665f;
+  --lp-text-dark:    #34423d;
+  --lp-green:        #1f5a43;
+  --lp-green-dark:   #153a2c;
+  --lp-border:       #ddd2be;
+  --lp-border-soft:  #e2d7c6;
+  --lp-tan:          #e8dcc6;
+  --lp-badge-bg:     #efe4cf;
+  --lp-badge-text:   #7b5a2e;
+  --lp-card:         rgba(255,255,255,0.75);
+  --lp-card-70:      rgba(255,255,255,0.70);
+  --lp-card-80:      rgba(255,255,255,0.80);
+  --lp-card-60:      rgba(255,255,255,0.60);
+  --lp-card-solid:   #ffffff;
+}
+
+.dark {
+  --lp-bg:           #0d1812;
+  --lp-bg-alt:       #0a1410;
+  --lp-surface:      #111c16;
+  --lp-card-light:   #162219;
+  --lp-text:         #d4e8da;
+  --lp-text-body:    #7a9a88;
+  --lp-text-muted:   #4a6458;
+  --lp-text-nav:     #6a8a78;
+  --lp-text-dark:    #8aaa98;
+  --lp-green:        #3daa72;
+  --lp-green-dark:   #2d8a5a;
+  --lp-border:       #1e3228;
+  --lp-border-soft:  #182a20;
+  --lp-tan:          #1e3228;
+  --lp-badge-bg:     #243a2c;
+  --lp-badge-text:   #c4946a;
+  --lp-card:         rgba(15,32,20,0.75);
+  --lp-card-70:      rgba(15,32,20,0.70);
+  --lp-card-80:      rgba(15,32,20,0.80);
+  --lp-card-60:      rgba(15,32,20,0.60);
+  --lp-card-solid:   #0f2014;
+}
