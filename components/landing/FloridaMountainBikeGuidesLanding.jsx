@@ -1,7 +1,18 @@
 'use client';
 
 import React from "react";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
+
+// Leaflet requires browser APIs — must be loaded with ssr:false
+const InteractiveTrailMap = dynamic(
+  () => import('@/components/map/InteractiveTrailMap'),
+  { ssr: false, loading: () => (
+    <div className="flex h-[420px] items-center justify-center rounded-[2rem] border border-[#d8ccba] bg-[#f8f3ea]">
+      <p className="text-sm text-[#5b6b64]">Loading map…</p>
+    </div>
+  )}
+);
 import {
   ArrowRight,
   Bike,
@@ -9,7 +20,6 @@ import {
   Camera,
   ChevronRight,
   Clock3,
-  ExternalLink,
   Mail,
   MapPin,
   Mountain,
@@ -83,48 +93,6 @@ const tours = [
   },
 ];
 
-const mapLocations = [
-  {
-    name: "Sanford Riverwalk",
-    type: "Paved Tour",
-    difficulty: "Easy",
-    x: "18%",
-    y: "58%",
-    desc: "Historic downtown Sanford, waterfront views, and a relaxed city-to-nature ride.",
-  },
-  {
-    name: "Blue Spring State Park",
-    type: "Nature Tour",
-    difficulty: "Easy–Moderate",
-    x: "64%",
-    y: "24%",
-    desc: "Crystal-clear spring water, seasonal manatees, and one of Central Florida’s most iconic stops.",
-  },
-  {
-    name: "Bearford Lake",
-    type: "Scenic Ride",
-    difficulty: "Easy",
-    x: "34%",
-    y: "38%",
-    desc: "A scenic stop that connects the Florida outdoor vibe with a relaxed two-wheel experience.",
-  },
-  {
-    name: "Central Florida Trail Network",
-    type: "MTB Trails",
-    difficulty: "Moderate–Advanced",
-    x: "46%",
-    y: "72%",
-    desc: "A visual placeholder for the trail system your client offers through guided off-road tours.",
-  },
-  {
-    name: "Bicikleta Bike Shop",
-    type: "Rental Hub",
-    difficulty: "All Riders",
-    x: "24%",
-    y: "48%",
-    desc: "Sanford-based rental partner offering full-suspension Specialized Stumpjumpers and local hospitality.",
-  },
-];
 
 const guides = [
   {
@@ -396,84 +364,8 @@ export default function FloridaMountainBikeGuidesLanding() {
               text="This section is intentionally built to be replaced by a real interactive map Claude Code can generate later. For now, it sells the idea while keeping the design premium and conversion-friendly."
             />
 
-            <div className="mt-12 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-              <motion.div
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.7 }}
-                className="relative overflow-hidden rounded-[2rem] border border-[#d8ccba] bg-[#f8f3ea] p-4 shadow-[0_20px_70px_rgba(16,38,29,0.08)]"
-              >
-                <div className="relative h-[24rem] overflow-hidden rounded-[1.5rem] border border-white/80 bg-[radial-gradient(circle_at_20%_20%,rgba(31,90,67,0.16),transparent_18%),radial-gradient(circle_at_80%_28%,rgba(108,187,211,0.18),transparent_18%),radial-gradient(circle_at_46%_75%,rgba(215,195,161,0.30),transparent_20%),linear-gradient(180deg,rgba(255,255,255,0.65),rgba(247,241,231,0.9))] sm:h-[30rem]">
-                  <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(16,38,29,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(16,38,29,0.06)_1px,transparent_1px)] [background-size:34px_34px]" />
-
-                  <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full opacity-35">
-                    <path d="M7 72 C 18 54, 28 56, 40 64 S 68 86, 92 64" fill="none" stroke="rgba(31,90,67,0.4)" strokeWidth="1.6" strokeDasharray="4 4" />
-                    <path d="M8 30 C 24 18, 40 34, 55 27 S 75 18, 92 28" fill="none" stroke="rgba(99,163,189,0.35)" strokeWidth="1.3" strokeDasharray="5 5" />
-                    <path d="M18 16 C 24 36, 26 62, 18 86" fill="none" stroke="rgba(16,38,29,0.12)" strokeWidth="1" />
-                    <path d="M54 12 C 64 28, 58 54, 70 88" fill="none" stroke="rgba(16,38,29,0.10)" strokeWidth="1" />
-                  </svg>
-
-                  {mapLocations.map((location, index) => (
-                    <motion.button
-                      key={location.name}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      whileInView={{ opacity: 1, scale: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: index * 0.08, duration: 0.35 }}
-                      className="group absolute"
-                      style={{ left: location.x, top: location.y }}
-                    >
-                      <span className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-[#1f5a43]/15" />
-                      <span className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#245b45]/20 bg-[#1f5a43] text-[#f7f2e8] shadow-lg shadow-emerald-900/10 transition group-hover:scale-110">
-                        <MapPin className="h-5 w-5" />
-                      </span>
-                    </motion.button>
-                  ))}
-
-                  <div className="absolute bottom-4 left-4 right-4 rounded-3xl border border-white/70 bg-white/75 p-4 backdrop-blur-md sm:left-auto sm:right-4 sm:w-[19rem]">
-                    <p className="text-xs uppercase tracking-[0.22em] text-[#7c847f]">Claude-ready section</p>
-                    <h3 className="mt-2 text-lg font-semibold text-[#10261d]">Interactive trail map placeholder</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#5b6b64]">
-                      This visual block is ready to be replaced with a real React Leaflet map component with pins, popups, and booking buttons.
-                    </p>
-                    <a href="#claude-prompt" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#1f5a43]">
-                      View Claude prompt
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true, amount: 0.2 }}
-                variants={stagger}
-                className="grid gap-4"
-              >
-                {mapLocations.map((location) => (
-                  <motion.div key={location.name} variants={fadeUp} className="rounded-[1.5rem] border border-[#ddd2be] bg-white/75 p-5 backdrop-blur-sm shadow-[0_10px_35px_rgba(16,38,29,0.04)] transition hover:border-[#cbb99c] hover:bg-white">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="rounded-2xl bg-[#e8dcc6] p-3 text-[#1f5a43] ring-1 ring-[#d8c7ad]">
-                        <MapPin className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-[#10261d]">{location.name}</h3>
-                        <p className="text-sm text-[#62726c]">{location.type}</p>
-                      </div>
-                      <span className="ml-auto rounded-full border border-[#e2d7c6] bg-[#faf7f1] px-3 py-1 text-xs font-medium text-[#586861]">
-                        {location.difficulty}
-                      </span>
-                    </div>
-                    <p className="mt-4 text-sm leading-6 text-[#4d5d56]">{location.desc}</p>
-                    <a href="#contact" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#1f5a43]">
-                      Book Tour
-                      <ChevronRight className="h-4 w-4" />
-                    </a>
-                  </motion.div>
-                ))}
-              </motion.div>
+            <div className="mt-12">
+              <InteractiveTrailMap />
             </div>
           </div>
         </section>
