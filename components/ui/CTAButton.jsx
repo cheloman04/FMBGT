@@ -1,9 +1,9 @@
 import { ArrowRight } from "lucide-react";
 
-export function CTAButton({ children, secondary = false }) {
+export function CTAButton({ children, secondary = false, href = '/booking' }) {
   return (
     <a
-      href="#contact"
+      href={href}
       className={
         secondary
           ? "inline-flex items-center justify-center gap-2 rounded-2xl border border-[#cfc3ad] bg-white/60 px-5 py-3 text-sm font-semibold text-[#183328] transition hover:bg-white"

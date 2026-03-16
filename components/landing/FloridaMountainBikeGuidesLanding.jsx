@@ -209,7 +209,7 @@ export default function FloridaMountainBikeGuidesLanding() {
 
               <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <CTAButton>Book a Guide</CTAButton>
-                <CTAButton secondary>Explore Trails</CTAButton>
+                <CTAButton secondary href="#tours">Explore Trails</CTAButton>
               </motion.div>
 
               <motion.div variants={fadeUp} className="mt-10 grid gap-4 sm:grid-cols-3">
@@ -346,7 +346,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                       ))}
                     </div>
 
-                    <a href="#contact" className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[#1f5a43] transition hover:text-[#153a2c]">
+                    <a href="/booking" className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[#1f5a43] transition hover:text-[#153a2c]">
                       {tour.cta}
                       <ChevronRight className="h-4 w-4" />
                     </a>
@@ -449,8 +449,8 @@ export default function FloridaMountainBikeGuidesLanding() {
                 ))}
               </div>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <CTAButton>Check Out our Rental Fleet</CTAButton>
-                <CTAButton secondary>Bicikleta Bike Rentals</CTAButton>
+                <CTAButton href="/booking">Check Out our Rental Fleet</CTAButton>
+                <CTAButton secondary href="#fleet">Bicikleta Bike Rentals</CTAButton>
               </div>
             </motion.div>
 
@@ -544,7 +544,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                 From scenic paved rides to guided mountain bike tours, the redesigned page is built to make booking feel easy while still showcasing the premium outdoor vibe of the brand.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <a href="#contact" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f7efdf] px-5 py-3 text-sm font-semibold text-[#173a2c] transition hover:-translate-y-0.5 hover:bg-white">
+                <a href="/booking" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f7efdf] px-5 py-3 text-sm font-semibold text-[#173a2c] transition hover:-translate-y-0.5 hover:bg-white">
                   Book a Tour
                   <ArrowRight className="h-4 w-4" />
                 </a>
@@ -658,7 +658,7 @@ export default function FloridaMountainBikeGuidesLanding() {
             <a href="#tours" className="transition hover:text-[#10261d]">Mountain bike tours</a>
             <a href="#guides" className="transition hover:text-[#10261d]">Meet Our Guides</a>
             <a href="#fleet" className="transition hover:text-[#10261d]">Rental Fleet</a>
-            <a href="#contact" className="transition hover:text-[#10261d]">Book a Tour</a>
+            <a href="/booking" className="transition hover:text-[#10261d]">Book a Tour</a>
           </div>
         </div>
       </footer>
