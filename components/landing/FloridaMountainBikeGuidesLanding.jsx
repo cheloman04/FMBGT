@@ -20,9 +20,6 @@ import {
   Calendar,
   ChevronRight,
   Clock3,
-  Facebook,
-  Instagram,
-  Mail,
   MapPin,
   Menu,
   Mountain,
@@ -33,13 +30,47 @@ import {
   Users,
   Waves,
   X,
-  Youtube,
 } from "lucide-react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { StatCard } from "@/components/ui/StatCard";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { GalleryCarousel } from "@/components/landing/GalleryCarousel";
+
+function FacebookIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+    </svg>
+  );
+}
+
+function InstagramIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+      <circle cx="12" cy="12" r="4"/>
+      <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none"/>
+    </svg>
+  );
+}
+
+function YoutubeIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58a2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.96-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/>
+    </svg>
+  );
+}
+
+// Threads has no lucide icon — minimal inline SVG matching the official mark
+function ThreadsIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.028-3.579.878-6.43 2.523-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.594 12c.022 3.087.713 5.495 2.052 7.163 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.749-1.752-2.982-.065-1.232.448-2.35 1.44-3.154.905-.733 2.184-1.175 3.738-1.313.383-.034.793-.056 1.228-.067-.083-.49-.218-.895-.407-1.207-.43-.713-1.13-1.074-2.085-1.074h-.049c-.707.007-1.951.199-2.97 1.32l-1.492-1.32c1.417-1.602 3.231-2.148 4.474-2.155h.067c1.582 0 2.877.614 3.736 1.773.677.913 1.063 2.174 1.148 3.754.53.309.999.663 1.396 1.063 1.086 1.1 1.637 2.534 1.548 4.04-.107 1.79-.862 3.442-2.125 4.665-1.524 1.476-3.575 2.226-6.094 2.246zM12.5 13.93c-.461.01-.876.033-1.242.067-1.053.093-1.875.38-2.333.756-.44.358-.657.838-.622 1.352.038.708.447 1.253 1.16 1.716.55.356 1.27.538 2.083.494 1.154-.062 2.011-.499 2.622-1.336.527-.72.836-1.731.92-3.01-.215-.024-.383-.039-.588-.039z"/>
+    </svg>
+  );
+}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -159,10 +190,10 @@ const NAV_LINKS = [
 ];
 
 const SOCIAL_LINKS = [
-  { href: 'https://www.facebook.com/floridamountainbikeguides', icon: Facebook, label: 'Facebook'  },
-  { href: 'https://www.instagram.com/floridamountainbikeguides', icon: Instagram, label: 'Instagram' },
-  { href: 'https://www.youtube.com/@floridamountainbikeguides',  icon: Youtube,   label: 'YouTube'   },
-  { href: 'mailto:info@fmbgt.com',                               icon: Mail,      label: 'Email'     },
+  { href: 'https://www.facebook.com/floridamountainbikeguides',   icon: FacebookIcon,   ariaLabel: 'Visit Facebook page'   },
+  { href: 'https://www.instagram.com/FloridaMountainBikeGuides',  icon: InstagramIcon,  ariaLabel: 'Visit Instagram page'  },
+  { href: 'https://www.threads.com/@floridamountainbikeguides',   icon: ThreadsIcon,    ariaLabel: 'Visit Threads page'    },
+  { href: 'https://www.youtube.com/@FloridaMountainBikeGuides',   icon: YoutubeIcon,    ariaLabel: 'Visit YouTube channel' },
 ];
 
 export default function FloridaMountainBikeGuidesLanding() {
@@ -316,25 +347,30 @@ export default function FloridaMountainBikeGuidesLanding() {
               "Mountain biking in the land of no mountains"
             </motion.p>
 
-            {/* ── Social icons ── */}
+            {/* ── Social icons + micro-copy ── */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.84, ease: 'easeOut' }}
-              className="mt-8 flex items-center gap-3"
+              className="mt-8 flex flex-col items-center gap-4"
             >
-              {SOCIAL_LINKS.map(({ href, icon: Icon, label }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--lp-border)] bg-[var(--lp-card-60)] text-[var(--lp-text-body)] backdrop-blur-sm transition hover:border-[var(--lp-green)]/50 hover:bg-[var(--lp-tan)] hover:text-[var(--lp-green)] hover:-translate-y-0.5"
-                >
-                  <Icon className="h-5 w-5" />
-                </a>
-              ))}
+              <p className="text-xs tracking-wide text-[var(--lp-text-muted)]">
+                Follow us for trail updates, rides, and local insights.
+              </p>
+              <div className="flex items-center gap-3">
+                {SOCIAL_LINKS.map(({ href, icon: Icon, ariaLabel }) => (
+                  <a
+                    key={ariaLabel}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={ariaLabel}
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--lp-border)] bg-[var(--lp-card-60)] text-[var(--lp-text-body)] backdrop-blur-sm transition hover:scale-105 hover:border-[var(--lp-green)]/50 hover:bg-[var(--lp-tan)] hover:text-[var(--lp-green)]"
+                  >
+                    <Icon className="h-5 w-5" />
+                  </a>
+                ))}
+              </div>
             </motion.div>
 
           </div>
