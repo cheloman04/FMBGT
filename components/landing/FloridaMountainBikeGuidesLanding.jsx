@@ -244,49 +244,75 @@ export default function FloridaMountainBikeGuidesLanding() {
       </header>
 
       <main className="relative z-10">
+
+        {/* ══════════════════════════════════════════
+            LAYER 1 — Brand Introduction
+            Full-width, centered, logo is the hero
+        ══════════════════════════════════════════ */}
+        <section className="relative overflow-hidden border-b border-[var(--lp-border-soft)] bg-[var(--lp-bg-alt)]">
+          {/* Radial glow behind logo */}
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-[480px] w-[480px] rounded-full bg-[var(--lp-green)]/8 blur-3xl" />
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="relative mx-auto flex max-w-lg flex-col items-center px-6 py-16 text-center sm:py-20"
+          >
+            {/* ── Large logo ── */}
+            <div className="relative mb-7">
+              <div className="absolute inset-[-16px] rounded-full bg-[var(--lp-green)]/14 blur-2xl" />
+              <div className="absolute inset-[-4px] rounded-full ring-1 ring-[var(--lp-green)]/20" />
+              <Image
+                src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
+                alt="Florida Mountain Bike Guides logo"
+                width={200}
+                height={200}
+                className="relative rounded-full shadow-[0_20px_70px_rgba(31,90,67,0.28)]"
+                priority
+              />
+            </div>
+
+            {/* ── Brand name ── */}
+            <h2 className="text-lg font-black uppercase tracking-[0.22em] text-[var(--lp-green)] sm:text-xl">
+              Florida Mountain Bike Guides
+            </h2>
+            <p className="mt-1.5 text-xs font-medium uppercase tracking-[0.28em] text-[var(--lp-text-muted)]">
+              Est. 2024 · Central Florida
+            </p>
+
+            {/* ── Tagline ── */}
+            <p className="mt-4 text-sm italic leading-relaxed text-[var(--lp-text-body)]">
+              "Mountain biking in the land of no mountains"
+            </p>
+
+            {/* ── Social icons ── */}
+            <div className="mt-7 flex items-center gap-3">
+              {SOCIAL_LINKS.map(({ href, icon: Icon, label }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--lp-border)] bg-[var(--lp-card-60)] text-[var(--lp-text-body)] backdrop-blur-sm transition hover:border-[var(--lp-green)]/50 hover:bg-[var(--lp-tan)] hover:text-[var(--lp-green)] hover:-translate-y-0.5"
+                >
+                  <Icon className="h-5 w-5" />
+                </a>
+              ))}
+            </div>
+          </motion.div>
+        </section>
+
+        {/* ══════════════════════════════════════════
+            LAYER 2 — Hero Content
+            Headline, copy, CTAs, feature card
+        ══════════════════════════════════════════ */}
         <section className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 sm:pb-24 lg:px-8 lg:pt-20">
           <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
             <motion.div initial="hidden" animate="show" variants={stagger} className="max-w-3xl">
-
-              {/* ── Brand introduction: logo + social ── */}
-              <motion.div variants={fadeUp} className="mb-8 flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
-                {/* Logo — prominent, glowing ring treatment */}
-                <div className="relative shrink-0">
-                  <div className="absolute inset-[-8px] rounded-full bg-[var(--lp-green)]/15 blur-xl" />
-                  <div className="absolute inset-[-3px] rounded-full ring-1 ring-[var(--lp-green)]/25" />
-                  <Image
-                    src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
-                    alt="Florida Mountain Bike Guides logo"
-                    width={120}
-                    height={120}
-                    className="relative rounded-full shadow-[0_8px_32px_rgba(31,90,67,0.22)]"
-                    priority
-                  />
-                </div>
-                {/* Brand name + social row */}
-                <div className="flex flex-col items-center gap-3 sm:items-start">
-                  <div className="text-center sm:text-left">
-                    <p className="text-base font-bold uppercase tracking-[0.18em] text-[var(--lp-green)]">Florida Mountain Bike Guides</p>
-                    <p className="text-xs tracking-wide text-[var(--lp-text-muted)]">Est. 2024 · Central Florida</p>
-                  </div>
-                  {/* Social icons */}
-                  <div className="flex items-center gap-2">
-                    {SOCIAL_LINKS.map(({ href, icon: Icon, label }) => (
-                      <a
-                        key={label}
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={label}
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--lp-border)] bg-[var(--lp-card-60)] text-[var(--lp-text-body)] backdrop-blur-sm transition hover:border-[var(--lp-green)]/50 hover:bg-[var(--lp-tan)] hover:text-[var(--lp-green)] hover:-translate-y-0.5"
-                      >
-                        <Icon className="h-4 w-4" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-
               <motion.div variants={fadeUp} className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--lp-border)] bg-[var(--lp-badge-bg)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--lp-badge-text)]">
                 <Star className="h-3.5 w-3.5" />
                 Where Adventure Meets Simplicity
