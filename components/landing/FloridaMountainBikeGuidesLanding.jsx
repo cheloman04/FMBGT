@@ -36,6 +36,12 @@ import { SectionHeading } from "@/components/ui/SectionHeading";
 import { StatCard } from "@/components/ui/StatCard";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { GalleryCarousel } from "@/components/landing/GalleryCarousel";
+import {
+  trackCtaClick,
+  trackContactFormSubmit,
+  trackSocialClick,
+  trackBookingStart,
+} from "@/lib/analytics";
 
 function FacebookIcon({ className }) {
   return (
@@ -190,10 +196,10 @@ const NAV_LINKS = [
 ];
 
 const SOCIAL_LINKS = [
-  { href: 'https://www.facebook.com/floridamountainbikeguides',   icon: FacebookIcon,   ariaLabel: 'Visit Facebook page'   },
-  { href: 'https://www.instagram.com/FloridaMountainBikeGuides',  icon: InstagramIcon,  ariaLabel: 'Visit Instagram page'  },
-  { href: 'https://www.threads.com/@floridamountainbikeguides',   icon: ThreadsIcon,    ariaLabel: 'Visit Threads page'    },
-  { href: 'https://www.youtube.com/@FloridaMountainBikeGuides',   icon: YoutubeIcon,    ariaLabel: 'Visit YouTube channel' },
+  { href: 'https://www.facebook.com/floridamountainbikeguides',   icon: FacebookIcon,   ariaLabel: 'Visit Facebook page',   platform: 'facebook'   },
+  { href: 'https://www.instagram.com/FloridaMountainBikeGuides',  icon: InstagramIcon,  ariaLabel: 'Visit Instagram page',  platform: 'instagram'  },
+  { href: 'https://www.threads.com/@floridamountainbikeguides',   icon: ThreadsIcon,    ariaLabel: 'Visit Threads page',    platform: 'threads'    },
+  { href: 'https://www.youtube.com/@FloridaMountainBikeGuides',   icon: YoutubeIcon,    ariaLabel: 'Visit YouTube channel', platform: 'youtube'    },
 ];
 
 export default function FloridaMountainBikeGuidesLanding() {
@@ -236,7 +242,10 @@ export default function FloridaMountainBikeGuidesLanding() {
 
           <div className="hidden md:flex items-center gap-3">
             <ThemeToggle />
-            <CTAButton>Book a Guide</CTAButton>
+            <CTAButton
+              trackLocation="nav"
+              onClick={() => { trackCtaClick('Book a Guide', 'nav'); trackBookingStart('nav'); }}
+            >Book a Guide</CTAButton>
           </div>
 
           {/* Hamburger button — mobile only */}
@@ -267,7 +276,10 @@ export default function FloridaMountainBikeGuidesLanding() {
                 </a>
               ))}
               <div className="pt-4">
-                <CTAButton>Book a Guide</CTAButton>
+                <CTAButton
+                  trackLocation="mobile_menu"
+                  onClick={() => { trackCtaClick('Book a Guide', 'mobile_menu'); trackBookingStart('mobile_menu'); }}
+                >Book a Guide</CTAButton>
               </div>
             </nav>
           </div>
@@ -358,13 +370,16 @@ export default function FloridaMountainBikeGuidesLanding() {
                 Follow us for trail updates, rides, and local insights.
               </p>
               <div className="flex items-center gap-3">
-                {SOCIAL_LINKS.map(({ href, icon: Icon, ariaLabel }) => (
+                {SOCIAL_LINKS.map(({ href, icon: Icon, ariaLabel, platform }) => (
                   <a
                     key={ariaLabel}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={ariaLabel}
+                    data-track="social_click"
+                    data-platform={platform}
+                    onClick={() => trackSocialClick(platform)}
                     className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--lp-border)] bg-[var(--lp-card-60)] text-[var(--lp-text-body)] backdrop-blur-sm transition hover:scale-105 hover:border-[var(--lp-green)]/50 hover:bg-[var(--lp-tan)] hover:text-[var(--lp-green)]"
                   >
                     <Icon className="h-5 w-5" />
@@ -413,8 +428,13 @@ export default function FloridaMountainBikeGuidesLanding() {
               </motion.p>
 
               <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <CTAButton>Book a Guide</CTAButton>
-                <CTAButton secondary href="#tours">Explore Trails</CTAButton>
+                <CTAButton
+                  trackLocation="hero"
+                  onClick={() => { trackCtaClick('Book a Guide', 'hero'); trackBookingStart('hero'); }}
+                >Book a Guide</CTAButton>
+                <CTAButton secondary href="#tours" trackLocation="hero"
+                  onClick={() => trackCtaClick('Explore Trails', 'hero')}
+                >Explore Trails</CTAButton>
               </motion.div>
 
               <motion.div variants={fadeUp} className="mt-10 grid gap-4 sm:grid-cols-3">
@@ -613,7 +633,13 @@ export default function FloridaMountainBikeGuidesLanding() {
                 <h3 className="mt-3 text-2xl font-bold text-[var(--lp-text)]">{guides[0].title}</h3>
                 <p className="mt-2 text-sm font-medium text-[var(--lp-text-nav)]">{guides[0].subtitle}</p>
                 <p className="mt-4 text-sm leading-7 text-[var(--lp-text-body)]">{guides[0].text}</p>
-                <a href="/booking" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]">
+                <a
+                  href="/booking"
+                  data-track="cta_click"
+                  data-location="guides"
+                  onClick={() => { trackCtaClick('Book a ride', 'guides'); trackBookingStart('guides'); }}
+                  className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]"
+                >
                   Book a ride
                   <ChevronRight className="h-4 w-4" />
                 </a>
@@ -681,7 +707,13 @@ export default function FloridaMountainBikeGuidesLanding() {
                 Choose your trail, meet your guide, and experience the best of Central Florida on two wheels. From scenic paved rides to guided mountain bike adventures, we make it easy to show up, ride, and enjoy the journey.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <a href="/booking" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f7efdf] px-5 py-3 text-sm font-semibold text-[var(--lp-green-dark)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-card-solid)]">
+                <a
+                  href="/booking"
+                  data-track="cta_click"
+                  data-location="cta_banner"
+                  onClick={() => { trackCtaClick('Book a Tour', 'cta_banner'); trackBookingStart('cta_banner'); }}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f7efdf] px-5 py-3 text-sm font-semibold text-[var(--lp-green-dark)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-card-solid)]"
+                >
                   Book a Tour
                   <ArrowRight className="h-4 w-4" />
                 </a>
@@ -744,6 +776,8 @@ export default function FloridaMountainBikeGuidesLanding() {
                 <div className="pt-2 flex justify-center sm:justify-start">
                   <button
                     type="button"
+                    data-track="contact_form_submit"
+                    onClick={() => trackContactFormSubmit()}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--lp-green)] px-5 py-3 text-sm font-semibold text-[var(--lp-surface)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-green-dark)]"
                   >
                     Submit
