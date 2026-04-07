@@ -20,6 +20,9 @@ import {
   Calendar,
   ChevronRight,
   Clock3,
+  Facebook,
+  Instagram,
+  Mail,
   MapPin,
   Menu,
   Mountain,
@@ -30,6 +33,7 @@ import {
   Users,
   Waves,
   X,
+  Youtube,
 } from "lucide-react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
@@ -154,6 +158,13 @@ const NAV_LINKS = [
   { href: '#contact', label: 'Contact' },
 ];
 
+const SOCIAL_LINKS = [
+  { href: 'https://www.facebook.com/floridamountainbikeguides', icon: Facebook, label: 'Facebook'  },
+  { href: 'https://www.instagram.com/floridamountainbikeguides', icon: Instagram, label: 'Instagram' },
+  { href: 'https://www.youtube.com/@floridamountainbikeguides',  icon: Youtube,   label: 'YouTube'   },
+  { href: 'mailto:info@fmbgt.com',                               icon: Mail,      label: 'Email'     },
+];
+
 export default function FloridaMountainBikeGuidesLanding() {
   const [menuOpen, setMenuOpen] = React.useState(false);
 
@@ -236,13 +247,53 @@ export default function FloridaMountainBikeGuidesLanding() {
         <section className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 sm:pb-24 lg:px-8 lg:pt-20">
           <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
             <motion.div initial="hidden" animate="show" variants={stagger} className="max-w-3xl">
+
+              {/* ── Brand introduction: logo + social ── */}
+              <motion.div variants={fadeUp} className="mb-8 flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
+                {/* Logo — prominent, glowing ring treatment */}
+                <div className="relative shrink-0">
+                  <div className="absolute inset-[-8px] rounded-full bg-[var(--lp-green)]/15 blur-xl" />
+                  <div className="absolute inset-[-3px] rounded-full ring-1 ring-[var(--lp-green)]/25" />
+                  <Image
+                    src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
+                    alt="Florida Mountain Bike Guides logo"
+                    width={120}
+                    height={120}
+                    className="relative rounded-full shadow-[0_8px_32px_rgba(31,90,67,0.22)]"
+                    priority
+                  />
+                </div>
+                {/* Brand name + social row */}
+                <div className="flex flex-col items-center gap-3 sm:items-start">
+                  <div className="text-center sm:text-left">
+                    <p className="text-base font-bold uppercase tracking-[0.18em] text-[var(--lp-green)]">Florida Mountain Bike Guides</p>
+                    <p className="text-xs tracking-wide text-[var(--lp-text-muted)]">Est. 2024 · Central Florida</p>
+                  </div>
+                  {/* Social icons */}
+                  <div className="flex items-center gap-2">
+                    {SOCIAL_LINKS.map(({ href, icon: Icon, label }) => (
+                      <a
+                        key={label}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={label}
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--lp-border)] bg-[var(--lp-card-60)] text-[var(--lp-text-body)] backdrop-blur-sm transition hover:border-[var(--lp-green)]/50 hover:bg-[var(--lp-tan)] hover:text-[var(--lp-green)] hover:-translate-y-0.5"
+                      >
+                        <Icon className="h-4 w-4" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+
               <motion.div variants={fadeUp} className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--lp-border)] bg-[var(--lp-badge-bg)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--lp-badge-text)]">
                 <Star className="h-3.5 w-3.5" />
                 Where Adventure Meets Simplicity
               </motion.div>
 
               <motion.p variants={fadeUp} className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--lp-green)]">
-                Welcome to Florida Mountain Bike Guides
+                Welcome to Florida Mountain Bike Trails
               </motion.p>
 
               <motion.h1 variants={fadeUp} className="mt-4 text-4xl font-black leading-tight tracking-tight text-[var(--lp-text)] sm:text-5xl lg:text-7xl">
