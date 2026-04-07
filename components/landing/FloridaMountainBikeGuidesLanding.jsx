@@ -247,49 +247,82 @@ export default function FloridaMountainBikeGuidesLanding() {
 
         {/* ══════════════════════════════════════════
             LAYER 1 — Brand Introduction
-            Full-width, centered, logo is the hero
+            Logo is the absolute focal point
         ══════════════════════════════════════════ */}
-        <section className="relative overflow-hidden border-b border-[var(--lp-border-soft)] bg-[var(--lp-bg-alt)]">
-          {/* Radial glow behind logo */}
+        <section className="relative overflow-hidden bg-[var(--lp-bg-alt)]">
+          {/* Multi-layer radial glow — large ambient + tighter halo */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-[480px] w-[480px] rounded-full bg-[var(--lp-green)]/8 blur-3xl" />
+            <div className="absolute h-[700px] w-[700px] rounded-full bg-[var(--lp-green)]/5 blur-[120px]" />
+            <div className="absolute h-[380px] w-[380px] rounded-full bg-[var(--lp-green)]/9 blur-[70px]" />
+            <div className="absolute h-[180px] w-[180px] rounded-full bg-emerald-400/8 blur-[40px]" />
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="relative mx-auto flex max-w-lg flex-col items-center px-6 py-16 text-center sm:py-20"
-          >
-            {/* ── Large logo ── */}
-            <div className="relative mb-7">
-              <div className="absolute inset-[-16px] rounded-full bg-[var(--lp-green)]/14 blur-2xl" />
-              <div className="absolute inset-[-4px] rounded-full ring-1 ring-[var(--lp-green)]/20" />
+          {/* Gradient dissolve into the hero section below — no hard cut */}
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-36 bg-gradient-to-b from-transparent to-[var(--lp-bg)]" />
+
+          <div className="relative mx-auto flex flex-col items-center px-6 py-20 text-center sm:py-28">
+
+            {/* ── Logo — dominant focal point ── */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.86 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
+              className="relative mb-9"
+            >
+              {/* Outermost ambient halo */}
+              <div className="absolute inset-[-32px] rounded-full bg-[var(--lp-green)]/10 blur-3xl" />
+              {/* Mid glow */}
+              <div className="absolute inset-[-12px] rounded-full bg-[var(--lp-green)]/12 blur-xl" />
+              {/* Tight ring */}
+              <div className="absolute inset-[-2px] rounded-full ring-1 ring-[var(--lp-green)]/18" />
               <Image
                 src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
                 alt="Florida Mountain Bike Guides logo"
-                width={200}
-                height={200}
-                className="relative rounded-full shadow-[0_20px_70px_rgba(31,90,67,0.28)]"
+                width={340}
+                height={340}
+                style={{ width: 'clamp(220px, 38vw, 340px)', height: 'auto' }}
+                className="relative rounded-full shadow-[0_32px_90px_rgba(31,90,67,0.30),_0_8px_28px_rgba(31,90,67,0.16)]"
                 priority
               />
-            </div>
+            </motion.div>
 
             {/* ── Brand name ── */}
-            <h2 className="text-lg font-black uppercase tracking-[0.22em] text-[var(--lp-green)] sm:text-xl">
+            <motion.h2
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.38, ease: 'easeOut' }}
+              className="text-xl font-black uppercase tracking-[0.22em] text-[var(--lp-green)] sm:text-2xl"
+            >
               Florida Mountain Bike Guides
-            </h2>
-            <p className="mt-1.5 text-xs font-medium uppercase tracking-[0.28em] text-[var(--lp-text-muted)]">
+            </motion.h2>
+
+            {/* ── Est / location ── */}
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.52, ease: 'easeOut' }}
+              className="mt-2 text-xs font-medium uppercase tracking-[0.30em] text-[var(--lp-text-muted)]"
+            >
               Est. 2024 · Central Florida
-            </p>
+            </motion.p>
 
             {/* ── Tagline ── */}
-            <p className="mt-4 text-sm italic leading-relaxed text-[var(--lp-text-body)]">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.9, delay: 0.68 }}
+              className="mt-5 max-w-xs text-sm italic leading-relaxed text-[var(--lp-text-body)] sm:max-w-sm"
+            >
               "Mountain biking in the land of no mountains"
-            </p>
+            </motion.p>
 
             {/* ── Social icons ── */}
-            <div className="mt-7 flex items-center gap-3">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.84, ease: 'easeOut' }}
+              className="mt-8 flex items-center gap-3"
+            >
               {SOCIAL_LINKS.map(({ href, icon: Icon, label }) => (
                 <a
                   key={label}
@@ -302,8 +335,9 @@ export default function FloridaMountainBikeGuidesLanding() {
                   <Icon className="h-5 w-5" />
                 </a>
               ))}
-            </div>
-          </motion.div>
+            </motion.div>
+
+          </div>
         </section>
 
         {/* ══════════════════════════════════════════
