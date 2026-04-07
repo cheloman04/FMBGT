@@ -35,7 +35,6 @@ import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { StatCard } from "@/components/ui/StatCard";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { GalleryCarousel } from "@/components/landing/GalleryCarousel";
 import {
   trackCtaClick,
   trackContactFormSubmit,
@@ -97,11 +96,17 @@ const valueProps = [
     title: "Everything at the trailhead",
     text: "Quality bikes, essential gear, and a friendly local guide waiting for you when you arrive.",
     icon: Bike,
+    image: "/images/skills/skill-first-time-rider.png",
+    alt: "A first-time rider getting comfortable on a guided Florida trail ride",
+    objectPosition: "center center",
   },
   {
     title: "For every skill level",
     text: "From first-time riders to seasoned riders, every tour is designed to feel approachable and memorable.",
     icon: ShieldCheck,
+    image: "/images/skills/skill-beginner.png",
+    alt: "Beginner-friendly coaching on a welcoming mountain bike ride in Florida",
+    objectPosition: "center center",
   },
   {
     title: "Simple booking experience",
@@ -122,8 +127,14 @@ const tours = [
     description:
       "Guided mountain bike tours designed for riders of every skill level, focused on making Florida's best trails easy, fun, and unforgettable.",
     icon: Mountain,
+    duration: "2-hour guided tour",
+    price: "From $115 / rider",
+    includes: ["Bike & helmet", "Local guide", "All skill levels"],
     points: ["Guided singletrack", "Bikes & gear included", "Beginner to advanced"],
     cta: "Book a Guide",
+    image: "/images/tours/location-mount-dora-mountain-bike-trail-fl.png",
+    alt: "Guided mountain bike riders on a wooded Central Florida singletrack trail",
+    objectPosition: "center center",
   },
   {
     title: "Scenic Paved Trail Tours",
@@ -131,8 +142,14 @@ const tours = [
     description:
       "A laid-back way to explore Central Florida through smooth scenic paved trails, historic Sanford, riverfront views, Blue Spring, and seasonal manatee stops.",
     icon: Waves,
+    duration: "2–3 hour guided tour",
+    price: "From $115 / rider",
+    includes: ["Bike & helmet", "Local guide", "All ages welcome"],
     points: ["Historic Sanford", "Blue Spring rides", "All ages & levels"],
-    cta: "Learn More",
+    cta: "Book This Tour",
+    image: "/images/tours/location-spring-to-spring.png",
+    alt: "Scenic paved trail ride near Florida springs with water and nature views",
+    objectPosition: "center center",
   },
 ];
 
@@ -177,13 +194,161 @@ const fleetFeatures = [
   "Ride-ready setup for visitors",
 ];
 
+const testimonials = [
+  {
+    quote: "Best thing we did during our Florida vacation. The guide knew every trail and made the whole experience incredibly easy and fun.",
+    name: "Sarah M.",
+    location: "Visited from Atlanta, GA",
+  },
+  {
+    quote: "I hadn't ridden a bike in years. The guide was patient, the trails were beautiful, and I ended up doing way more than I expected.",
+    name: "James R.",
+    location: "Orlando, FL",
+  },
+  {
+    quote: "Did the paved trail tour near Blue Spring with my kids. Saw manatees, learned about the area — one of our best days in Florida.",
+    name: "Linda T.",
+    location: "Sanford, FL",
+  },
+];
+
+const whatToExpect = [
+  {
+    step: "01",
+    title: "Arrive at the trailhead",
+    desc: "Show up at the meeting point — we'll have everything ready when you get there. No gear needed.",
+  },
+  {
+    step: "02",
+    title: "Meet your guide",
+    desc: "Your guide introduces themselves, learns your skill level, and sets the tone for a comfortable, enjoyable ride.",
+  },
+  {
+    step: "03",
+    title: "Get fitted and geared up",
+    desc: "We fit you for your bike and helmet and make sure everything feels right before you roll out.",
+  },
+  {
+    step: "04",
+    title: "Hit the trail",
+    desc: "Follow your guide at a comfortable pace. Ask questions, take in the scenery, and enjoy the ride.",
+  },
+  {
+    step: "05",
+    title: "Wrap up and head out",
+    desc: "Finish at the trailhead with great memories. Ask about upcoming tours or book your next ride on the spot.",
+  },
+];
+
+const faqItems = [
+  {
+    q: "Do I need to bring my own bike?",
+    a: "No. Quality mountain bikes and helmets are provided at the trailhead for every tour. Just show up ready to ride — we handle the rest.",
+  },
+  {
+    q: "Are the tours beginner-friendly?",
+    a: "Absolutely. Tours are designed for all skill levels, from complete beginners to experienced riders. Your guide shapes the pace and trail choice around your comfort level.",
+  },
+  {
+    q: "How long are the tours?",
+    a: "Most mountain bike tours run approximately 2 hours. Scenic paved trail tours may run 2–3 hours depending on the route and group pace.",
+  },
+  {
+    q: "What should I wear or bring?",
+    a: "Wear comfortable athletic clothing and closed-toe shoes. Bring water and a light snack. Sunscreen is strongly recommended. Bike, helmet, and essential gear are all provided.",
+  },
+  {
+    q: "What happens if it rains or weather turns bad?",
+    a: "Light rain is usually fine for trail riding. For the safety of the group, tours may be rescheduled in the event of lightning or severe weather. We'll reach out in advance if conditions require a change.",
+  },
+  {
+    q: "Can you arrange pickup from my hotel or Airbnb?",
+    a: "Yes. Pickup and drop-off can be arranged for select locations. Contact us when booking to confirm availability and any additional logistics.",
+  },
+  {
+    q: "Are tours suitable for families and kids?",
+    a: "Yes. Our scenic paved trail tours are especially popular with families and younger riders. Mountain bike tours can also be adapted for younger participants depending on fitness and comfort level.",
+  },
+  {
+    q: "How do I book, and what is the cancellation policy?",
+    a: "Book online in just a few minutes. Free cancellation is available up to 24 hours before your scheduled tour. Contact us directly for any last-minute adjustments.",
+  },
+];
+
 const galleryItems = [
-  { title: "Mountain Bike Tours", category: "Singletrack" },
-  { title: "Scenic Paved Trails", category: "Riverfront" },
-  { title: "Blue Spring Adventure", category: "Nature" },
-  { title: "Guided Ride Moments", category: "Experience" },
-  { title: "Rental Fleet", category: "Specialized Bikes" },
-  { title: "Florida Trail Views", category: "Photo Gallery" },
+  {
+    title: "Mountain Bike Tours",
+    category: "Singletrack",
+    image: "/images/gallery/gallery-1.png",
+    alt: "Mountain bikers riding a guided singletrack tour in Central Florida",
+    objectPosition: "center center",
+  },
+  {
+    title: "Scenic Paved Trails",
+    category: "Riverfront",
+    image: "/images/gallery/gallery-2.png",
+    alt: "Relaxed scenic paved trail ride near the riverfront in Florida",
+    objectPosition: "center center",
+  },
+  {
+    title: "Blue Spring Adventure",
+    category: "Nature",
+    image: "/images/gallery/gallery-3.png",
+    alt: "Nature-focused guided ride experience in Central Florida",
+    objectPosition: "center center",
+  },
+  {
+    title: "Guided Ride Moments",
+    category: "Experience",
+    image: "/images/gallery/gallery-4.png",
+    alt: "Group riders enjoying a guided trail experience together",
+    objectPosition: "center center",
+  },
+  {
+    title: "Rental Fleet",
+    category: "Specialized Bikes",
+    image: "/images/gallery/gallery-6.png",
+    alt: "Premium rental bikes prepared for a guided Florida ride",
+    objectPosition: "center center",
+  },
+  {
+    title: "Florida Trail Views",
+    category: "Landscape",
+    image: "/images/gallery/gallery-7.png",
+    alt: "Florida trail scenery during a guided outdoor bike adventure",
+    objectPosition: "center center",
+  },
+  {
+    title: "Ride Together",
+    category: "Lifestyle",
+    image: "/images/gallery/gallery-8.png",
+    alt: "Riders sharing a guided outdoor biking experience in Florida",
+    objectPosition: "center center",
+  },
+  {
+    title: "Close-Up Trail Energy",
+    category: "Action",
+    image: "/images/gallery/gallery-9.png",
+    alt: "Close-up trail action from a Florida mountain bike tour",
+    objectPosition: "center center",
+  },
+];
+
+const logoSrc = "/images/branding/logo fmbtg (800 x 800 px).png";
+
+const trailShowcase = [
+  {
+    title: "Mountain bike terrain",
+    image: "/images/booking/trail-type-mtb.png",
+    alt: "Mountain bike trail terrain in Central Florida",
+    objectPosition: "center center",
+  },
+  {
+    title: "Paved trail terrain",
+    image: "/images/trails/trail-type-paved-2.png",
+    alt: "Scenic paved trail terrain in Central Florida",
+    objectPosition: "center center",
+  },
 ];
 
 
@@ -218,7 +383,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           {/* Logo */}
           <div className="flex items-center gap-3">
             <Image
-              src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
+              src={logoSrc}
               alt="Florida Mountain Bike Guides logo"
               width={52}
               height={52}
@@ -293,6 +458,18 @@ export default function FloridaMountainBikeGuidesLanding() {
             Logo is the absolute focal point
         ══════════════════════════════════════════ */}
         <section className="relative overflow-hidden bg-[var(--lp-bg-alt)]">
+          <div className="absolute inset-0">
+            <Image
+              src="/images/hero/hero-main.png"
+              alt="A guided Florida mountain bike ride with rider and bike visible on trail"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-center"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(247,244,235,0.55),rgba(247,244,235,0.78)_26%,rgba(247,244,235,0.92)_58%,rgba(247,244,235,0.98))]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(31,90,67,0.14),transparent_34%)]" />
+          </div>
           {/* Multi-layer radial glow — large ambient + tighter halo */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="absolute h-[700px] w-[700px] rounded-full bg-[var(--lp-green)]/5 blur-[120px]" />
@@ -319,7 +496,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               {/* Tight ring */}
               <div className="absolute inset-[-2px] rounded-full ring-1 ring-[var(--lp-green)]/18" />
               <Image
-                src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
+                src={logoSrc}
                 alt="Florida Mountain Bike Guides logo"
                 width={340}
                 height={340}
@@ -451,8 +628,16 @@ export default function FloridaMountainBikeGuidesLanding() {
               className="relative hidden lg:block"
             >
               <div className="relative overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[linear-gradient(135deg,rgba(31,90,67,0.16),rgba(215,195,161,0.22),rgba(255,255,255,0.55))] p-4 shadow-[0_25px_80px_rgba(16,38,29,0.12)]">
-                <div className="aspect-[4/5] rounded-[1.5rem] border border-white/60 bg-[radial-gradient(circle_at_top,_rgba(31,90,67,0.18),_transparent_35%),linear-gradient(135deg,rgba(255,255,255,0.75),rgba(255,255,255,0.45))] p-5">
-                  <div className="flex h-full flex-col justify-between rounded-[1.25rem] border border-white/50 bg-[var(--lp-surface)]/85 p-5">
+                <div className="relative aspect-[4/5] overflow-hidden rounded-[1.5rem] border border-white/60 bg-[radial-gradient(circle_at_top,_rgba(31,90,67,0.18),_transparent_35%),linear-gradient(135deg,rgba(255,255,255,0.75),rgba(255,255,255,0.45))] p-5">
+                  <Image
+                    src="/images/tours/location-downtown-sanford.png"
+                    alt="A relaxed guided bike ride through historic downtown Sanford"
+                    fill
+                    sizes="(min-width: 1024px) 34vw, 100vw"
+                    className="object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(247,244,235,0.22),rgba(247,244,235,0.74)_58%,rgba(247,244,235,0.92))]" />
+                  <div className="relative z-10 flex h-full flex-col justify-between rounded-[1.25rem] border border-white/50 bg-[var(--lp-surface)]/85 p-5">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs uppercase tracking-[0.25em] text-[var(--lp-text-muted)]">Featured Experience</p>
@@ -515,13 +700,28 @@ export default function FloridaMountainBikeGuidesLanding() {
                 <motion.div
                   key={item.title}
                   variants={fadeUp}
-                  className="rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-6 backdrop-blur-sm shadow-[0_10px_40px_rgba(16,38,29,0.05)] transition hover:-translate-y-1 hover:bg-[var(--lp-card-solid)]"
+                  className="overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] backdrop-blur-sm shadow-[0_10px_40px_rgba(16,38,29,0.05)] transition hover:-translate-y-1 hover:bg-[var(--lp-card-solid)]"
                 >
-                  <div className="mb-4 inline-flex rounded-2xl bg-[var(--lp-tan)] p-3 text-[var(--lp-green)] ring-1 ring-[var(--lp-border-soft)]">
-                    <Icon className="h-5 w-5" />
+                  {item.image && (
+                    <div className="relative h-44 overflow-hidden">
+                      <Image
+                        src={item.image}
+                        alt={item.alt}
+                        fill
+                        sizes="(min-width: 1280px) 22vw, (min-width: 768px) 45vw, 100vw"
+                        className="object-cover"
+                        style={{ objectPosition: item.objectPosition }}
+                      />
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.04),rgba(16,38,29,0.2))]" />
+                    </div>
+                  )}
+                  <div className="p-6">
+                    <div className="mb-4 inline-flex rounded-2xl bg-[var(--lp-tan)] p-3 text-[var(--lp-green)] ring-1 ring-[var(--lp-border-soft)]">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[var(--lp-text)]">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-[var(--lp-text-body)]">{item.text}</p>
                   </div>
-                  <h3 className="text-lg font-semibold text-[var(--lp-text)]">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[var(--lp-text-body)]">{item.text}</p>
                 </motion.div>
               );
             })}
@@ -548,10 +748,21 @@ export default function FloridaMountainBikeGuidesLanding() {
                 <motion.div
                   key={tour.title}
                   variants={fadeUp}
-                  className="group relative overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] p-8 backdrop-blur-sm shadow-[0_15px_50px_rgba(16,38,29,0.06)]"
+                  className="group relative overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] backdrop-blur-sm shadow-[0_15px_50px_rgba(16,38,29,0.06)]"
                 >
+                  <div className="relative h-64 overflow-hidden">
+                    <Image
+                      src={tour.image}
+                      alt={tour.alt}
+                      fill
+                      sizes="(min-width: 1024px) 44vw, 100vw"
+                      className="object-cover transition duration-700 group-hover:scale-105"
+                      style={{ objectPosition: tour.objectPosition }}
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.08),rgba(16,38,29,0.34))]" />
+                  </div>
                   <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-[#d9c6a6]/10 to-transparent opacity-0 transition duration-500 group-hover:opacity-100" />
-                  <div className="relative z-10">
+                  <div className="relative z-10 p-8">
                     <div className="flex items-center justify-between gap-4">
                       <div className="inline-flex items-center gap-2 rounded-full bg-[var(--lp-badge-bg)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--lp-badge-text)]">
                         {tour.badge}
@@ -562,6 +773,34 @@ export default function FloridaMountainBikeGuidesLanding() {
                     </div>
                     <h3 className="mt-6 text-2xl font-bold text-[var(--lp-text)] sm:text-3xl">{tour.title}</h3>
                     <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--lp-text-body)]">{tour.description}</p>
+
+                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[1.4rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">Duration</p>
+                        <div className="mt-2 flex items-center gap-2 text-sm font-medium text-[var(--lp-text-dark)]">
+                          <Clock3 className="h-4 w-4 text-[var(--lp-green)]" />
+                          <span>{tour.duration}</span>
+                        </div>
+                      </div>
+                      <div className="rounded-[1.4rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">Starting at</p>
+                        <p className="mt-2 text-sm font-medium text-[var(--lp-text-dark)]">{tour.price}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">What's included</p>
+                      <div className="mt-3 flex flex-wrap gap-2.5">
+                        {tour.includes.map((item) => (
+                          <span
+                            key={item}
+                            className="inline-flex rounded-full border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-3.5 py-2 text-sm text-[var(--lp-text-dark)]"
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
 
                     <div className="mt-6 grid gap-3 sm:grid-cols-3">
                       {tour.points.map((point) => (
@@ -584,7 +823,16 @@ export default function FloridaMountainBikeGuidesLanding() {
           </motion.div>
         </section>
 
-        <section id="map" className="border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
+        <section id="map" className="relative overflow-hidden border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
+          <div className="absolute inset-0 opacity-20">
+            <Image
+              src="/images/booking/trail-type-paved.png"
+              alt="Scenic paved trail background texture"
+              fill
+              sizes="100vw"
+              className="object-cover object-center"
+            />
+          </div>
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Interactive Map"
@@ -592,7 +840,28 @@ export default function FloridaMountainBikeGuidesLanding() {
               text="Discover where your next ride begins. Our guided tours cover trails from Orlando and Sanford to Mount Dora, DeLand, Ocala, and Palm Coast — riverfront paths, shaded singletrack, and scenic nature rides across Central Florida. Use the map to explore locations and find the perfect ride for your adventure."
             />
 
-            <div className="mt-12">
+            <div className="relative mt-12 grid gap-5 md:grid-cols-2">
+              {trailShowcase.map((item) => (
+                <div key={item.title} className="relative overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)]">
+                  <div className="relative h-48">
+                    <Image
+                      src={item.image}
+                      alt={item.alt}
+                      fill
+                      sizes="(min-width: 768px) 44vw, 100vw"
+                      className="object-cover"
+                      style={{ objectPosition: item.objectPosition }}
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.06),rgba(16,38,29,0.38))]" />
+                  </div>
+                  <div className="absolute left-5 top-5 rounded-full border border-white/20 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm">
+                    {item.title}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="relative mt-6">
               <InteractiveTrailMap />
             </div>
           </div>
@@ -606,8 +875,31 @@ export default function FloridaMountainBikeGuidesLanding() {
               text="A glimpse into the rides, landscapes, and unforgettable moments that make every tour unique. From shaded singletrack and scenic riverfront paths to crystal-clear springs and friendly trail stops, these photos capture the spirit of riding Central Florida with Florida Mountain Bike Guides."
             />
 
-            <div className="mt-12 px-5">
-              <GalleryCarousel items={galleryItems} />
+            <div className="mt-12 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 sm:grid sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+              {galleryItems.map((item) => (
+                <div
+                  key={item.title}
+                  className="group w-[82vw] shrink-0 snap-center overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.06)] sm:w-auto sm:shrink sm:snap-none"
+                >
+                  <div className="relative aspect-[4/5] overflow-hidden">
+                    <Image
+                      src={item.image}
+                      alt={item.alt}
+                      fill
+                      sizes="(min-width: 1024px) 22vw, (min-width: 640px) 44vw, 100vw"
+                      className="object-cover transition duration-700 group-hover:scale-105 group-hover:brightness-105"
+                      style={{ objectPosition: item.objectPosition }}
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.02),rgba(16,38,29,0.5))]" />
+                    <div className="absolute left-4 top-4 rounded-full border border-white/25 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-sm">
+                      {item.category}
+                    </div>
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <h3 className="text-lg font-bold text-white">{item.title}</h3>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -627,7 +919,18 @@ export default function FloridaMountainBikeGuidesLanding() {
               transition={{ duration: 0.7 }}
               className="mt-12 overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.04)] lg:flex"
             >
-              <div className="h-64 shrink-0 bg-[linear-gradient(135deg,rgba(31,90,67,0.18),rgba(215,195,161,0.22),rgba(117,196,210,0.12))] lg:h-auto lg:w-80" />
+              <div className="shrink-0 p-4 lg:w-[24rem]">
+                <div className="relative h-64 overflow-hidden rounded-[1.5rem] border border-[var(--lp-border-soft)] lg:h-auto lg:min-h-[20rem]">
+                  <Image
+                    src="/images/guides/tour-guide-dustin.png"
+                    alt="Local Florida Mountain Bike Guides guide ready to lead riders on trail"
+                    fill
+                    sizes="(min-width: 1024px) 24rem, 100vw"
+                    className="object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.06),rgba(16,38,29,0.28))]" />
+                </div>
+              </div>
               <div className="p-8">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--lp-badge-text)]">Guide Profile</p>
                 <h3 className="mt-3 text-2xl font-bold text-[var(--lp-text)]">{guides[0].title}</h3>
@@ -646,6 +949,47 @@ export default function FloridaMountainBikeGuidesLanding() {
               </div>
             </motion.div>
           </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Testimonials"
+            title="Rides people remember long after the trail ends"
+            text="Friendly local guides, ride-ready bikes, and a pace that meets people where they are. First-time visitors and returning riders alike leave with an easier, more memorable Florida experience."
+          />
+
+          <div className="mt-6 inline-flex rounded-full border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-2 text-sm text-[var(--lp-text-body)]">
+            Guided by local riders who know the trails, the route timing, and how to make new riders feel comfortable fast.
+          </div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, amount: 0.2 }}
+            variants={stagger}
+            className="mt-10 grid gap-6 lg:grid-cols-3"
+          >
+            {testimonials.map((item) => (
+              <motion.figure
+                key={`${item.name}-${item.location}`}
+                variants={fadeUp}
+                className="rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-7 shadow-[0_12px_40px_rgba(16,38,29,0.05)]"
+              >
+                <div className="flex items-center gap-1 text-[var(--lp-green)]">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <Star key={index} className="h-4 w-4 fill-current" />
+                  ))}
+                </div>
+                <blockquote className="mt-5 text-base leading-7 text-[var(--lp-text-body)]">
+                  "{item.quote}"
+                </blockquote>
+                <figcaption className="mt-6">
+                  <p className="text-sm font-semibold text-[var(--lp-text)]">{item.name}</p>
+                  <p className="text-sm text-[var(--lp-text-muted)]">{item.location}</p>
+                </figcaption>
+              </motion.figure>
+            ))}
+          </motion.div>
         </section>
 
         <section id="fleet" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
@@ -677,14 +1021,91 @@ export default function FloridaMountainBikeGuidesLanding() {
               transition={{ duration: 0.7 }}
               className="rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-5 shadow-[0_18px_60px_rgba(16,38,29,0.06)]"
             >
-              <div className="rounded-[1.5rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-6">
-                <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Bike shop</p>
-                <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Bicikleta, Sanford FL</h3>
-                <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
-                  A local shop experience that supports riders who want premium bike rentals without the extra hassle.
-                </p>
+              <div className="grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="relative h-64 overflow-hidden rounded-[1.5rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)]">
+                    <Image
+                      src="/images/bikes/bike-stumpjumper.png"
+                      alt="Specialized Stumpjumper mountain bike prepared for guided trail rentals"
+                      fill
+                      sizes="(min-width: 1024px) 24vw, 100vw"
+                      className="object-contain p-4"
+                    />
+                  </div>
+                  <div className="relative h-64 overflow-hidden rounded-[1.5rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)]">
+                    <Image
+                      src="/images/bikes/bike-ebike.png"
+                      alt="Premium electric bike available for guided Florida trail rides"
+                      fill
+                      sizes="(min-width: 1024px) 24vw, 100vw"
+                      className="object-contain p-4"
+                    />
+                  </div>
+                </div>
+                <div className="rounded-[1.5rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-6">
+                  <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Bike shop</p>
+                  <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Bicikleta, Sanford FL</h3>
+                  <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
+                    A local shop experience that supports riders who want premium bike rentals without the extra hassle.
+                  </p>
+                </div>
               </div>
             </motion.div>
+          </div>
+        </section>
+
+        <section className="border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
+          <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+            <SectionHeading
+              eyebrow="What To Expect"
+              title="A smooth, reassuring flow from arrival to finish"
+              text="Everything is designed to feel easy for first-time visitors. You show up, meet your guide, get comfortably fitted, and enjoy the ride at a pace that works for you."
+            />
+
+            <motion.div
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.15 }}
+              variants={stagger}
+              className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-5"
+            >
+              {whatToExpect.map((item) => (
+                <motion.div
+                  key={item.step}
+                  variants={fadeUp}
+                  className="rounded-[1.9rem] border border-[var(--lp-border)] bg-[var(--lp-card)] p-6 shadow-[0_12px_40px_rgba(16,38,29,0.04)]"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--lp-badge-text)]">{item.step}</p>
+                  <h3 className="mt-4 text-lg font-semibold text-[var(--lp-text)]">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">{item.desc}</p>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="FAQ"
+            title="Questions riders usually ask before booking"
+            text="Clear answers for first-time guests, families, and travelers planning a guided ride in Central Florida."
+          />
+
+          <div className="mt-12 space-y-4">
+            {faqItems.map((item) => (
+              <details
+                key={item.q}
+                className="group rounded-[1.6rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] px-6 py-5 shadow-[0_10px_30px_rgba(16,38,29,0.04)]"
+              >
+                <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-left">
+                  <span className="text-base font-semibold text-[var(--lp-text)]">{item.q}</span>
+                  <span className="mt-0.5 shrink-0 rounded-full border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--lp-badge-text)] transition group-open:bg-[var(--lp-tan)]">
+                    Open
+                  </span>
+                </summary>
+                <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--lp-text-body)]">{item.a}</p>
+              </details>
+            ))}
           </div>
         </section>
 
@@ -694,9 +1115,18 @@ export default function FloridaMountainBikeGuidesLanding() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.7 }}
-            className="overflow-hidden rounded-[2.25rem] border border-[#d5c4a8] bg-[linear-gradient(135deg,rgba(31,90,67,0.95),rgba(39,92,70,0.88),rgba(194,165,120,0.78))] p-8 shadow-[0_22px_70px_rgba(16,38,29,0.12)] sm:p-10"
+            className="relative overflow-hidden rounded-[2.25rem] border border-[#d5c4a8] bg-[linear-gradient(135deg,rgba(31,90,67,0.95),rgba(39,92,70,0.88),rgba(194,165,120,0.78))] p-8 shadow-[0_22px_70px_rgba(16,38,29,0.12)] sm:p-10"
           >
-            <div className="max-w-4xl">
+            <Image
+              src="/images/booking/booking-bg.png"
+              alt="Guided group ride inviting visitors to book a Florida trail experience"
+              fill
+              sizes="100vw"
+              className="object-cover object-center"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(16,38,29,0.88),rgba(16,38,29,0.62),rgba(16,38,29,0.44))]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.12),rgba(16,38,29,0.3))]" />
+            <div className="relative z-10 max-w-4xl">
               <p className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#f7eddb]">
                 Ready to Ride?
               </p>
