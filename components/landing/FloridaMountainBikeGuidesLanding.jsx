@@ -317,15 +317,15 @@ export default function FloridaMountainBikeGuidesLanding() {
               />
             </motion.div>
 
-            {/* ── Brand name ── */}
-            <motion.h2
+            {/* ── Brand name — decorative, not a document heading ── */}
+            <motion.p
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.38, ease: 'easeOut' }}
               className="text-xl font-black uppercase tracking-[0.22em] text-[var(--lp-green)] sm:text-2xl"
             >
               Florida Mountain Bike Guides
-            </motion.h2>
+            </motion.p>
 
             {/* ── Est / location ── */}
             <motion.p
@@ -393,8 +393,12 @@ export default function FloridaMountainBikeGuidesLanding() {
               </motion.p>
 
               <motion.h1 variants={fadeUp} className="mt-4 text-4xl font-black leading-tight tracking-tight text-[var(--lp-text)] sm:text-5xl lg:text-7xl">
-                Mountain biking in the <span className="text-[var(--lp-green)]">land of no mountains</span>
+                Guided Mountain Bike Tours in <span className="text-[var(--lp-green)]">Central Florida</span>
               </motion.h1>
+
+              <motion.p variants={fadeUp} className="mt-3 text-base italic text-[var(--lp-text-muted)]">
+                "Mountain biking in the land of no mountains"
+              </motion.p>
 
               <motion.p variants={fadeUp} className="mt-6 max-w-2xl text-lg leading-8 text-[var(--lp-text-body)] sm:text-xl">
                 Guided mountain bike tours and scenic paved trail rides across Central Florida — with quality bikes, essential gear, and friendly local guides waiting right at the trailhead.
@@ -402,6 +406,10 @@ export default function FloridaMountainBikeGuidesLanding() {
 
               <motion.p variants={fadeUp} className="mt-4 max-w-2xl text-base leading-7 text-[var(--lp-text-body)]">
                 Just choose your location and date, show up ready to ride, and let the adventure begin. For riders who need a little extra convenience, pickup and drop-off can also be arranged.
+              </motion.p>
+
+              <motion.p variants={fadeUp} className="mt-3 text-sm text-[var(--lp-text-muted)]">
+                Serving riders across Orlando, Sanford, Mount Dora, DeLand, Ocala, and Palm Coast.
               </motion.p>
 
               <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-4 sm:flex-row">
@@ -561,7 +569,7 @@ export default function FloridaMountainBikeGuidesLanding() {
             <SectionHeading
               eyebrow="Interactive Map"
               title="Explore Our Central Florida Trails"
-              text="Discover where your next ride begins. Our guided tours take you through some of Central Florida's most scenic routes—from riverfront paths in historic Sanford to nature-filled trails near Blue Spring and beyond. Use the map to explore locations, see trail highlights, and find the perfect ride for your adventure. 🚵‍♂️"
+              text="Discover where your next ride begins. Our guided tours cover trails from Orlando and Sanford to Mount Dora, DeLand, Ocala, and Palm Coast — riverfront paths, shaded singletrack, and scenic nature rides across Central Florida. Use the map to explore locations and find the perfect ride for your adventure."
             />
 
             <div className="mt-12">
