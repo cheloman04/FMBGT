@@ -1,7 +1,7 @@
 # Florida Mountain Bike Trail Guided Tours — Project Reference
 
 > Full-stack booking platform + marketing landing page for guided bike tours.
-> Last updated: March 2026
+> Last updated: April 7, 2026
 
 ---
 
@@ -839,6 +839,8 @@ Sets the `admin_session` httpOnly cookie (8 hours, secure in production). Used b
   - `checkout.session.completed`
   - `checkout.session.expired`
   - `charge.refunded`
+  - `payment_intent.succeeded` *(required for remaining balance confirmation)*
+  - `payment_intent.payment_failed` *(required for remaining balance failure alerts)*
 - **Webhook endpoint:** `https://yourdomain.com/api/webhooks/stripe`
 - **Test cards:** `4242 4242 4242 4242` (any future date, any CVC)
 
@@ -976,6 +978,15 @@ vercel
 3. Replace `sk_test_` / `pk_test_` Stripe keys with live keys
 4. Update Cal.com event type to the production event
 5. Set `ADMIN_SECRET` to a strong random value in Vercel env vars
+6. Run `supabase/migrations/009_deposit_payment.sql` in the Supabase SQL editor
+7. **Register new Stripe webhook events** — in Stripe Dashboard → Webhooks → your endpoint → add:
+   - `payment_intent.succeeded`
+   - `payment_intent.payment_failed`
+8. **Set `CRON_SECRET`** in `.env.local` AND in Vercel environment variables (Settings → Environment Variables). Use any strong random string (e.g. `openssl rand -hex 32`). Vercel Cron sends this as `Authorization: Bearer <value>` when triggering `/api/cron/charge-remaining`.
+9. **Vercel plan for cron jobs:** Vercel Cron requires a Pro plan. If on the Hobby plan, trigger the daily charge job manually from n8n instead:
+   - Method: `POST https://yourdomain.com/api/cron/charge-remaining`
+   - Header: `x-admin-secret: <your ADMIN_SECRET value>`
+   - Schedule: daily at 10–11 AM ET (before tours start)
 
 ---
 
@@ -1018,13 +1029,49 @@ vercel
 - [ ] Run DB migrations 001–007 in production Supabase before go-live
 - [x] Booking lookup page — done (`app/booking/lookup`, `/api/booking-lookup`)
 - [x] Inventory race condition — done (PostgreSQL trigger with `FOR UPDATE`; updated by migration 003 to count all electric riders)
-- [x] Multi-participant group bookings — done (per-rider bike/height in StepBike, waiver covers all, pricing per rider)
+- [x] Multi-participant group bookings — done (per-rider bike/height in StepBike, multi-signer waiver, pricing per rider / flat for paved)
 - [x] Fleet constraint (Sanford + all MTB) — done (4 standard + 2 e-bike cap enforced in UI and API for both trail types)
 - [x] Multi-rider electric inventory counting — done (`lib/inventory.ts` and DB trigger now count electric across `participant_info` JSONB)
 - [x] Dark/light mode — done (next-themes with system preference, semantic Tailwind color classes throughout, including lookup/error/not-found pages)
 - [x] Confirmation page dark mode + participant display — done (`ConfirmationClient.tsx` uses semantic classes; shows rider count and names)
 - [x] Admin login page — done (`/admin/login` with client logo + title; cookie-based session; Sign Out button)
 - [x] Stability audit — done (webhook_sent reliability, waiver state on back-nav, inventory multi-rider count, Cal.com JSON parse safety, base_price column fix, silent location fallback removed)
+
+### Session — April 7, 2026
+
+#### Paved Trail Booking Flow
+- [x] **Add-ons step skipped for paved** — `lib/steps.ts` `shouldSkip` changed from `() => false` to `(s) => s.trail_type === 'paved'`; add-ons step no longer appears in the paved booking flow
+- [x] **Paved pricing flat fee** — `lib/pricing.ts` fixed from `PAVED_FLAT * participantCount` → `PAVED_FLAT` (flat $115/booking). `getPriceLineItems` updated to match. Sanford 2 e-bikes = $115 + $25 + $25 = $165 ✓
+- [x] **Sanford bike selector redesign** — `StepBike.tsx` replaced compact `PavedBikeSelector` (two toggle buttons) with `SanfordBikeSelector` (same card layout as MTB flow — Standard Bike "Included" + Electric Bike "+$25 upgrade")
+- [x] **Banner copy fixed** — "✓ Bike included — $115 flat per booking · 2-hour guided tour" (was "per rider")
+- [x] **Location name mismatch fixed** — `isSanford` check was comparing against `'Sanford Historic Downtown'` but the DB and StepLocation mock data use `'Sanford Historic Riverfront Tour'`. Fixed across `StepBike.tsx` and `create-checkout/route.ts`
+
+#### Pre-Booking Waiver System (multi-signer, legally sound)
+- [x] **`supabase/migrations/008_waivers.sql`** — `waiver_records` table (one row per signer), `waiver_session_id` UUID column on `bookings` table, RLS policy (service role only), storage indexes
+- [x] **`types/booking.ts`** — `WaiverParticipant`, `WaiverSigner`, `SignerRole` types added; `BookingState` extended with `waiver_participants`, `waiver_signers`, `waiver_session_id`
+- [x] **`context/BookingContext.tsx`** — `setWaiverParticipants`, `setWaiverSigners`, `setWaiverSessionId` actions; `waiver_signers` excluded from localStorage (large base64 blobs)
+- [x] **`components/waiver/SignatureCanvas.tsx`** — Canvas signature pad with mouse + touch events, green strokes on white background (dark-mode friendly), exports PDF-ready black-on-white PNG via pixel conversion
+- [x] **`components/steps/StepWaiver.tsx`** — Full rewrite with 4-phase flow:
+  1. **Setup**: each participant labelled adult/minor; guardian name + relationship collected for minors
+  2. **Review**: required signers auto-derived — each adult signs individually, one guardian signer per unique guardian (can cover multiple minors); list shown before signing begins
+  3. **Signing**: sequential per-signer — waiver text, agreement checkbox, canvas signature, progress dots; button label shows upcoming signer count
+  4. **Done**: all signatures confirmed, waiver session uploaded, "Continue to Payment" unlocked
+- [x] **`lib/waiver-pdf.ts`** — Full legal waiver text (12 sections) + jsPDF evidence PDF generator: company header, booking context, signer info, role/participants covered, timestamp + IP + user agent, full waiver text, embedded signature image, footer with page numbers
+- [x] **`app/api/waivers/store/route.ts`** — Receives signers + booking context; uploads signature PNGs and PDFs to Supabase Storage (`waivers/{session_id}/signer-{i}/`); inserts `waiver_records`; returns `waiver_session_id`
+- [x] **`app/api/create-checkout/route.ts`** — `waiver_session_id` added to Zod schema as required UUID; server validates session exists in DB before creating checkout; booking insert stores `waiver_session_id`
+- [x] **`app/api/webhooks/stripe/route.ts`** — On `checkout.session.completed`, updates `waiver_records` with `booking_id` (previously `null`)
+- [x] **Admin dashboard** — `WaiverBadge` (green "✓ N waivers" / yellow "No waivers"), `WaiverPanel` (signer name, role, participants covered, timestamp, PDF link, signature link); shown in both mobile cards and desktop table; expand/collapse toggle
+
+#### Signature Dark Mode Fix
+- [x] Canvas always uses white background + green strokes (`#22c55e`) — readable in both light and dark mode
+- [x] PDF export uses pixel manipulation to convert strokes to black on white — clean, professional document output regardless of UI theme
+
+#### Setup required to activate waivers
+1. Supabase Dashboard → Storage → New Bucket: name `waivers`, Public: NO
+2. Run `supabase/migrations/008_waivers.sql` in SQL editor
+3. `jspdf` package installed (`npm install jspdf`)
+
+---
 
 ### Post-MVP
 - [ ] Recurring customer profiles — login with magic link (Supabase Auth)
@@ -1041,6 +1088,7 @@ vercel
 - [ ] Replace gallery image placeholders with real client photography (`public/images/gallery/`)
 - [ ] Replace guide profile image placeholders with real photos (`public/images/guides/`)
 - [ ] Wire contact form to server action or n8n webhook
+- [x] Pre-booking waiver system — done (multi-signer, per-adult + guardian-for-minor, canvas signatures, jsPDF evidence, Supabase Storage, blocks checkout until complete, admin waiver records)
 - [ ] UI redesign — booking flow design pass (landing page design is complete)
 - [ ] Admin: inventory override panel (adjust quantities without DB edits)
 - [ ] Admin: block specific dates from accepting bookings

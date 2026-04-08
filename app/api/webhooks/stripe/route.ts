@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { constructWebhookEvent } from '@/lib/stripe';
+import { constructWebhookEvent, stripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
 
@@ -30,32 +30,62 @@ export async function POST(req: NextRequest) {
 
   try {
     switch (event.type) {
+
+      // ── Deposit paid via Checkout ───────────────────────────────────────────
       case 'checkout.session.completed': {
         const session = event.data.object;
         const bookingId = session.metadata?.booking_id;
 
         if (!bookingId) {
-          console.warn('[stripe-webhook] checkout.session.completed missing booking_id in metadata');
+          console.warn('[stripe-webhook] checkout.session.completed missing booking_id');
           break;
         }
 
-        // Idempotency: skip if already confirmed
+        // Idempotency: skip if deposit already marked paid
         const { data: existing } = await supabase
           .from('bookings')
-          .select('status')
+          .select('status, deposit_payment_status')
           .eq('id', bookingId)
           .single();
 
-        if (existing?.status === 'confirmed') {
-          console.log(`[stripe-webhook] Booking ${bookingId} already confirmed — skipping`);
+        if ((existing as { deposit_payment_status?: string } | null)?.deposit_payment_status === 'paid') {
+          console.log(`[stripe-webhook] Booking ${bookingId} deposit already recorded — skipping`);
           break;
         }
 
+        // Retrieve the PaymentIntent to get the saved payment method ID
+        const paymentIntentId = session.payment_intent as string | null;
+        let stripePaymentMethodId: string | null = null;
+        let stripeCustomerId: string | null = session.customer as string | null;
+
+        if (paymentIntentId) {
+          try {
+            const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
+              expand: ['payment_method'],
+            });
+            const pm = pi.payment_method;
+            stripePaymentMethodId = pm
+              ? typeof pm === 'string' ? pm : pm.id
+              : null;
+            if (!stripeCustomerId && pi.customer) {
+              stripeCustomerId = typeof pi.customer === 'string' ? pi.customer : pi.customer.id;
+            }
+          } catch (err) {
+            console.error('[stripe-webhook] Failed to retrieve PaymentIntent:', err);
+          }
+        }
+
+        // Update booking: confirmed, deposit paid, save PM for future charge
         const { error: updateError } = await supabase
           .from('bookings')
           .update({
             status: 'confirmed',
-            stripe_payment_intent_id: session.payment_intent as string,
+            deposit_payment_status: 'paid',
+            remaining_balance_status: 'pending',
+            stripe_payment_intent_id: paymentIntentId,
+            deposit_payment_intent_id: paymentIntentId,
+            stripe_payment_method_id: stripePaymentMethodId,
+            stripe_customer_id: stripeCustomerId,
           })
           .eq('id', bookingId);
 
@@ -64,7 +94,7 @@ export async function POST(req: NextRequest) {
           throw updateError;
         }
 
-        // Override zip_code with Stripe billing postal code if available (more verified)
+        // Override zip_code with Stripe billing postal code if available
         const stripePostalCode = (session as { customer_details?: { address?: { postal_code?: string } } })
           .customer_details?.address?.postal_code;
         if (stripePostalCode) {
@@ -74,20 +104,20 @@ export async function POST(req: NextRequest) {
             .eq('id', bookingId);
         }
 
-        // Fetch full booking for Cal.com + enriched n8n payload
+        // Fetch full booking for Cal.com + n8n
         const { data: confirmedBooking } = await supabase
           .from('bookings')
-          .select('date, time_slot, duration_hours, participant_count, participant_info, trail_type')
+          .select('date, time_slot, duration_hours, participant_count, participant_info, trail_type, deposit_amount, remaining_balance_amount, remaining_balance_due_at')
           .eq('id', bookingId)
           .single();
 
-        // Create Cal.com booking (skips silently if CAL_API_KEY is not set)
+        // Cal.com booking
         if (confirmedBooking?.date && confirmedBooking?.time_slot && confirmedBooking?.duration_hours) {
           const startIso = new Date(
             `${confirmedBooking.date}T${confirmedBooking.time_slot}:00-05:00`
           ).toISOString();
           const endIso = new Date(
-            new Date(startIso).getTime() + confirmedBooking.duration_hours * 3600000
+            new Date(startIso).getTime() + confirmedBooking.duration_hours * 3_600_000
           ).toISOString();
 
           const calUid = await createCalBooking({
@@ -106,7 +136,34 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Trigger n8n webhook for post-booking automations
+        // Link waiver records
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: bookingWaiver } = await (supabase as any)
+          .from('bookings')
+          .select('waiver_session_id')
+          .eq('id', bookingId)
+          .single();
+
+        if (bookingWaiver?.waiver_session_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: waiverLinkErr } = await (supabase as any)
+            .from('waiver_records')
+            .update({ booking_id: bookingId })
+            .eq('session_id', bookingWaiver.waiver_session_id)
+            .is('booking_id', null);
+
+          if (waiverLinkErr) {
+            console.error(`[stripe-webhook] Failed to link waivers for booking ${bookingId}:`, waiverLinkErr);
+          } else {
+            console.log(`[stripe-webhook] Waiver records linked to booking ${bookingId}`);
+          }
+        }
+
+        // n8n webhook — deposit confirmed
+        const depositCents = Number(session.metadata?.deposit_amount ?? 0);
+        const remainingCents = Number(session.metadata?.remaining_balance ?? 0);
+        const dueDateIso = (confirmedBooking as { remaining_balance_due_at?: string } | null)?.remaining_balance_due_at ?? null;
+
         const n8nSent = await triggerN8nWebhook('booking_confirmed', {
           booking_id: bookingId,
           session_id: session.id,
@@ -115,7 +172,10 @@ export async function POST(req: NextRequest) {
           customer_phone: session.metadata?.customer_phone,
           zip_code: stripePostalCode || session.metadata?.zip_code,
           marketing_source: session.metadata?.marketing_source,
-          amount_total: session.amount_total,
+          deposit_amount: depositCents,
+          remaining_balance: remainingCents,
+          remaining_balance_due_at: dueDateIso,
+          total_amount: Number(session.metadata?.total_amount ?? 0),
           location: session.metadata?.location,
           date: session.metadata?.date,
           time: session.metadata?.time,
@@ -125,7 +185,6 @@ export async function POST(req: NextRequest) {
           trail_type: confirmedBooking?.trail_type,
         });
 
-        // Only mark webhook as sent if n8n actually received it
         if (n8nSent) {
           await supabase
             .from('bookings')
@@ -133,14 +192,81 @@ export async function POST(req: NextRequest) {
             .eq('id', bookingId);
         }
 
-        console.log(`[stripe-webhook] Booking ${bookingId} confirmed`);
+        console.log(`[stripe-webhook] Booking ${bookingId} confirmed — deposit paid, PM saved: ${stripePaymentMethodId ?? 'none'}`);
         break;
       }
 
+      // ── Remaining balance paid (off-session PI succeeded) ───────────────────
+      case 'payment_intent.succeeded': {
+        const pi = event.data.object;
+        // Only handle remaining-balance charges (deposit PIs are covered by checkout.session.completed)
+        if (pi.metadata?.charge_type !== 'remaining_balance') break;
+
+        const bookingId = pi.metadata?.booking_id;
+        if (!bookingId) {
+          console.warn('[stripe-webhook] payment_intent.succeeded missing booking_id');
+          break;
+        }
+
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({
+            remaining_balance_status: 'paid',
+            remaining_balance_payment_intent_id: pi.id,
+          })
+          .eq('id', bookingId);
+
+        if (updateError) {
+          console.error(`[stripe-webhook] Failed to update remaining balance for booking ${bookingId}:`, updateError);
+          throw updateError;
+        }
+
+        // n8n webhook — final balance charged
+        await triggerN8nWebhook('remaining_balance_paid', {
+          booking_id: bookingId,
+          payment_intent_id: pi.id,
+          amount: pi.amount,
+        });
+
+        console.log(`[stripe-webhook] Remaining balance paid for booking ${bookingId} — PI ${pi.id}`);
+        break;
+      }
+
+      // ── Remaining balance charge failed ────────────────────────────────────
+      case 'payment_intent.payment_failed': {
+        const pi = event.data.object;
+        if (pi.metadata?.charge_type !== 'remaining_balance') break;
+
+        const bookingId = pi.metadata?.booking_id;
+        if (!bookingId) break;
+
+        const { error: updateError } = await supabase
+          .from('bookings')
+          .update({
+            remaining_balance_status: 'failed',
+            remaining_balance_payment_intent_id: pi.id,
+          })
+          .eq('id', bookingId);
+
+        if (updateError) {
+          console.error(`[stripe-webhook] Failed to record balance failure for booking ${bookingId}:`, updateError);
+        }
+
+        // n8n webhook — final balance failed, needs admin attention
+        await triggerN8nWebhook('remaining_balance_failed', {
+          booking_id: bookingId,
+          payment_intent_id: pi.id,
+          error_message: pi.last_payment_error?.message ?? 'Unknown error',
+        });
+
+        console.log(`[stripe-webhook] Remaining balance FAILED for booking ${bookingId} — PI ${pi.id}`);
+        break;
+      }
+
+      // ── Checkout session expired ───────────────────────────────────────────
       case 'checkout.session.expired': {
         const session = event.data.object;
         const bookingId = session.metadata?.booking_id;
-
         if (!bookingId) break;
 
         const { error: updateError } = await supabase
@@ -158,23 +284,24 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      // ── Refund ────────────────────────────────────────────────────────────
       case 'charge.refunded': {
         const charge = event.data.object as { payment_intent?: string };
         const paymentIntentId = charge.payment_intent;
-
         if (!paymentIntentId) break;
 
-        const { error: updateError } = await supabase
+        // Match on either deposit or remaining balance PI
+        const { error: depositRefundErr } = await supabase
           .from('bookings')
           .update({ status: 'refunded' })
           .eq('stripe_payment_intent_id', paymentIntentId);
 
-        if (updateError) {
-          console.error(`[stripe-webhook] Failed to mark refund for intent ${paymentIntentId}:`, updateError);
-          throw updateError;
+        if (depositRefundErr) {
+          console.error(`[stripe-webhook] Failed to mark refund for PI ${paymentIntentId}:`, depositRefundErr);
+          throw depositRefundErr;
         }
 
-        console.log(`[stripe-webhook] Booking refunded for payment_intent=${paymentIntentId}`);
+        console.log(`[stripe-webhook] Booking refunded — PI ${paymentIntentId}`);
         break;
       }
 
@@ -212,7 +339,6 @@ async function triggerN8nWebhook(event: string, data: Record<string, unknown>): 
     return true;
   } catch (error) {
     console.error('[stripe-webhook] n8n webhook failed:', error);
-    // Don't throw — n8n failures must not break the Stripe response
     return false;
   }
 }

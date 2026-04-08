@@ -17,14 +17,14 @@ const TRAIL_OPTIONS: Array<{
     type: 'paved',
     label: 'Paved Trail',
     description: 'Smooth paved trails suitable for all riders. Great for scenic rides and relaxed exploration.',
-    image: '/trails/paved-trail.svg',
+    image: '/images/booking/trail-type-paved.png',
     badge: 'Paved',
   },
   {
     type: 'mtb',
     label: 'Mountain Bike Trail',
     description: 'Off-road trails with varying terrain. Choose your skill level and enjoy a guided mountain biking adventure.',
-    image: '/trails/mountain-bike-trail.svg',
+    image: '/images/booking/trail-type-mtb.png',
     badge: 'MTB',
   },
 ];

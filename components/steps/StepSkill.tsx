@@ -15,25 +15,25 @@ const SKILL_OPTIONS: Array<{
     level: 'first_time',
     label: 'First Time Rider',
     description: "Never ridden a mountain bike before. Our guides will introduce you to the basics and help you feel comfortable on the trail.",
-    image: '/trails/skill-first-time.svg',
+    image: '/images/skills/skill-first-time-rider.png',
   },
   {
     level: 'beginner',
     label: 'Beginner',
     description: 'Some experience riding bikes. Suitable for easy trails with gentle terrain and basic obstacles.',
-    image: '/trails/skill-beginner.svg',
+    image: '/images/skills/skill-beginner.png',
   },
   {
     level: 'intermediate',
     label: 'Intermediate',
     description: 'Comfortable riding on trails with roots, climbs, and moderate technical terrain.',
-    image: '/trails/skill-intermediate.svg',
+    image: '/images/skills/skill-intermediate.png',
   },
   {
     level: 'advanced',
     label: 'Advanced',
     description: 'For experienced riders comfortable with steep climbs, drops, and technical trail features.',
-    image: '/trails/skill-advanced.svg',
+    image: '/images/skills/skill-advance.png',
   },
 ];
 
@@ -55,7 +55,7 @@ export function StepSkill() {
       </div>
 
       <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
-        ← Back
+        â† Back
       </Button>
 
       <div className="grid gap-4 sm:grid-cols-2">

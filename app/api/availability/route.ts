@@ -15,7 +15,15 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    console.log(`[availability] dateFrom=${dateFrom} dateTo=${dateTo} timeZone=${timeZone}`);
+
     const slots = await getAvailableSlots({ dateFrom, dateTo, timeZone });
+
+    console.log(`[availability] Returning ${slots.length} slot(s) to client`);
+
+    // Group by date so frontend can log how many dates have slots
+    const dateCount = new Set(slots.map((s) => s.date)).size;
+    console.log(`[availability] Unique dates with slots: ${dateCount}`);
 
     return NextResponse.json(
       { slots },

@@ -1,17 +1,48 @@
 'use client';
 
 import { useBooking } from '@/context/BookingContext';
+import type { Addons, BikeRental, DurationHours, TrailType, AdditionalParticipant } from '@/types/booking';
 import { getPriceLineItems, formatPrice, calculatePriceBreakdown } from '@/lib/pricing';
 import { Separator } from '@/components/ui/separator';
 
-export function PriceSummary() {
+interface PriceSummaryProps {
+  bikeRental?: BikeRental;
+  durationHours?: DurationHours;
+  addons?: Addons;
+  trailType?: TrailType;
+  additionalParticipants?: AdditionalParticipant[];
+}
+
+export function PriceSummary({
+  bikeRental,
+  durationHours,
+  addons,
+  trailType,
+  additionalParticipants,
+}: PriceSummaryProps = {}) {
   const { state } = useBooking();
-  const { bike_rental, duration_hours, addons, trail_type, additional_participants } = state;
+  const effectiveBikeRental = bikeRental ?? state.bike_rental;
+  const effectiveDurationHours = durationHours ?? state.duration_hours;
+  const effectiveAddons = addons ?? state.addons;
+  const effectiveTrailType = trailType ?? state.trail_type;
+  const effectiveAdditionalParticipants = additionalParticipants ?? state.additional_participants;
 
-  if (!bike_rental || !duration_hours || !addons) return null;
+  if (!effectiveBikeRental || !effectiveDurationHours || !effectiveAddons) return null;
 
-  const lineItems = getPriceLineItems(bike_rental, duration_hours, addons, trail_type, additional_participants);
-  const breakdown = calculatePriceBreakdown(bike_rental, duration_hours, addons, trail_type, additional_participants);
+  const lineItems = getPriceLineItems(
+    effectiveBikeRental,
+    effectiveDurationHours,
+    effectiveAddons,
+    effectiveTrailType,
+    effectiveAdditionalParticipants
+  );
+  const breakdown = calculatePriceBreakdown(
+    effectiveBikeRental,
+    effectiveDurationHours,
+    effectiveAddons,
+    effectiveTrailType,
+    effectiveAdditionalParticipants
+  );
 
   return (
     <div className="bg-card border border-border rounded-lg p-4">

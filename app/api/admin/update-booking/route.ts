@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 
 const Schema = z.object({
   booking_id: z.string().uuid(),
-  status: z.enum(['pending', 'confirmed', 'cancelled', 'refunded']),
+  status: z.enum(['pending', 'confirmed', 'completed', 'cancelled', 'refunded']),
 });
 
 export async function POST(req: NextRequest) {

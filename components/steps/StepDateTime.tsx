@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useBooking } from '@/context/BookingContext';
 import type { AvailabilitySlot } from '@/types/booking';
 import { Button } from '@/components/ui/button';
 
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 function formatDate(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -20,15 +22,66 @@ function formatTime(time: string): string {
   return `${displayHour}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 
-function getDateRange(): { dateFrom: string; dateTo: string } {
-  const today = new Date();
-  today.setDate(today.getDate() + 1);
-  const future = new Date(today);
-  future.setDate(today.getDate() + 30);
+function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function addMonths(date: Date, amount: number): Date {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function getDateRange(): { dateFrom: string; dateTo: string; minDate: Date; maxDate: Date } {
+  const minDate = new Date();
+  minDate.setHours(0, 0, 0, 0);
+  minDate.setDate(minDate.getDate() + 1);
+
+  const maxDate = new Date(minDate);
+  maxDate.setMonth(maxDate.getMonth() + 3);
+  maxDate.setDate(0);
+
   return {
-    dateFrom: today.toISOString().split('T')[0],
-    dateTo: future.toISOString().split('T')[0],
+    dateFrom: toIsoDate(minDate),
+    dateTo: toIsoDate(maxDate),
+    minDate,
+    maxDate,
   };
+}
+
+function getCalendarDays(month: Date): Date[] {
+  const monthStart = startOfMonth(month);
+  const monthEnd = endOfMonth(month);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+
+  const gridEnd = new Date(monthEnd);
+  gridEnd.setDate(monthEnd.getDate() + (6 - monthEnd.getDay()));
+
+  const days: Date[] = [];
+  for (let cursor = new Date(gridStart); cursor <= gridEnd; cursor.setDate(cursor.getDate() + 1)) {
+    days.push(new Date(cursor));
+  }
+  return days;
+}
+
+function isSameMonth(left: Date, right: Date): boolean {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth();
+}
+
+function compareDateOnly(left: Date, right: Date): number {
+  const leftValue = startOfMonth(left).getTime() + left.getDate();
+  const rightValue = startOfMonth(right).getTime() + right.getDate();
+  return leftValue - rightValue;
 }
 
 export function StepDateTime() {
@@ -40,26 +93,55 @@ export function StepDateTime() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const { dateFrom, dateTo } = getDateRange();
+  const { dateFrom, dateTo, minDate, maxDate } = useMemo(() => getDateRange(), []);
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    state.date ? startOfMonth(new Date(`${state.date}T00:00:00`)) : startOfMonth(minDate)
+  );
 
-    fetch(`/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}`)
+  useEffect(() => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}`;
+    console.log('[StepDateTime] Fetching availability:', url);
+
+    fetch(url)
       .then((r) => r.json())
       .then((data) => {
         const slots = (data.slots as AvailabilitySlot[]) ?? [];
+        console.log(`[StepDateTime] Received ${slots.length} slot(s)`);
+
         const byDate: Record<string, AvailabilitySlot[]> = {};
         for (const slot of slots) {
           if (!byDate[slot.date]) byDate[slot.date] = [];
           byDate[slot.date].push(slot);
         }
+
+        const availableDays = Object.keys(byDate).filter((d) => byDate[d].some((s) => s.available));
+        console.log(`[StepDateTime] Available dates (${availableDays.length}):`, availableDays.slice(0, 10));
+
         setGrouped(byDate);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[StepDateTime] Availability fetch error:', err);
         setError('Failed to load availability. Please try again.');
         setLoading(false);
       });
-  }, []);
+  }, [dateFrom, dateTo]);
+
+  const availableDates = useMemo(
+    () =>
+      new Set(
+        Object.keys(grouped).filter((date) => grouped[date].some((slot) => slot.available))
+      ),
+    [grouped]
+  );
+
+  const calendarDays = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
+
+  const selectedDateSlots = useMemo(() => {
+    if (!selectedDate) return [];
+    return [...(grouped[selectedDate] ?? [])].sort((left, right) => left.time.localeCompare(right.time));
+  }, [grouped, selectedDate]);
 
   const handleDateSelect = (date: string) => {
     setSelectedDate(date);
@@ -73,9 +155,8 @@ export function StepDateTime() {
     goNext();
   };
 
-  const availableDates = Object.keys(grouped).filter(
-    (date) => grouped[date].some((s) => s.available)
-  );
+  const canGoPrevMonth = visibleMonth > startOfMonth(minDate);
+  const canGoNextMonth = visibleMonth < startOfMonth(maxDate);
 
   return (
     <div>
@@ -88,59 +169,102 @@ export function StepDateTime() {
         ← Back
       </Button>
 
-      {loading && <div className="text-center py-8 text-muted-foreground">Loading availability...</div>}
-      {error && <div className="text-center py-8 text-destructive">{error}</div>}
+      {loading && <div className="py-8 text-center text-muted-foreground">Loading availability...</div>}
+      {error && <div className="py-8 text-center text-destructive">{error}</div>}
 
       {!loading && !error && (
         <>
           <div className="mb-6">
-            <h3 className="font-medium text-foreground mb-3">Available Dates</h3>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {availableDates.map((date) => {
-                const d = new Date(date + 'T00:00:00');
-                return (
-                  <button
-                    key={date}
-                    onClick={() => handleDateSelect(date)}
-                    className={`p-2 rounded-lg border text-center text-sm transition-colors ${
-                      selectedDate === date
-                        ? 'border-green-500 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 font-medium'
-                        : 'border-border hover:border-muted-foreground text-foreground'
-                    }`}
-                  >
-                    <div className="font-medium">
-                      {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {d.toLocaleDateString('en-US', { weekday: 'short' })}
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="font-medium text-foreground">Available Dates</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => canGoPrevMonth && setVisibleMonth((current) => addMonths(current, -1))}
+                  disabled={!canGoPrevMonth}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ←
+                </button>
+                <div className="min-w-[9rem] text-center text-sm font-medium text-foreground">
+                  {visibleMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => canGoNextMonth && setVisibleMonth((current) => addMonths(current, 1))}
+                  disabled={!canGoNextMonth}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  →
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
+              <div className="mb-2 grid grid-cols-7 gap-2">
+                {WEEKDAY_LABELS.map((label) => (
+                  <div key={label} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-2">
+                {calendarDays.map((day) => {
+                  const isoDate = toIsoDate(day);
+                  const inCurrentMonth = isSameMonth(day, visibleMonth);
+                  const beforeMinDate = compareDateOnly(day, minDate) < 0;
+                  const afterMaxDate = compareDateOnly(day, maxDate) > 0;
+                  const isAvailable = availableDates.has(isoDate);
+                  const isDisabled = !inCurrentMonth || beforeMinDate || afterMaxDate || !isAvailable;
+                  const isSelected = selectedDate === isoDate;
+
+                  return (
+                    <button
+                      key={isoDate}
+                      type="button"
+                      onClick={() => !isDisabled && handleDateSelect(isoDate)}
+                      disabled={isDisabled}
+                      className={`min-h-16 rounded-lg border p-2 text-center transition-colors sm:min-h-20 ${
+                        isSelected
+                          ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300'
+                          : isDisabled
+                          ? 'border-border bg-muted/40 text-muted-foreground opacity-45'
+                          : 'border-border text-foreground hover:border-muted-foreground hover:bg-muted/40'
+                      }`}
+                    >
+                      <div className="text-sm font-semibold">{day.getDate()}</div>
+                      <div className="mt-1 text-[10px] uppercase tracking-wide">
+                        {isAvailable && inCurrentMonth ? 'Available' : 'Unavailable'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {selectedDate && (
             <div className="mb-6">
-              <h3 className="font-medium text-foreground mb-3">
+              <h3 className="mb-3 font-medium text-foreground">
                 Available Times — {formatDate(selectedDate)}
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {grouped[selectedDate]?.map((slot) => (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {selectedDateSlots.map((slot) => (
                   <button
                     key={slot.time}
                     disabled={!slot.available}
                     onClick={() => slot.available && setSelectedTime(slot.time)}
-                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
+                    className={`rounded-lg border p-3 text-sm font-medium transition-colors ${
                       !slot.available
-                        ? 'border-border bg-muted text-muted-foreground cursor-not-allowed opacity-50'
+                        ? 'cursor-not-allowed border-border bg-muted text-muted-foreground opacity-50'
                         : selectedTime === slot.time
-                        ? 'border-green-500 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300'
-                        : 'border-border hover:border-muted-foreground text-foreground'
+                        ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300'
+                        : 'border-border text-foreground hover:border-muted-foreground'
                     }`}
                   >
                     {formatTime(slot.time)}
-                    {!slot.available && <div className="text-xs mt-0.5">Booked</div>}
+                    {!slot.available && <div className="mt-0.5 text-xs">Booked</div>}
                   </button>
                 ))}
               </div>
@@ -150,7 +274,7 @@ export function StepDateTime() {
           <Button
             onClick={handleContinue}
             disabled={!selectedDate || !selectedTime}
-            className="w-full bg-green-600 hover:bg-green-700 text-white"
+            className="w-full bg-green-600 text-white hover:bg-green-700"
             size="lg"
           >
             Continue

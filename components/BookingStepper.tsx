@@ -45,7 +45,7 @@ export function BookingStepper() {
                     : 'bg-background border-border text-muted-foreground'
                 )}
               >
-                {isComplete ? '✓' : idx + 1}
+                {isComplete ? 'âœ“' : idx + 1}
               </div>
               <span
                 className={cn(

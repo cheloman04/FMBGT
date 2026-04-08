@@ -8,7 +8,7 @@ import type { Location } from '@/types/booking';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
-// ─── Static content per location ─────────────────────────────────────────────
+// â”€â”€â”€ Static content per location â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface LocationMeta {
   image: string;
@@ -19,71 +19,71 @@ interface LocationMeta {
 const LOCATION_CONTENT: Record<string, LocationMeta> = {
   // Paved
   'Sanford Historic Riverfront Tour': {
-    image: '/locations/sanford-historic-downtown.svg',
+    image: '/images/tours/location-downtown-sanford.png',
     description: "Explore Sanford's historic district and scenic riverfront on a relaxing ride through oak-lined streets, local shops, and vibrant downtown charm.",
     mapLink: 'https://maps.app.goo.gl/UQL4WTkzoXVSG4Ti8',
   },
-  'Spring to Spring Trail Tour – Blue Spring State Park': {
-    image: '/locations/blue-spring-state-park.svg',
+  'Spring to Spring Trail Tour â€“ Blue Spring State Park': {
+    image: '/images/tours/location-spring-to-spring.png',
     description: 'A scenic trail ride to Blue Spring State Park featuring clear springs, wildlife, and seasonal manatee sightings.',
     mapLink: 'https://maps.app.goo.gl/imgUh7LBef9cLj2d7',
   },
   // First Time MTB
   'Lake Druid Park, Orlando': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-lake-druid-park.png',
     description: 'Wide beginner-friendly trails perfect for learning the basics of mountain biking in a safe and open environment.',
     mapLink: 'https://maps.app.goo.gl/WjApuDjQubbBJJBQ6',
   },
   'Soldiers Creek Park, Longwood (First Time)': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-soldiers-creek.png',
     description: 'Smooth and easy trails ideal for practicing balance, braking, and turning while building confidence on dirt.',
     mapLink: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
   },
   // Beginner MTB
   'Markham Woods Trail, Lake Mary': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-markham-woods.png',
     description: 'Flowing forest trails with light roots and gentle turns, perfect for riders ready to improve control and bike handling.',
     mapLink: 'https://maps.app.goo.gl/u7hqJcQw9RGL16PaA',
   },
-  'Little Big Econ Jones East – Snow Hill Rd, Chuluota': {
-    image: '/locations/location-placeholder.svg',
+  'Little Big Econ Jones East â€“ Snow Hill Rd, Chuluota': {
+    image: '/images/tours/location-econ-jones.png',
     description: 'A scenic trail through pine forest with smooth sections and gentle climbs, great for riders stepping up from beginner level.',
     mapLink: 'https://maps.app.goo.gl/KiEEaaJXGJbDHo7r7',
   },
   'Soldiers Creek Park, Longwood': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-soldiers-creek.png',
     description: 'Fun and approachable trails with mild technical features, ideal for improving skills while keeping the ride enjoyable.',
     mapLink: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
   },
   // Intermediate MTB
   'Mount Dora Mountain Bike Trail, Mount Dora': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-mount-dora-mountain-bike-trail-fl.png',
     description: 'Technical trail system with climbs, descents, and optional jumps designed for riders ready for a bigger challenge.',
     mapLink: 'https://maps.app.goo.gl/FQtUAx8ZS2zwpQpZ7',
   },
   'Chuck Lennon Mountain Bike Trailhead, DeLeon Springs': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-chuck-lenon-mountain-delon-springs-fl.png',
     description: 'Flowing singletrack with roots, climbs, and fast sections that challenge riders while rewarding strong control.',
     mapLink: 'https://maps.app.goo.gl/Q9oC3jfyLHGtddkZ8',
   },
   'River Bend, Ormond Beach': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-river-bend.png',
     description: 'A scenic trail with tight tree lines, roots, and flowing terrain that tests balance and bike handling skills.',
     mapLink: 'https://maps.app.goo.gl/m9wLtSRAV9dNCuhR6',
   },
   'Doris Leeper Spruce Creek MTB Trailhead, Port Orange': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-spruce-creek.png',
     description: 'Fast and technical trails with roots and flowing sections, ideal for riders looking to sharpen their technique.',
     mapLink: 'https://maps.app.goo.gl/F1qUgb47Yj5K4MZn7',
   },
   // Advanced MTB
   'Santos Trailhead, Ocala': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-santos-trailhead-ocala-fl.png',
     description: 'World-class mountain bike destination featuring jumps, drops, and technical terrain for expert riders.',
     mapLink: 'https://maps.app.goo.gl/YVVXwnwXZiTaJ4tT6',
   },
   'Graham Swamp East Trailhead MTB, Palm Coast': {
-    image: '/locations/location-placeholder.svg',
+    image: '/images/tours/location-graham-swamp-2.png',
     description: 'Challenging trail with steep climbs, fast descents, and rugged terrain designed for highly skilled riders.',
     mapLink: 'https://maps.app.goo.gl/3cZ8NEZ4eJFjD8bo6',
   },
@@ -95,7 +95,7 @@ const FALLBACK_META: LocationMeta = {
   mapLink: 'https://maps.google.com',
 };
 
-// ─── TrailLocationCard ────────────────────────────────────────────────────────
+// â”€â”€â”€ TrailLocationCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface TrailLocationCardProps {
   location: Location;
@@ -130,14 +130,14 @@ function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
           className={`object-cover transition-opacity duration-300 ${hovered ? 'opacity-0' : 'opacity-100'}`}
         />
 
-        {/* Map overlay — desktop hover only */}
+        {/* Map overlay â€” desktop hover only */}
         <div
           className={`absolute inset-0 hidden sm:flex flex-col items-center justify-center gap-3
                       bg-gradient-to-br from-slate-900/95 to-slate-800/95
                       transition-opacity duration-300 ${hovered ? 'opacity-100' : 'opacity-0'}`}
         >
           <div className="flex flex-col items-center gap-2 text-center px-4">
-            <span className="text-3xl">📍</span>
+            <span className="text-3xl">ðŸ“</span>
             <p className="text-sm font-medium text-white leading-snug">{displayName}</p>
             <a
               href={meta.mapLink}
@@ -148,12 +148,12 @@ function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
                          border border-white/20 px-3 py-1.5 text-xs font-medium text-white
                          transition-colors duration-150"
             >
-              Open in Google Maps →
+              Open in Google Maps â†’
             </a>
           </div>
         </div>
 
-        {/* Trail type badge — always visible */}
+        {/* Trail type badge â€” always visible */}
         <div className="absolute top-2 right-2 z-10">
           <Badge variant="secondary" className="text-xs font-medium shadow">
             {location.tour_type === 'paved' ? 'Paved' : 'MTB'}
@@ -191,7 +191,7 @@ function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
   );
 }
 
-// ─── StepLocation ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ StepLocation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function StepLocation() {
   const { state, setLocation, goNext, goPrev } = useBooking();
@@ -234,7 +234,7 @@ export function StepLocation() {
       </div>
 
       <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
-        ← Back
+        â† Back
       </Button>
 
       {loading ? (

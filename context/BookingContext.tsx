@@ -19,6 +19,8 @@ import type {
   Customer,
   PriceBreakdown,
   AdditionalParticipant,
+  WaiverParticipant,
+  WaiverSigner,
 } from '@/types/booking';
 import {
   DEFAULT_STEP_ID,
@@ -60,6 +62,9 @@ type BookingAction =
   | { type: 'SET_DURATION'; payload: DurationHours }
   | { type: 'SET_ADDONS'; payload: Addons }
   | { type: 'SET_WAIVER_ACCEPTED'; payload: boolean }
+  | { type: 'SET_WAIVER_PARTICIPANTS'; payload: WaiverParticipant[] }
+  | { type: 'SET_WAIVER_SIGNERS'; payload: WaiverSigner[] }
+  | { type: 'SET_WAIVER_SESSION_ID'; payload: string }
   | { type: 'SET_CUSTOMER'; payload: Customer }
   | { type: 'SET_PRICE_BREAKDOWN'; payload: PriceBreakdown }
   | { type: 'SET_PARTICIPANTS'; payload: { count: number; additional: AdditionalParticipant[] } }
@@ -118,6 +123,15 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
     case 'SET_WAIVER_ACCEPTED':
       return { ...state, waiver_accepted: action.payload };
 
+    case 'SET_WAIVER_PARTICIPANTS':
+      return { ...state, waiver_participants: action.payload };
+
+    case 'SET_WAIVER_SIGNERS':
+      return { ...state, waiver_signers: action.payload };
+
+    case 'SET_WAIVER_SESSION_ID':
+      return { ...state, waiver_session_id: action.payload };
+
     case 'SET_CUSTOMER':
       return { ...state, customer: action.payload };
 
@@ -163,6 +177,9 @@ interface BookingContextValue {
   setDuration: (hours: DurationHours) => void;
   setAddons: (addons: Addons) => void;
   setWaiverAccepted: (accepted: boolean) => void;
+  setWaiverParticipants: (participants: WaiverParticipant[]) => void;
+  setWaiverSigners: (signers: WaiverSigner[]) => void;
+  setWaiverSessionId: (id: string) => void;
   setCustomer: (customer: Customer) => void;
   setPriceBreakdown: (breakdown: PriceBreakdown) => void;
   setParticipants: (count: number, additional: AdditionalParticipant[]) => void;
@@ -181,9 +198,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(bookingReducer, initial.booking as BookingState);
   const [currentStepId, setCurrentStepId] = useState<StepId>(initial.stepId);
 
-  // Keep localStorage in sync — exclude derived price_breakdown
+  // Keep localStorage in sync — exclude price_breakdown and waiver_signers (large base64 blobs)
   useEffect(() => {
-    const { price_breakdown, ...booking } = state;
+    const { price_breakdown, waiver_signers, ...booking } = state;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ booking, stepId: currentStepId }));
     } catch {
@@ -257,6 +274,18 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     (accepted: boolean) => dispatch({ type: 'SET_WAIVER_ACCEPTED', payload: accepted }),
     []
   );
+  const setWaiverParticipants = useCallback(
+    (participants: WaiverParticipant[]) => dispatch({ type: 'SET_WAIVER_PARTICIPANTS', payload: participants }),
+    []
+  );
+  const setWaiverSigners = useCallback(
+    (signers: WaiverSigner[]) => dispatch({ type: 'SET_WAIVER_SIGNERS', payload: signers }),
+    []
+  );
+  const setWaiverSessionId = useCallback(
+    (id: string) => dispatch({ type: 'SET_WAIVER_SESSION_ID', payload: id }),
+    []
+  );
   const setCustomer = useCallback(
     (customer: Customer) => dispatch({ type: 'SET_CUSTOMER', payload: customer }),
     []
@@ -303,6 +332,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         setDuration,
         setAddons,
         setWaiverAccepted,
+        setWaiverParticipants,
+        setWaiverSigners,
+        setWaiverSessionId,
         setCustomer,
         setPriceBreakdown,
         setParticipants,

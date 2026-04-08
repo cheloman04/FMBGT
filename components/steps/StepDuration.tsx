@@ -52,7 +52,7 @@ export function StepDuration() {
       </div>
 
       <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
-        ← Back
+        â† Back
       </Button>
 
       <div className="space-y-3 mb-6">

@@ -2,8 +2,9 @@ import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParti
 
 // All prices in cents (USD)
 export const PRICING = {
+  FLORIDA_STATE_TAX_RATE: 0.06,
   PAVED_FLAT: 11500,         // $115.00 - paved 2hr tour, bike always included
-  BASE_NO_BIKE: 8900,        //  $89.00 - MTB 2hr tour, BYOB (no bike)
+  BASE_NO_BIKE: 8900,        // $89.00 - MTB 2hr tour, BYOB (no bike)
   BASE_WITH_BIKE: 18900,     // $189.00 - MTB 2hr tour, standard bike included
   ADDITIONAL_HOUR: 5000,     // $50.00 per additional hour (MTB only)
   BASE_DURATION_HOURS: 2,
@@ -20,6 +21,10 @@ export const PRICING = {
     electric: 0,      // Electric upgrade is an addon on top of standard
   } as const,
 } as const;
+
+export function calculateFloridaStateTax(subtotal: number): number {
+  return Math.round(subtotal * PRICING.FLORIDA_STATE_TAX_RATE);
+}
 
 export function calculateBasePrice(bikeRental: BikeRental): number {
   if (bikeRental === 'none') {
@@ -56,22 +61,27 @@ export function calculatePriceBreakdown(
 ): PriceBreakdown {
   const participantCount = 1 + (additionalParticipants?.length ?? 0);
 
-  // Paved tours: flat $115 per rider, bike always included, no duration surcharge
+  // Paved tours: flat $115 per booking, bike always included, no duration surcharge
   if (trailType === 'paved') {
-    const base_price = PRICING.PAVED_FLAT * participantCount;
+    const base_price = PRICING.PAVED_FLAT;
     const gopro_price = addons.gopro ? PRICING.ADDONS.gopro * participantCount : 0;
     const pickup_price = addons.pickup_dropoff ? PRICING.ADDONS.pickup_dropoff * participantCount : 0;
     // Electric upgrades: count per-rider selections from bike_rental fields
     const rider1Electric = bikeRental === 'electric' ? 1 : 0;
-    const addlElectric = additionalParticipants?.filter(p => p.bike_rental === 'electric').length ?? 0;
+    const addlElectric = additionalParticipants?.filter((p) => p.bike_rental === 'electric').length ?? 0;
     const totalElectric = rider1Electric + addlElectric;
     const electric_price = totalElectric * PRICING.ADDONS.electric_upgrade;
     const addons_price = gopro_price + pickup_price + electric_price;
+    const subtotal = base_price + addons_price;
+    const tax_amount = calculateFloridaStateTax(subtotal);
+
     return {
       base_price,
       duration_surcharge: 0,
       addons_price,
-      total: base_price + addons_price,
+      subtotal,
+      tax_amount,
+      total: subtotal + tax_amount,
       currency: 'usd',
       participant_count: participantCount,
     };
@@ -87,17 +97,23 @@ export function calculatePriceBreakdown(
 
   const duration_surcharge = calculateDurationSurcharge(durationHours) * participantCount;
 
-  // Addons: gopro and pickup multiply by participant count; electric is per-rider who chose it
+  // Addons: gopro and pickup multiply by participant count; electric is charged for
+  // riders already assigned an e-bike plus a single rider-level upgrade chosen here.
   const gopro_price = addons.gopro ? PRICING.ADDONS.gopro * participantCount : 0;
   const pickup_price = addons.pickup_dropoff ? PRICING.ADDONS.pickup_dropoff * participantCount : 0;
-  const electric_price = electricCount * PRICING.ADDONS.electric_upgrade;
+  const addonElectricUpgradeCount = addons.electric_upgrade && bikeRental !== 'none' && bikeRental !== 'electric' ? 1 : 0;
+  const electric_price = (electricCount + addonElectricUpgradeCount) * PRICING.ADDONS.electric_upgrade;
   const addons_price = gopro_price + pickup_price + electric_price;
+  const subtotal = base_price + duration_surcharge + addons_price;
+  const tax_amount = calculateFloridaStateTax(subtotal);
 
   return {
     base_price,
     duration_surcharge,
     addons_price,
-    total: base_price + duration_surcharge + addons_price,
+    subtotal,
+    tax_amount,
+    total: subtotal + tax_amount,
     currency: 'usd',
     participant_count: participantCount,
   };
@@ -121,23 +137,22 @@ export function getPriceLineItems(
 ): Array<{ label: string; amount: number }> {
   const items: Array<{ label: string; amount: number }> = [];
   const participantCount = 1 + (additionalParticipants?.length ?? 0);
-  const countLabel = participantCount > 1 ? ` ×${participantCount}` : '';
+  const countLabel = participantCount > 1 ? ` x${participantCount}` : '';
 
   if (trailType === 'paved') {
     items.push({
-      label: `Guided Paved Tour — 2 hours (bike included)${countLabel}`,
-      amount: PRICING.PAVED_FLAT * participantCount,
+      label: `Guided Paved Tour - 2 hours (bike included)${countLabel}`,
+      amount: PRICING.PAVED_FLAT,
     });
   } else {
     // Group riders by bike type for cleaner display
-    const allBikes: BikeRental[] = [bikeRental, ...(additionalParticipants?.map(p => p.bike_rental ?? 'none') ?? [])];
-    const noBike = allBikes.filter(b => b === 'none').length;
-    const withBike = allBikes.filter(b => b !== 'none').length;
+    const allBikes: BikeRental[] = [bikeRental, ...(additionalParticipants?.map((p) => p.bike_rental ?? 'none') ?? [])];
+    const noBike = allBikes.filter((b) => b === 'none').length;
+    const withBike = allBikes.filter((b) => b !== 'none').length;
 
     if (noBike > 0 && withBike > 0) {
-      // Mixed — show two lines
-      items.push({ label: `Base tour (2 hours) ×${noBike}`, amount: PRICING.BASE_NO_BIKE * noBike });
-      items.push({ label: `Base tour with bike rental (2 hours) ×${withBike}`, amount: PRICING.BASE_WITH_BIKE * withBike });
+      items.push({ label: `Base tour (2 hours) x${noBike}`, amount: PRICING.BASE_NO_BIKE * noBike });
+      items.push({ label: `Base tour with bike rental (2 hours) x${withBike}`, amount: PRICING.BASE_WITH_BIKE * withBike });
     } else if (noBike > 0) {
       items.push({ label: `Base tour (2 hours)${countLabel}`, amount: PRICING.BASE_NO_BIKE * participantCount });
     } else {
@@ -161,15 +176,23 @@ export function getPriceLineItems(
     items.push({ label: `Pickup + Dropoff${countLabel}`, amount: PRICING.ADDONS.pickup_dropoff * participantCount });
   }
 
-  // Electric upgrade: per rider who chose electric (both paved and MTB)
-  const allBikesForElectric: BikeRental[] = [bikeRental, ...(additionalParticipants?.map(p => p.bike_rental ?? 'none') ?? [])];
-  const electricCount = allBikesForElectric.filter(b => b === 'electric').length;
-  if (electricCount > 0) {
+  // Electric upgrade: per rider who chose electric plus one optional upgrade selected here.
+  const allBikesForElectric: BikeRental[] = [bikeRental, ...(additionalParticipants?.map((p) => p.bike_rental ?? 'none') ?? [])];
+  const electricCount = allBikesForElectric.filter((b) => b === 'electric').length;
+  const addonElectricUpgradeCount = addons.electric_upgrade && bikeRental !== 'none' && bikeRental !== 'electric' ? 1 : 0;
+  const totalElectricUpgradeCount = electricCount + addonElectricUpgradeCount;
+  if (totalElectricUpgradeCount > 0) {
     items.push({
-      label: `E-Bike Upgrade${electricCount > 1 ? ` ×${electricCount}` : ''}`,
-      amount: PRICING.ADDONS.electric_upgrade * electricCount,
+      label: `E-Bike Upgrade${totalElectricUpgradeCount > 1 ? ` x${totalElectricUpgradeCount}` : ''}`,
+      amount: PRICING.ADDONS.electric_upgrade * totalElectricUpgradeCount,
     });
   }
+
+  const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+  items.push({
+    label: 'Florida state tax (6%)',
+    amount: calculateFloridaStateTax(subtotal),
+  });
 
   return items;
 }

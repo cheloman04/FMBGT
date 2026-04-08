@@ -1,8 +1,29 @@
 export type TrailType = 'paved' | 'mtb';
+export type SignerRole = 'participant' | 'guardian';
+
+export interface WaiverParticipant {
+  name: string;
+  is_minor: boolean;
+  guardian_name?: string;
+  guardian_relationship?: string; // 'parent' | 'legal_guardian' | 'other'
+}
+
+export interface WaiverSigner {
+  signer_name: string;
+  signer_email?: string;
+  role: SignerRole;
+  participants_covered: string[];   // names of participants this signature covers
+  guardian_relationship?: string;
+  signature_data_url: string;       // base64 PNG from canvas
+  pdf_data_url: string;             // base64 PDF generated client-side
+  agreed_at: string;                // ISO timestamp
+  signature_url?: string;           // Supabase Storage URL (set after upload)
+  pdf_url?: string;                 // Supabase Storage URL (set after upload)
+}
 export type SkillLevel = 'first_time' | 'beginner' | 'intermediate' | 'advanced';
 export type BikeRental = 'none' | 'standard' | 'electric';
 export type DurationHours = 2 | 3 | 4;
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'refunded';
+export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'refunded';
 
 export interface Location {
   id: string;
@@ -56,9 +77,11 @@ export interface Customer {
 }
 
 export interface PriceBreakdown {
-  base_price: number;         // in cents — total base for all participants
-  duration_surcharge: number; // in cents — total duration surcharge for all participants
-  addons_price: number;       // in cents — total addons for all participants
+  base_price: number;         // in cents - total base for all participants
+  duration_surcharge: number; // in cents - total duration surcharge for all participants
+  addons_price: number;       // in cents - total addons for all participants
+  subtotal: number;           // in cents - pre-tax subtotal
+  tax_amount: number;         // in cents - Florida state tax
   total: number;              // in cents
   currency: 'usd';
   participant_count?: number; // for display
@@ -100,6 +123,9 @@ export interface BookingState {
 
   // Step 8
   waiver_accepted?: boolean;
+  waiver_participants?: WaiverParticipant[];
+  waiver_signers?: WaiverSigner[];         // excluded from localStorage (large base64)
+  waiver_session_id?: string;              // returned by /api/waivers/store
 
   // Customer info (collected at payment step)
   customer?: Customer;

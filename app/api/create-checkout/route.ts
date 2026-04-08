@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createCheckoutSession } from '@/lib/stripe';
+import { createCheckoutSession, createStripeCustomer, getStripeCustomer } from '@/lib/stripe';
 import { validateBookingInventory } from '@/lib/inventory';
 import { calculatePriceBreakdown } from '@/lib/pricing';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -32,6 +32,7 @@ const BookingStateSchema = z.object({
     electric_upgrade: z.boolean().optional(),
   }),
   waiver_accepted: z.boolean(),
+  waiver_session_id: z.string().uuid('Invalid waiver session'),
   customer: z.object({
     name: z.string().min(1),
     email: z.string().email(),
@@ -45,13 +46,11 @@ const BookingStateSchema = z.object({
 // Max participants per paved location
 const PAVED_MAX_PARTICIPANTS: Record<string, number> = {
   'Blue Spring State Park': 4,
-  'Sanford Historic Downtown': 6,
+  'Sanford Historic Riverfront Tour': 6,
 };
 const MTB_MAX_PARTICIPANTS = 6;
 
-// Rate limiter — 10 checkout attempts per IP per hour.
-// Uses Upstash Redis (HTTP API, compatible with Vercel serverless).
-// Skips silently if UPSTASH_REDIS_REST_URL / TOKEN are not set.
+// Rate limiter — 10 checkout attempts per IP per hour
 let ratelimit: Ratelimit | null = null;
 function getRatelimit(): Ratelimit | null {
   if (ratelimit) return ratelimit;
@@ -73,10 +72,22 @@ function requireJson(req: NextRequest): boolean {
 
 function isAllowedOrigin(req: NextRequest): boolean {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!appUrl) return true; // Skip check if not configured
+  if (!appUrl) return true;
   const origin = req.headers.get('origin');
-  if (!origin) return true; // Server-to-server calls have no origin
-  return origin === appUrl || origin === 'http://localhost:3000';
+  if (!origin) return true;
+  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return true;
+  return origin === appUrl;
+}
+
+/**
+ * Calculate the remaining balance due date: noon ET (16:00 UTC) on the day
+ * before the tour. The cron job runs daily at 10 AM ET and charges all bookings
+ * whose due date is <= now().
+ */
+function calcRemainingBalanceDueAt(tourDateStr: string): string {
+  const [y, m, d] = tourDateStr.split('-').map(Number) as [number, number, number];
+  // Day before tour at 16:00 UTC = noon ET (covers both EST and EDT)
+  return new Date(Date.UTC(y, m - 1, d - 1, 16, 0, 0)).toISOString();
 }
 
 export async function POST(req: NextRequest) {
@@ -87,23 +98,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Rate limiting (skips if Upstash env vars not configured)
+  // Rate limiting (skips if Upstash env vars not configured or Redis is unreachable)
   const limiter = getRatelimit();
   if (limiter) {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1';
-    const { success, limit, remaining, reset } = await limiter.limit(ip);
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': String(limit),
-            'X-RateLimit-Remaining': String(remaining),
-            'X-RateLimit-Reset': String(reset),
-          },
-        }
-      );
+    try {
+      const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1';
+      const { success, limit, remaining, reset } = await limiter.limit(ip);
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Too many requests. Please try again later.' },
+          {
+            status: 429,
+            headers: {
+              'X-RateLimit-Limit': String(limit),
+              'X-RateLimit-Remaining': String(remaining),
+              'X-RateLimit-Reset': String(reset),
+            },
+          }
+        );
+      }
+    } catch (err) {
+      console.warn('[checkout] Rate limiter unavailable, skipping:', (err as Error).message);
     }
   }
 
@@ -111,7 +126,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { booking_state } = body;
 
-    // Validate input
     const parsed = BookingStateSchema.safeParse(booking_state);
     if (!parsed.success) {
       return NextResponse.json(
@@ -120,11 +134,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Normalize email server-side regardless of client input
     const raw = parsed.data;
     const state = { ...raw, customer: { ...raw.customer, email: raw.customer.email.toLowerCase().trim() } };
 
-    // Validate participant count against location limits
+    // Validate participant count
     const maxParticipants = state.trail_type === 'paved'
       ? (PAVED_MAX_PARTICIPANTS[state.location_name] ?? 4)
       : MTB_MAX_PARTICIPANTS;
@@ -143,10 +156,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    // Fleet cap: max 4 standard bikes and 2 e-bikes per booking
-    // Applies to Sanford (paved) and all MTB locations
+
+    // Fleet cap
     const hasFleetCap = state.trail_type === 'mtb' ||
-      (state.trail_type === 'paved' && state.location_name === 'Sanford Historic Downtown');
+      (state.trail_type === 'paved' && state.location_name === 'Sanford Historic Riverfront Tour');
     if (hasFleetCap) {
       const allParticipants = [
         { bike_rental: state.bike_rental },
@@ -155,20 +168,14 @@ export async function POST(req: NextRequest) {
       const electricCount = allParticipants.filter(p => p.bike_rental === 'electric').length;
       const standardCount = allParticipants.filter(p => p.bike_rental === 'standard').length;
       if (electricCount > 2) {
-        return NextResponse.json(
-          { error: 'Only 2 electric bikes are available per booking.' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'Only 2 electric bikes are available per booking.' }, { status: 400 });
       }
       if (standardCount > 4) {
-        return NextResponse.json(
-          { error: 'Only 4 standard rental bikes are available per booking.' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'Only 4 standard rental bikes are available per booking.' }, { status: 400 });
       }
     }
 
-    // Enforce minimum 24h lead time
+    // Minimum 24h lead time
     const bookingDate = new Date(state.date + 'T00:00:00');
     const minDate = new Date();
     minDate.setDate(minDate.getDate() + 1);
@@ -180,22 +187,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check waiver
-    if (!state.waiver_accepted) {
+    const supabase = getSupabaseAdmin();
+
+    // Waiver validation
+    if (!state.waiver_accepted || !state.waiver_session_id) {
       return NextResponse.json(
-        { error: 'Waiver must be accepted before checkout' },
+        { error: 'All required waivers must be signed before checkout' },
         { status: 400 }
       );
     }
 
-    // Validate inventory (pass full participant list so multi-rider electric counts are correct)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: waiverRecords, error: waiverErr } = await (supabase as any)
+      .from('waiver_records')
+      .select('id, signer_name')
+      .eq('session_id', state.waiver_session_id);
+
+    if (waiverErr || !waiverRecords || waiverRecords.length === 0) {
+      return NextResponse.json(
+        { error: 'Waiver session not found. Please re-complete the waiver step.' },
+        { status: 400 }
+      );
+    }
+
+    // Inventory validation
     const inventoryCheck = await validateBookingInventory(
       state.date,
       state.bike_rental,
       state.addons,
       state.additional_participants
     );
-
     if (!inventoryCheck.valid) {
       return NextResponse.json(
         { error: 'Inventory unavailable', details: inventoryCheck.errors },
@@ -203,8 +224,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Server-side price calculation (source of truth)
-    // Paved tours: always 2hr. Blue Spring has no electric — force standard. Sanford uses rider's choice.
+    // Server-side price calculation
     const effectiveDuration = state.trail_type === 'paved' ? 2 : state.duration_hours;
     const effectiveBike = (state.trail_type === 'paved' && state.location_name === 'Blue Spring State Park')
       ? 'standard'
@@ -217,9 +237,13 @@ export async function POST(req: NextRequest) {
       state.additional_participants
     );
 
-    const supabase = getSupabaseAdmin();
+    // Deposit split: 50% now, 50% charged the day before the tour
+    const depositAmount = Math.round(priceBreakdown.total / 2);
+    const remainingBalanceAmount = priceBreakdown.total - depositAmount;
+    const remainingBalanceDueAt = calcRemainingBalanceDueAt(state.date);
 
-    // Upsert customer
+    // ── Stripe Customer ───────────────────────────────────────────────────────
+    // Upsert our Supabase customer record, then get/create a Stripe customer
     const { data: customerData, error: customerError } = await supabase
       .from('customers')
       .upsert(
@@ -231,14 +255,32 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: 'email' }
       )
-      .select('id')
+      .select('id, stripe_customer_id')
       .single();
 
     if (customerError) throw customerError;
 
-    const customer = customerData as { id: string };
+    const customerRecord = customerData as { id: string; stripe_customer_id: string | null };
 
-    // Get tour ID
+    // Get existing Stripe customer or create a new one
+    let stripeCustomerId = customerRecord.stripe_customer_id ?? null;
+    if (stripeCustomerId) {
+      // Verify it still exists (could have been deleted in Stripe dashboard)
+      const existing = await getStripeCustomer(stripeCustomerId);
+      if (!existing) stripeCustomerId = null;
+    }
+
+    if (!stripeCustomerId) {
+      const newCustomer = await createStripeCustomer(state.customer.name, state.customer.email);
+      stripeCustomerId = newCustomer.id;
+      // Persist back to Supabase customer record
+      await supabase
+        .from('customers')
+        .update({ stripe_customer_id: stripeCustomerId })
+        .eq('id', customerRecord.id);
+    }
+
+    // ── Tour lookup ───────────────────────────────────────────────────────────
     const { data: tourData } = await supabase
       .from('tours')
       .select('id')
@@ -248,14 +290,14 @@ export async function POST(req: NextRequest) {
 
     const tour = tourData as { id: string } | null;
     if (!tour) {
-      console.error(`[create-checkout] No active tour found for trail_type=${state.trail_type} — booking will have null tour_id`);
+      console.error(`[checkout] No active tour for trail_type=${state.trail_type}`);
     }
 
-    // Create pending booking
+    // ── Create pending booking ────────────────────────────────────────────────
     const { data: bookingData, error: bookingError } = await supabase
       .from('bookings')
       .insert({
-        customer_id: customer.id,
+        customer_id: customerRecord.id,
         tour_id: tour?.id,
         location_id: state.location_id,
         trail_type: state.trail_type,
@@ -267,13 +309,24 @@ export async function POST(req: NextRequest) {
         rider_height_inches: state.rider_height_inches,
         addons: state.addons,
         participant_count: state.participant_count,
-        participant_info: (state.additional_participants && state.additional_participants.length > 0) ? state.additional_participants : null,
+        participant_info: (state.additional_participants?.length ?? 0) > 0
+          ? state.additional_participants
+          : null,
         base_price: priceBreakdown.base_price,
         addons_price: priceBreakdown.addons_price,
         total_price: priceBreakdown.total,
+        // Deposit split
+        deposit_amount: depositAmount,
+        remaining_balance_amount: remainingBalanceAmount,
+        remaining_balance_due_at: remainingBalanceDueAt,
+        deposit_payment_status: 'pending',
+        remaining_balance_status: 'pending',
+        stripe_customer_id: stripeCustomerId,
+        // Booking status
         status: 'pending',
         waiver_accepted: true,
         waiver_accepted_at: new Date().toISOString(),
+        waiver_session_id: state.waiver_session_id,
         zip_code: state.customer.zip_code ?? null,
         marketing_source: state.customer.marketing_source ?? null,
       })
@@ -281,12 +334,11 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (bookingError) {
-      // DB trigger raises this when inventory is exhausted by a concurrent request
       const msg = bookingError.message ?? '';
       if (msg.includes('inventory_exhausted')) {
         const item = msg.split(':')[1] ?? 'item';
         return NextResponse.json(
-          { error: 'Inventory unavailable', details: [`${item} was just taken by another booking. Please select a different date.`] },
+          { error: 'Inventory unavailable', details: [`${item} was just taken by another booking.`] },
           { status: 409 }
         );
       }
@@ -294,16 +346,18 @@ export async function POST(req: NextRequest) {
     }
 
     const booking = bookingData as { id: string };
-
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
-    // Create Stripe checkout session
+    // ── Create Stripe Checkout Session ────────────────────────────────────────
     const session = await createCheckoutSession({
       bookingState: state as BookingState,
       priceBreakdown,
+      depositAmount,
+      remainingBalance: remainingBalanceAmount,
       successUrl: `${appUrl}/booking/confirmation?booking_id=${booking.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${appUrl}/booking`,
       bookingId: booking.id,
+      stripeCustomerId,
     });
 
     // Update booking with Stripe session ID
@@ -317,7 +371,7 @@ export async function POST(req: NextRequest) {
       session_id: session.id,
     });
   } catch (error) {
-    console.error('Checkout error:', error);
+    console.error('[checkout] Error:', error);
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }

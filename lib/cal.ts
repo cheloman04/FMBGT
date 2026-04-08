@@ -6,79 +6,103 @@ const CAL_EVENT_TYPE_ID = process.env.CAL_EVENT_TYPE_ID;
 const CAL_USERNAME = process.env.CAL_USERNAME;
 
 export interface CalAvailabilityParams {
-  dateFrom: string; // YYYY-MM-DD
+  dateFrom: string; // YYYY-MM-DD (local date in the target timezone)
   dateTo: string;   // YYYY-MM-DD
   timeZone?: string;
 }
 
-// Fetch available slots from Cal.com
+// ---------------------------------------------------------------------------
+// Public: fetch available slots
+// ---------------------------------------------------------------------------
+
 export async function getAvailableSlots(
   params: CalAvailabilityParams
 ): Promise<AvailabilitySlot[]> {
-  // PLACEHOLDER: Replace with real Cal.com API call
-  // Cal.com API v1 endpoint: GET /availability
-  // Docs: https://cal.com/docs/api-reference
-
   if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID || !CAL_USERNAME) {
-    // Return mock data for development
+    console.log('[cal] Credentials not set — using mock data');
     return getMockAvailability(params.dateFrom, params.dateTo);
   }
 
+  const tz = params.timeZone ?? 'America/New_York';
+
   try {
-    // Cal.com v1 uses /slots (not /availability) for available booking times
+    // Extend the UTC range by 1 day on each side so no slot is missed due to
+    // the timezone offset between the local date and UTC midnight.
+    const startDate = new Date(`${params.dateFrom}T00:00:00.000Z`);
+    startDate.setUTCDate(startDate.getUTCDate() - 1);
+
+    const endDate = new Date(`${params.dateTo}T23:59:59.000Z`);
+    endDate.setUTCDate(endDate.getUTCDate() + 1);
+
     const url = new URL(`${CAL_API_BASE}/slots`);
     url.searchParams.set('apiKey', CAL_API_KEY);
     url.searchParams.set('username', CAL_USERNAME);
     url.searchParams.set('eventTypeId', CAL_EVENT_TYPE_ID);
-    // /slots uses startTime/endTime as full ISO strings
-    url.searchParams.set('startTime', `${params.dateFrom}T00:00:00.000Z`);
-    url.searchParams.set('endTime', `${params.dateTo}T23:59:59.000Z`);
-    if (params.timeZone) {
-      url.searchParams.set('timeZone', params.timeZone);
-    }
+    url.searchParams.set('startTime', startDate.toISOString());
+    url.searchParams.set('endTime', endDate.toISOString());
+    url.searchParams.set('timeZone', tz);
+
+    // Log sanitized URL for debugging (API key redacted)
+    const debugUrl = url.toString().replace(CAL_API_KEY, 'REDACTED');
+    console.log('[cal] Requesting slots:', debugUrl);
 
     const response = await fetch(url.toString(), {
-      next: { revalidate: 300 }, // Cache for 5 minutes
+      next: { revalidate: 300 },
     });
 
+    const rawBody = await response.text();
+    console.log('[cal] Raw response status:', response.status);
+    console.log('[cal] Raw response body:', rawBody.slice(0, 2000)); // first 2 KB
+
     if (!response.ok) {
-      throw new Error(`Cal.com API error: ${response.status}`);
+      throw new Error(`Cal.com API error ${response.status}: ${rawBody.slice(0, 200)}`);
     }
 
-    const data = await response.json();
+    let data: unknown;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      throw new Error(`Cal.com returned non-JSON: ${rawBody.slice(0, 200)}`);
+    }
 
-    // Transform Cal.com response to our format
-    // Adjust based on actual Cal.com API response shape
-    return transformCalResponse(data);
+    const slots = transformCalResponse(data, tz);
+    console.log(`[cal] Transformed ${slots.length} slot(s)`);
+    if (slots.length > 0) {
+      console.log('[cal] First slot:', slots[0]);
+      console.log('[cal] Last slot:', slots[slots.length - 1]);
+    }
+
+    return slots;
   } catch (error) {
-    console.error('Cal.com API error:', error);
-    // Fallback to mock data on error
+    console.error('[cal] getAvailableSlots error:', error);
+    // Fallback to mock so the UI is never broken during dev
     return getMockAvailability(params.dateFrom, params.dateTo);
   }
 }
 
-// Transform Cal.com /v1/slots response to our AvailabilitySlot format
-// Response shape: { slots: { "2026-04-01": [{ time: "2026-04-01T09:00:00-04:00" }, ...] } }
-function transformCalResponse(data: unknown): AvailabilitySlot[] {
+// ---------------------------------------------------------------------------
+// Transform Cal.com /v1/slots response → AvailabilitySlot[]
+// Response shape: { slots: { "YYYY-MM-DD": [{ time: "<ISO>" }, ...], ... } }
+// ---------------------------------------------------------------------------
+
+function transformCalResponse(data: unknown, timeZone: string): AvailabilitySlot[] {
   const slots: AvailabilitySlot[] = [];
   const calData = data as { slots?: Record<string, Array<{ time?: string }>> };
 
-  if (calData?.slots) {
-    for (const [date, timeSlots] of Object.entries(calData.slots)) {
-      if (Array.isArray(timeSlots)) {
-        for (const slot of timeSlots) {
-          // Extract HH:MM from the ISO time string
-          const isoTime = slot.time ?? '';
-          const time = isoTime ? new Date(isoTime).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-            timeZone: 'America/New_York',
-          }) : '';
-          if (time) {
-            slots.push({ date, time, available: true });
-          }
-        }
+  if (!calData?.slots || typeof calData.slots !== 'object') {
+    console.warn('[cal] Unexpected response shape — no "slots" key:', JSON.stringify(data).slice(0, 300));
+    return slots;
+  }
+
+  for (const [date, timeSlots] of Object.entries(calData.slots)) {
+    if (!Array.isArray(timeSlots)) continue;
+    for (const slot of timeSlots) {
+      const isoTime = slot.time ?? '';
+      if (!isoTime) continue;
+
+      const time = extractLocalTime(isoTime, timeZone);
+      if (time) {
+        slots.push({ date, time, available: true });
       }
     }
   }
@@ -86,42 +110,110 @@ function transformCalResponse(data: unknown): AvailabilitySlot[] {
   return slots;
 }
 
-// Mock availability data for development/testing
+// ---------------------------------------------------------------------------
+// Reliably extract HH:MM in the target timezone from an ISO timestamp.
+//
+// Cal.com may return times as:
+//   "2026-04-09T09:00:00-04:00"  (already offset-aware → extract directly)
+//   "2026-04-09T13:00:00.000Z"   (UTC → convert to local timezone)
+// ---------------------------------------------------------------------------
+
+function extractLocalTime(isoTime: string, timeZone: string): string {
+  // Fast path: ISO string already carries the timezone offset.
+  // Pattern: T<HH>:<MM>:<SS>±<HH>:<MM> or T<HH>:<MM>:<SS>+<HH><MM> etc.
+  const offsetMatch = isoTime.match(/T(\d{2}):(\d{2}):\d{2}[+-]\d{2}:?\d{2}$/);
+  if (offsetMatch) {
+    return `${offsetMatch[1]}:${offsetMatch[2]}`;
+  }
+
+  // Slow path: UTC time — convert to target timezone using Intl.
+  try {
+    const d = new Date(isoTime);
+    if (isNaN(d.getTime())) return '';
+
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+
+    const h = parts.find((p) => p.type === 'hour')?.value ?? '';
+    const m = parts.find((p) => p.type === 'minute')?.value ?? '';
+
+    if (!h || !m) return '';
+
+    // Intl hour12:false can return "24" for midnight — normalise to "00"
+    const hour = h === '24' ? '00' : h.padStart(2, '0');
+    return `${hour}:${m.padStart(2, '0')}`;
+  } catch {
+    return '';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mock availability — used when credentials are absent or API call fails
+// ---------------------------------------------------------------------------
+
 function getMockAvailability(dateFrom: string, dateTo: string): AvailabilitySlot[] {
   const slots: AvailabilitySlot[] = [];
-  const times = ['08:00', '10:00', '13:00', '15:00'];
+  const times = ['09:00', '11:00'];
 
-  const start = new Date(dateFrom);
-  const end = new Date(dateTo);
+  // Parse as local dates (not UTC midnight) to avoid timezone shift in the loop
+  const [fromY, fromM, fromD] = dateFrom.split('-').map(Number);
+  const [toY, toM, toD] = dateTo.split('-').map(Number);
+  const start = new Date(fromY, fromM - 1, fromD);
+  const end   = new Date(toY,   toM - 1,   toD);
 
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split('T')[0];
+    // toIsoDate using LOCAL methods so keys match the calendar
+    const year  = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day   = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
+    const dayOfWeek = d.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    if (isWeekend) continue; // Business is weekdays only in mock
 
     times.forEach((time) => {
-      // Make some slots unavailable for realism
-      const available = Math.random() > 0.3;
-      slots.push({
-        date: dateStr,
-        time,
-        available,
-      });
+      slots.push({ date: dateStr, time, available: true });
     });
   }
 
   return slots;
 }
 
-export interface CalBookingParams {
-  startIso: string;   // ISO 8601 UTC e.g. "2026-04-15T13:00:00.000Z"
-  endIso: string;     // startIso + duration_hours
-  name: string;
-  email: string;
-  timeZone?: string;  // default: 'America/New_York'
-  notes?: string;     // shown as booking title in Cal.com
+// ---------------------------------------------------------------------------
+// Group slots by date
+// ---------------------------------------------------------------------------
+
+export function groupSlotsByDate(
+  slots: AvailabilitySlot[]
+): Record<string, AvailabilitySlot[]> {
+  return slots.reduce(
+    (acc, slot) => {
+      if (!acc[slot.date]) acc[slot.date] = [];
+      acc[slot.date].push(slot);
+      return acc;
+    },
+    {} as Record<string, AvailabilitySlot[]>
+  );
 }
 
-// Create a booking in Cal.com after payment is confirmed.
-// Returns the Cal.com booking uid, or null if credentials are missing or the call fails.
+// ---------------------------------------------------------------------------
+// Cal.com booking types
+// ---------------------------------------------------------------------------
+
+export interface CalBookingParams {
+  startIso: string;   // ISO 8601 UTC
+  endIso: string;
+  name: string;
+  email: string;
+  timeZone?: string;
+  notes?: string;
+}
+
 export async function createCalBooking(
   params: CalBookingParams
 ): Promise<string | null> {
@@ -173,20 +265,4 @@ export async function createCalBooking(
     console.error('[cal] createCalBooking error:', error);
     return null;
   }
-}
-
-// Group slots by date for easier rendering
-export function groupSlotsByDate(
-  slots: AvailabilitySlot[]
-): Record<string, AvailabilitySlot[]> {
-  return slots.reduce(
-    (acc, slot) => {
-      if (!acc[slot.date]) {
-        acc[slot.date] = [];
-      }
-      acc[slot.date].push(slot);
-      return acc;
-    },
-    {} as Record<string, AvailabilitySlot[]>
-  );
 }

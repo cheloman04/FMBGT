@@ -5,7 +5,20 @@
       "Bash(npm uninstall:*)",
       "Bash(node -e \"require\\(''@upstash/redis''\\); console.log\\(''ok''\\)\")",
       "Bash(npx vercel:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(cp \"componentslandingFloridaMountainBikeGuidesLanding.jsx\" \"components/landing/FloridaMountainBikeGuidesLanding.jsx\")",
+      "Bash(rm \"componentslandingFloridaMountainBikeGuidesLanding.jsx\")",
+      "Bash(npm run:*)",
+      "Bash(npx next:*)",
+      "Bash(ls app/sitemap* app/robots* public/)",
+      "Bash(ls -la next.config*)",
+      "Bash(cmd /c \"cd /d \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\\" && npx tsc --noEmit 2>&1\")",
+      "Bash(cmd /c \"cd /d \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\\" && npx tsc --noEmit\")",
+      "Bash(cmd /c \"cd /d \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\\" && grep -E \\\\\"^CAL_\\\\\" .env.local 2>&1 | sed 's/=.*/=<set>/'\")",
+      "Bash(cmd /c \"cd /d \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\\" && node -e \\\\\"const u = new URL\\('https://api.cal.com/v1/slots'\\); u.searchParams.set\\('startTime','2026-04-09T00:00:00.000Z'\\); u.searchParams.set\\('endTime','2026-06-30T23:59:59.000Z'\\); console.log\\(u.toString\\(\\).replace\\(/apiKey=[^&]*/,'apiKey=REDACTED'\\)\\)\\\\\"\")",
+      "Bash(cmd /c \"type \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\.env.local\\\\\" 2>&1 | findstr /R \\\\\"^CAL\\\\\"\")",
+      "Bash(cmd /c \"type \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\.env.local\\\\\"\")",
+      "Bash(findstr /b /i \"CAL\")"
     ]
   }
 }

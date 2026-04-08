@@ -97,6 +97,7 @@ export function StepAddons() {
     if (state.trail_type === 'paved') return false;
     // For MTB, hide if rider already chose electric as their bike
     if (state.bike_rental === 'electric') return false;
+    if (state.bike_rental === 'none') return false;
     return true;
   });
 
@@ -179,7 +180,13 @@ export function StepAddons() {
 
       {state.bike_rental && state.duration_hours && (
         <div className="mb-6">
-          <PriceSummary />
+          <PriceSummary
+            bikeRental={state.bike_rental}
+            durationHours={state.duration_hours}
+            addons={selected}
+            trailType={state.trail_type}
+            additionalParticipants={state.additional_participants}
+          />
         </div>
       )}
 

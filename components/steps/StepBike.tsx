@@ -12,7 +12,7 @@ import { formatPrice, PRICING } from '@/lib/pricing';
 // ── Business rules ────────────────────────────────────────────────────────────
 const MAX_PARTICIPANTS: Record<string, number> = {
   'Blue Spring State Park': 4,
-  'Sanford Historic Downtown': 6,
+  'Sanford Historic Riverfront Tour': 6,
 };
 const NO_ELECTRIC_LOCATIONS = new Set(['Blue Spring State Park']);
 // Fleet cap applies to both Sanford (paved) and all MTB locations
@@ -98,8 +98,13 @@ function MTBBikeSelector({
   );
 }
 
-/** Two-button selector for Sanford paved: Standard | E-Bike */
-function PavedBikeSelector({
+const SANFORD_BIKE_OPTIONS: Array<{ value: BikeRental; label: string; description: string; price: string }> = [
+  { value: 'standard', label: 'Standard Bike', description: 'Quality rental bike included.',        price: 'Included'                                   },
+  { value: 'electric', label: 'Electric Bike',  description: 'Motor-assisted. Limited availability.', price: `+${formatPrice(PRICING.ADDONS.electric_upgrade)} upgrade` },
+];
+
+/** Card-style selector for Sanford paved: matches MTB layout */
+function SanfordBikeSelector({
   value, onChange, standardDisabled, electricDisabled,
 }: {
   value: BikeRental | undefined;
@@ -108,40 +113,49 @@ function PavedBikeSelector({
   electricDisabled: boolean;
 }) {
   return (
-    <div className="flex gap-2">
-      <button
-        type="button"
-        disabled={standardDisabled && value !== 'standard'}
-        onClick={() => onChange('standard')}
-        className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-colors
-          ${value === 'standard' ? 'border-green-500 bg-green-600 text-white' : 'border-border bg-background text-foreground'}
-          ${standardDisabled && value !== 'standard' ? 'opacity-40 cursor-not-allowed' : 'hover:border-green-400'}`}
-      >
-        Standard Bike
-      </button>
-      <button
-        type="button"
-        disabled={electricDisabled && value !== 'electric'}
-        onClick={() => onChange('electric')}
-        className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-colors
-          ${value === 'electric' ? 'border-green-500 bg-green-600 text-white' : 'border-border bg-background text-foreground'}
-          ${electricDisabled && value !== 'electric' ? 'opacity-40 cursor-not-allowed' : 'hover:border-green-400'}`}
-      >
-        E-Bike +{formatPrice(PRICING.ADDONS.electric_upgrade)}
-      </button>
+    <div className="space-y-2">
+      {SANFORD_BIKE_OPTIONS.map((opt) => {
+        const disabled =
+          (opt.value === 'standard' && standardDisabled && value !== 'standard') ||
+          (opt.value === 'electric' && electricDisabled && value !== 'electric');
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            disabled={disabled}
+            onClick={() => !disabled && onChange(opt.value)}
+            className={`w-full text-left focus:outline-none focus:ring-2 focus:ring-green-500 rounded-lg ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            <Card className={`transition-all ${disabled ? '' : 'cursor-pointer'} ${value === opt.value ? 'border-green-500 bg-green-50 dark:bg-green-950/30' : disabled ? 'border-border' : 'hover:border-border'}`}>
+              <CardHeader className="py-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-sm">{opt.label}</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">
+                      {disabled ? 'No availability for this booking' : opt.description}
+                    </CardDescription>
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground ml-3 whitespace-nowrap">{opt.price}</span>
+                </div>
+              </CardHeader>
+            </Card>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function StepBike() {
-  const { state, setBikeRental, setRiderHeight, setParticipants, goNext, goPrev } = useBooking();
+  const { state, setBikeRental, setRiderHeight, setParticipants, setCustomer, goNext, goPrev } = useBooking();
   const isPaved   = state.trail_type === 'paved';
-  const isSanford = state.location_name === 'Sanford Historic Downtown';
+  const isSanford = state.location_name === 'Sanford Historic Riverfront Tour';
   const electricAllowed = !NO_ELECTRIC_LOCATIONS.has(state.location_name ?? '');
   const maxCount  = getMaxParticipants(state.location_name ?? '', state.trail_type ?? 'mtb');
 
   // ── Rider 1 state ──────────────────────────────────────────────────────────
+  const [rider1Name, setRider1Name] = useState(state.customer?.name ?? '');
   const [count, setCount] = useState(state.participant_count ?? 1);
   const defaultBike: BikeRental = isPaved ? 'standard' : (
     state.bike_rental === 'electric' && !electricAllowed ? 'standard' : (state.bike_rental ?? undefined as unknown as BikeRental)
@@ -188,6 +202,7 @@ export function StepBike() {
 
   // ── Validation ────────────────────────────────────────────────────────────
   const isValid = (): boolean => {
+    if (!rider1Name.trim()) return false;
     if (isPaved) {
       if (!rider1Height) return false;
       if (isSanford && !rider1Bike) return false;
@@ -215,6 +230,7 @@ export function StepBike() {
     setBikeRental(effectiveBike);
     if (rider1Height) setRiderHeight(rider1Height);
     setParticipants(count, additionals);
+    setCustomer({ ...(state.customer ?? { name: '', email: '' }), name: rider1Name.trim() });
     goNext();
   };
 
@@ -259,7 +275,7 @@ export function StepBike() {
 
         <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
           <p className="text-sm font-medium text-green-800 dark:text-green-300">
-            ✓ Bike included — ${(PRICING.PAVED_FLAT / 100).toFixed(0)} per rider · 2-hour guided tour
+            ✓ Bike included — ${(PRICING.PAVED_FLAT / 100).toFixed(0)} flat per booking · 2-hour guided tour
             {isSanford && ` · E-bike upgrade +${formatPrice(PRICING.ADDONS.electric_upgrade)}/rider`}
           </p>
         </div>
@@ -281,10 +297,19 @@ export function StepBike() {
           {/* Rider 1 */}
           <div className="p-4 border border-border rounded-lg bg-card">
             <p className="text-sm font-semibold text-foreground mb-3">Rider 1 (You)</p>
+            <div className="mb-3">
+              <Label className="block mb-1 text-sm text-foreground">Full name <span className="text-destructive">*</span></Label>
+              <Input
+                value={rider1Name}
+                onChange={(e) => setRider1Name(e.target.value)}
+                placeholder="Your full legal name"
+                className="text-sm"
+              />
+            </div>
             {isSanford && (
               <div className="mb-3">
                 <Label className="block mb-1 text-sm text-foreground">Bike type</Label>
-                <PavedBikeSelector
+                <SanfordBikeSelector
                   value={rider1Bike}
                   onChange={setRider1Bike}
                   standardDisabled={isStandardDisabled(rider1Bike)}
@@ -313,7 +338,7 @@ export function StepBike() {
                 {isSanford && (
                   <div>
                     <Label className="block mb-1 text-sm text-foreground">Bike type</Label>
-                    <PavedBikeSelector
+                    <SanfordBikeSelector
                       value={p.bike_rental}
                       onChange={(v) => updateAdditional(idx, { bike_rental: v })}
                       standardDisabled={isStandardDisabled(p.bike_rental)}
@@ -371,6 +396,15 @@ export function StepBike() {
         {/* Rider 1 */}
         <div className="p-4 border border-border rounded-lg bg-card">
           <p className="text-sm font-semibold text-foreground mb-3">Rider 1 (You)</p>
+          <div className="mb-3">
+            <Label className="block mb-1 text-sm text-foreground">Full name <span className="text-destructive">*</span></Label>
+            <Input
+              value={rider1Name}
+              onChange={(e) => setRider1Name(e.target.value)}
+              placeholder="Your full legal name"
+              className="text-sm"
+            />
+          </div>
           <MTBBikeSelector
             value={rider1Bike}
             onChange={setRider1Bike}

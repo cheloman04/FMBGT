@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Bike,
   Calendar,
+  ChevronLeft,
   ChevronRight,
   Clock3,
   MapPin,
@@ -112,11 +113,17 @@ const valueProps = [
     title: "Simple booking experience",
     text: "Choose your location and date, show up ready to ride, and let the adventure begin.",
     icon: Calendar,
+    image: "/images/gallery/gallery-1.png",
+    alt: "Group of riders gathered together before a Florida mountain bike tour",
+    objectPosition: "center center",
   },
   {
     title: "Optional rider pickup",
     text: "Short on time or can't get the car? Pickup and drop-off can be arranged for added convenience.",
     icon: Route,
+    image: "/images/hero/hero-main.png",
+    alt: "Guided rider on trail representing an easy, ready-to-go Florida bike experience",
+    objectPosition: "center center",
   },
 ];
 
@@ -132,8 +139,8 @@ const tours = [
     includes: ["Bike & helmet", "Local guide", "All skill levels"],
     points: ["Guided singletrack", "Bikes & gear included", "Beginner to advanced"],
     cta: "Book a Guide",
-    image: "/images/tours/location-mount-dora-mountain-bike-trail-fl.png",
-    alt: "Guided mountain bike riders on a wooded Central Florida singletrack trail",
+    image: "/images/gallery/gallery-4.png",
+    alt: "Group riders enjoying a guided trail experience together on a Florida mountain bike tour",
     objectPosition: "center center",
   },
   {
@@ -157,8 +164,8 @@ const tours = [
 const guides = [
   {
     title: "Friendly professionals",
-    subtitle: "Local knowledge, smoother rides",
-    text: "Florida Mountain Bike Guides is built around a team of friendly and professional experts dedicated to making each ride safe, enjoyable, and easy to navigate.",
+    subtitle: "Local guide. MTB expertise. Scenic Florida rides.",
+    text: "Ride with Dustin, an experienced local guide specializing in guided mountain bike tours and scenic paved rides across Central Florida. Known for his patience, trail knowledge, and ability to adapt to all skill levels, Dustin creates smooth, safe, and unforgettable experiences for every rider.",
   },
   {
     title: "Confidence for every rider",
@@ -243,7 +250,7 @@ const whatToExpect = [
 const faqItems = [
   {
     q: "Do I need to bring my own bike?",
-    a: "No. Quality mountain bikes and helmets are provided at the trailhead for every tour. Just show up ready to ride — we handle the rest.",
+    a: "You can, but you don't have to. We offer a Bring Your Own Bike (BYOB) option if you prefer riding your own setup. For the best experience, many riders choose our ready-to-ride fleet, including high-quality mountain bikes and e-bikes. It's a convenient way to enjoy the trail without worrying about setup or transport.",
   },
   {
     q: "Are the tours beginner-friendly?",
@@ -255,7 +262,7 @@ const faqItems = [
   },
   {
     q: "What should I wear or bring?",
-    a: "Wear comfortable athletic clothing and closed-toe shoes. Bring water and a light snack. Sunscreen is strongly recommended. Bike, helmet, and essential gear are all provided.",
+    a: "Wear comfortable athletic clothing and closed-toe shoes suitable for biking. We recommend bringing water to stay hydrated, a light snack for energy, and sunscreen for Florida's sun. If you choose a rental, your bike and helmet will be provided and ready at the trailhead. If you're bringing your own bike (BYOB), just make sure it's in good working condition and ready to ride.",
   },
   {
     q: "What happens if it rains or weather turns bad?",
@@ -339,8 +346,8 @@ const logoSrc = "/images/branding/logo fmbtg (800 x 800 px).png";
 const trailShowcase = [
   {
     title: "Mountain bike terrain",
-    image: "/images/booking/trail-type-mtb.png",
-    alt: "Mountain bike trail terrain in Central Florida",
+    image: "/images/gallery/gallery-9.png",
+    alt: "Mountain biker riding technical Florida terrain with dynamic trail action",
     objectPosition: "center center",
   },
   {
@@ -369,6 +376,15 @@ const SOCIAL_LINKS = [
 
 export default function FloridaMountainBikeGuidesLanding() {
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [activeGallerySlide, setActiveGallerySlide] = React.useState(0);
+
+  React.useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setActiveGallerySlide((current) => (current + 1) % galleryItems.length);
+    }, 4500);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[var(--lp-bg)] text-[var(--lp-text)]">
@@ -875,11 +891,85 @@ export default function FloridaMountainBikeGuidesLanding() {
               text="A glimpse into the rides, landscapes, and unforgettable moments that make every tour unique. From shaded singletrack and scenic riverfront paths to crystal-clear springs and friendly trail stops, these photos capture the spirit of riding Central Florida with Florida Mountain Bike Guides."
             />
 
-            <div className="mt-12 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2 sm:grid sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+            <div className="mt-12 sm:hidden">
+              <div className="relative overflow-hidden rounded-[1.75rem]">
+                <div
+                  className="flex transition-transform duration-500 ease-out"
+                  style={{ transform: `translateX(-${activeGallerySlide * 100}%)` }}
+                >
+                  {galleryItems.map((item) => (
+                    <div
+                      key={item.title}
+                      className="group w-full shrink-0 overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.06)]"
+                    >
+                      <div className="relative aspect-[4/5] overflow-hidden">
+                        <Image
+                          src={item.image}
+                          alt={item.alt}
+                          fill
+                          sizes="100vw"
+                          className="object-cover"
+                          style={{ objectPosition: item.objectPosition }}
+                        />
+                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.02),rgba(16,38,29,0.5))]" />
+                        <div className="absolute left-4 top-4 rounded-full border border-white/25 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-sm">
+                          {item.category}
+                        </div>
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <h3 className="text-lg font-bold text-white">{item.title}</h3>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Previous gallery slide"
+                  onClick={() =>
+                    setActiveGallerySlide((current) =>
+                      current === 0 ? galleryItems.length - 1 : current - 1
+                    )
+                  }
+                  className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur-sm transition hover:bg-black/45"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+
+                <button
+                  type="button"
+                  aria-label="Next gallery slide"
+                  onClick={() =>
+                    setActiveGallerySlide((current) => (current + 1) % galleryItems.length)
+                  }
+                  className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur-sm transition hover:bg-black/45"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-5 flex justify-center gap-2">
+                {galleryItems.map((item, index) => (
+                  <button
+                    key={item.title}
+                    type="button"
+                    aria-label={`Go to gallery slide ${index + 1}`}
+                    onClick={() => setActiveGallerySlide(index)}
+                    className={`h-2.5 rounded-full transition-all duration-300 ${
+                      activeGallerySlide === index
+                        ? "w-7 bg-[var(--lp-green)]"
+                        : "w-2.5 bg-[var(--lp-border)]"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-12 hidden gap-5 sm:grid lg:grid-cols-4">
               {galleryItems.map((item) => (
                 <div
                   key={item.title}
-                  className="group w-[82vw] shrink-0 snap-center overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.06)] sm:w-auto sm:shrink sm:snap-none"
+                  className="group overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card)] shadow-[0_12px_40px_rgba(16,38,29,0.06)]"
                 >
                   <div className="relative aspect-[4/5] overflow-hidden">
                     <Image
@@ -936,6 +1026,9 @@ export default function FloridaMountainBikeGuidesLanding() {
                 <h3 className="mt-3 text-2xl font-bold text-[var(--lp-text)]">{guides[0].title}</h3>
                 <p className="mt-2 text-sm font-medium text-[var(--lp-text-nav)]">{guides[0].subtitle}</p>
                 <p className="mt-4 text-sm leading-7 text-[var(--lp-text-body)]">{guides[0].text}</p>
+                <p className="mt-4 text-sm leading-7 text-[var(--lp-text-body)]">
+                  From beginner-friendly routes to advanced MTB trails, you&apos;ll explore the best of Florida with a guide who knows every turn. If you&apos;re looking for an experience similar to top-rated Airbnb Experiences, this is it — personal, guided, and built around you.
+                </p>
                 <a
                   href="/booking"
                   data-track="cta_click"
@@ -1043,11 +1136,26 @@ export default function FloridaMountainBikeGuidesLanding() {
                   </div>
                 </div>
                 <div className="rounded-[1.5rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] p-6">
-                  <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Bike shop</p>
-                  <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Bicikleta, Sanford FL</h3>
-                  <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
-                    A local shop experience that supports riders who want premium bike rentals without the extra hassle.
-                  </p>
+                  <div className="grid items-center gap-6 md:grid-cols-2">
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase tracking-[0.22em] text-[var(--lp-text-muted)]">Bike shop</p>
+                      <h3 className="mt-2 text-xl font-bold text-[var(--lp-text)]">Bicikleta, Sanford FL</h3>
+                      <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
+                        A local shop experience that supports riders who want premium bike rentals without the extra hassle.
+                      </p>
+                    </div>
+                    <div className="flex justify-center md:justify-end">
+                      <div className="relative h-28 w-28 overflow-hidden rounded-full border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] p-2 sm:h-32 sm:w-32">
+                      <Image
+                        src="/images/branding/logo-primary.png"
+                        alt="Florida Mountain Bike Guides badge logo"
+                        fill
+                        sizes="128px"
+                        className="object-contain"
+                      />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -1235,3 +1343,4 @@ export default function FloridaMountainBikeGuidesLanding() {
     </div>
   );
 }
+
