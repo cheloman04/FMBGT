@@ -702,22 +702,26 @@ export default function FloridaMountainBikeGuidesLanding() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <section id="experiences" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <motion.div
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, amount: 0.2 }}
-            variants={stagger}
-            className="grid gap-5 md:grid-cols-2 xl:grid-cols-4"
-          >
-            {valueProps.map((item) => {
-              const Icon = item.icon;
-              return (
-                <motion.div
-                  key={item.title}
-                  variants={fadeUp}
-                  className="overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] backdrop-blur-sm shadow-[0_10px_40px_rgba(16,38,29,0.05)] transition hover:-translate-y-1 hover:bg-[var(--lp-card-solid)]"
-                >
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.2 }}
+              variants={stagger}
+              className="relative grid gap-5 md:grid-cols-2 xl:grid-cols-4"
+            >
+              {valueProps.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <motion.div
+                    key={item.title}
+                    variants={fadeUp}
+                    className="sticky overflow-hidden rounded-[1.75rem] border border-[var(--lp-border)] bg-[var(--lp-card-70)] backdrop-blur-sm shadow-[0_10px_40px_rgba(16,38,29,0.05)] transition hover:-translate-y-1 hover:bg-[var(--lp-card-solid)] md:static"
+                    style={{
+                      top: `${88 + index * 18}px`,
+                      zIndex: index + 1,
+                    }}
+                  >
                   {item.image && (
                     <div className="relative h-44 overflow-hidden">
                       <Image
@@ -756,15 +760,19 @@ export default function FloridaMountainBikeGuidesLanding() {
             whileInView="show"
             viewport={{ once: true, amount: 0.2 }}
             variants={stagger}
-            className="mt-12 grid gap-6 lg:grid-cols-2"
+            className="relative mt-12 grid gap-6 lg:grid-cols-2"
           >
-            {tours.map((tour) => {
+            {tours.map((tour, index) => {
               const Icon = tour.icon;
               return (
                 <motion.div
                   key={tour.title}
                   variants={fadeUp}
-                  className="group relative overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] backdrop-blur-sm shadow-[0_15px_50px_rgba(16,38,29,0.06)]"
+                  className="group sticky overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] backdrop-blur-sm shadow-[0_15px_50px_rgba(16,38,29,0.06)] md:static"
+                  style={{
+                    top: `${92 + index * 18}px`,
+                    zIndex: index + 1,
+                  }}
                 >
                   <div className="relative h-64 overflow-hidden">
                     <Image

@@ -2,7 +2,7 @@ import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParti
 
 // All prices in cents (USD)
 export const PRICING = {
-  FLORIDA_STATE_TAX_RATE: 0.06,
+  FLORIDA_STATE_TAX_RATE: 0.07,
   PAVED_FLAT: 11500,         // $115.00 - paved 2hr tour, bike always included
   BASE_NO_BIKE: 8900,        // $89.00 - MTB 2hr tour, BYOB (no bike)
   BASE_WITH_BIKE: 18900,     // $189.00 - MTB 2hr tour, standard bike included
@@ -190,7 +190,7 @@ export function getPriceLineItems(
 
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
   items.push({
-    label: 'Florida state tax (6%)',
+    label: 'Florida state tax (7%)',
     amount: calculateFloridaStateTax(subtotal),
   });
 
