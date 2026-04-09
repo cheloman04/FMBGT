@@ -218,7 +218,12 @@ export async function createCalBooking(
   params: CalBookingParams
 ): Promise<string | null> {
   if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID) {
-    console.warn('[cal] CAL_API_KEY or CAL_EVENT_TYPE_ID not set — skipping booking creation');
+    console.error(
+      '[cal] SKIPPED booking creation — missing env vars:',
+      !CAL_API_KEY ? 'CAL_API_KEY' : '',
+      !CAL_EVENT_TYPE_ID ? 'CAL_EVENT_TYPE_ID' : '',
+      '| booking will have cal_booking_uid=NULL'
+    );
     return null;
   }
 

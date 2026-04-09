@@ -149,7 +149,18 @@ async function getBookings(status?: string) {
 async function getStats() {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase.from('bookings').select('status, total_price, deposit_payment_status, remaining_balance_status');
-  if (!data) return { total: 0, confirmed: 0, completed: 0, pending: 0, revenue: 0, balancePending: 0, balanceFailed: 0 };
+  if (!data) {
+    return {
+      total: 0,
+      confirmed: 0,
+      completed: 0,
+      pending: 0,
+      revenue: 0,
+      projectedRevenue: 0,
+      balancePending: 0,
+      balanceFailed: 0,
+    };
+  }
 
   return {
     total: data.length,
@@ -158,6 +169,9 @@ async function getStats() {
     pending: data.filter((b) => b.status === 'pending').length,
     revenue: data
       .filter((b) => b.status === 'confirmed' || b.status === 'completed')
+      .reduce((sum, b) => sum + (b.total_price ?? 0), 0),
+    projectedRevenue: data
+      .filter((b) => b.status === 'pending')
       .reduce((sum, b) => sum + (b.total_price ?? 0), 0),
     balancePending: data.filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'pending').length,
     balanceFailed: data.filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'failed').length,

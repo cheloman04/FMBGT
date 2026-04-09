@@ -113,18 +113,22 @@ export async function POST(req: NextRequest) {
 
         // Cal.com booking
         if (confirmedBooking?.date && confirmedBooking?.time_slot && confirmedBooking?.duration_hours) {
-          const startIso = new Date(
-            `${confirmedBooking.date}T${confirmedBooking.time_slot}:00-05:00`
-          ).toISOString();
+          // Build start in UTC using DST-aware Eastern time conversion.
+          // Hardcoding -05:00 (EST) is wrong for March–November when Florida
+          // observes EDT (UTC-4). This caused off-by-one-hour bookings in Cal.com.
+          const startIso = easternLocalToUtcIso(confirmedBooking.date, confirmedBooking.time_slot);
           const endIso = new Date(
             new Date(startIso).getTime() + confirmedBooking.duration_hours * 3_600_000
           ).toISOString();
+
+          console.log(`[stripe-webhook] Cal.com booking payload: start=${startIso} end=${endIso} name="${session.metadata?.customer_name}" email="${session.customer_email}"`);
 
           const calUid = await createCalBooking({
             startIso,
             endIso,
             name: session.metadata?.customer_name ?? '',
             email: session.customer_email ?? '',
+            timeZone: 'America/New_York',
             notes: `Florida MTB Tour — ${session.metadata?.location ?? ''} — ${session.metadata?.date ?? ''}`,
           });
 
@@ -314,6 +318,34 @@ export async function POST(req: NextRequest) {
     console.error('[stripe-webhook] Processing error:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
+}
+
+/**
+ * Convert a Florida local time (Eastern, DST-aware) to a UTC ISO string.
+ * Tries EDT (UTC-4) first (peak season Mar–Nov), then EST (UTC-5), picking
+ * whichever offset round-trips correctly via Intl. Falls back to EDT.
+ */
+function easternLocalToUtcIso(dateStr: string, localTime: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number) as [number, number, number];
+  const [h, min] = localTime.split(':').map(Number) as [number, number];
+
+  for (const offsetHours of [4, 5]) {
+    const candidate = new Date(Date.UTC(y, m - 1, d, h + offsetHours, min, 0));
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(candidate);
+    const lh = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0');
+    const lm = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0');
+    if ((lh === 24 ? 0 : lh) === h && lm === min) {
+      return candidate.toISOString();
+    }
+  }
+
+  // Fallback: EDT (summer is peak season)
+  return new Date(Date.UTC(y, m - 1, d, h + 4, min, 0)).toISOString();
 }
 
 async function triggerN8nWebhook(event: string, data: Record<string, unknown>): Promise<boolean> {

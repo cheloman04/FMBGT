@@ -48,6 +48,7 @@ interface Stats {
   completed: number;
   pending: number;
   revenue: number;
+  projectedRevenue: number;
   balancePending: number;
   balanceFailed: number;
 }
@@ -292,10 +293,47 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
   };
 
   const filterUrl = (status: string) => `/admin?status=${status}`;
+  const statCards = [
+    {
+      label: 'Total Bookings',
+      value: stats.total,
+      className: 'border-border bg-card/90',
+    },
+    {
+      label: 'Awaiting Deposit',
+      value: stats.pending,
+      className: 'border-yellow-500/35 bg-gradient-to-br from-yellow-500/[0.08] via-card/95 to-card/90',
+      valueClassName: 'text-yellow-300 dark:text-yellow-300',
+    },
+    {
+      label: 'Revenue',
+      value: formatPrice(stats.revenue),
+      className: 'border-green-500/30 bg-gradient-to-br from-green-500/[0.10] via-card/95 to-card/90',
+      valueClassName: 'tracking-tight',
+      featured: true,
+    },
+    {
+      label: 'Projected Revenue',
+      value: formatPrice(stats.projectedRevenue),
+      className: 'border-green-500/30 bg-gradient-to-br from-green-500/[0.10] via-card/95 to-card/90',
+      valueClassName: 'tracking-tight',
+      featured: true,
+    },
+    {
+      label: 'Confirmed',
+      value: stats.confirmed,
+      className: 'border-border bg-card/90',
+    },
+    {
+      label: 'Completed',
+      value: stats.completed,
+      className: 'border-border bg-card/90',
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.10),transparent_58%)]" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.05),transparent_60%)] dark:bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.10),transparent_58%)]" />
       <div className="relative mx-auto max-w-7xl px-4 py-6 sm:py-8">
         {deleteDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -477,7 +515,7 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
           </div>
         )}
 
-        <div className="mb-5 rounded-2xl border border-border/70 bg-card/75 p-4 shadow-[0_18px_40px_rgba(0,0,0,0.18)] backdrop-blur-sm sm:mb-8 sm:p-5">
+        <div className="mb-5 rounded-2xl border border-border/70 bg-card/88 p-4 shadow-[0_18px_40px_rgba(23,26,20,0.08)] backdrop-blur-sm sm:mb-8 sm:p-5 dark:shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <Image src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png" alt="Florida MTB Guided Tours" width={52} height={52} className="h-11 w-11 rounded-xl object-contain shadow-[0_10px_24px_rgba(0,0,0,0.2)] sm:h-[52px] sm:w-[52px]" />
@@ -497,41 +535,77 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
         </div>
 
         {nearestBooking && currentStatus !== 'completed' && (
-          <div className="relative mb-5 overflow-hidden rounded-2xl border border-green-500/35 bg-gradient-to-r from-green-950/35 via-card to-emerald-950/20 p-4 shadow-[0_0_0_1px_rgba(34,197,94,0.10),0_0_18px_rgba(34,197,94,0.06)] sm:mb-8 sm:p-5">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_35%)]" />
+          <div className="relative mb-5 overflow-hidden rounded-2xl border border-green-500/30 bg-gradient-to-r from-green-500/[0.06] via-card/95 to-green-500/[0.04] p-4 shadow-[0_0_0_1px_rgba(34,197,94,0.06),0_10px_28px_rgba(22,30,18,0.06)] sm:mb-8 sm:p-5 dark:border-green-500/35 dark:bg-gradient-to-r dark:from-green-950/35 dark:via-card dark:to-emerald-950/20 dark:shadow-[0_0_0_1px_rgba(34,197,94,0.10),0_0_18px_rgba(34,197,94,0.06)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_38%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_35%)]" />
             <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="space-y-2">
-                <div className="inline-flex items-center rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-green-300 animate-pulse">Nearest Booking</div>
+                <div className="inline-flex items-center rounded-full border border-green-500/35 bg-green-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-green-700 dark:text-green-300">Nearest Booking</div>
                 <div>
                   <h2 className="text-lg font-bold text-foreground sm:text-xl">{nearestBooking.customer_name}</h2>
                   <p className="text-sm leading-6 text-muted-foreground">{nearestBooking.location_name} · {formatDate(nearestBooking.date)} · {nearestBooking.time_slot}</p>
                 </div>
               </div>
               <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[420px]">
-                <div className="rounded-xl border border-border/70 bg-background/60 p-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">Tour</p><p className="mt-1 font-semibold text-foreground">{nearestBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {nearestBooking.duration_hours}h</p></div>
-                <div className="rounded-xl border border-border/70 bg-background/60 p-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">Payment</p><p className="mt-1 font-semibold text-foreground">{formatPrice(nearestBooking.total_price)}</p></div>
-                <div className="rounded-xl border border-border/70 bg-background/60 p-3"><p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p><p className="mt-1 font-semibold capitalize text-green-300">{nearestBooking.status}</p></div>
+                <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Tour</p><p className="mt-1 font-semibold text-foreground">{nearestBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {nearestBooking.duration_hours}h</p></div>
+                <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Payment</p><p className="mt-1 font-semibold text-foreground">{formatPrice(nearestBooking.total_price)}</p></div>
+                <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p><p className="mt-1 font-semibold capitalize text-green-700 dark:text-green-300">{nearestBooking.status}</p></div>
               </div>
             </div>
           </div>
         )}
 
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:mb-8 sm:grid-cols-3 sm:gap-4 lg:grid-cols-7">
-          {[
-            { label: 'Total Bookings', value: stats.total },
-            { label: 'Confirmed', value: stats.confirmed },
-            { label: 'Completed', value: stats.completed },
-            { label: 'Pending', value: stats.pending },
-            { label: 'Revenue', value: formatPrice(stats.revenue) },
-            { label: 'Balance Failed', value: stats.balanceFailed, alert: stats.balanceFailed > 0 },
-            { label: 'Balance Pending', value: stats.balancePending, warn: stats.balancePending > 0, mobileWide: true },
-          ].map((stat) => (
-            <div key={stat.label} className={`flex min-h-[108px] flex-col justify-between rounded-2xl border bg-card/90 p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] ${(stat as { mobileWide?: boolean }).mobileWide ? 'col-span-2' : ''} ${(stat as { alert?: boolean }).alert ? 'border-red-400 dark:border-red-700' : (stat as { warn?: boolean }).warn ? 'border-yellow-400 dark:border-yellow-700' : 'border-border'}`}>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground sm:text-sm sm:normal-case sm:tracking-normal">{stat.label}</p>
-              <p className={`mt-2 text-2xl font-bold leading-none sm:text-[1.7rem] ${(stat as { alert?: boolean }).alert ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>{stat.value}</p>
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:mb-5 lg:grid-cols-6">
+          {statCards.map((stat) => (
+            <div
+              key={stat.label}
+              className={[
+                'group relative flex min-h-[118px] flex-col justify-between overflow-hidden rounded-2xl border p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] transition-colors',
+                'sm:col-span-1 lg:col-span-2',
+                stat.className,
+              ].join(' ')}
+            >
+              {stat.featured && (
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.07),transparent_45%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.14),transparent_42%)]" />
+              )}
+              <div className="relative">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  {stat.label}
+                </p>
+              </div>
+              <div className="relative mt-5 flex items-end justify-between gap-3">
+                <p
+                  className={[
+                    'text-3xl font-bold leading-none sm:text-[2rem]',
+                    'text-foreground',
+                    stat.valueClassName ?? '',
+                  ].join(' ')}
+                >
+                  {stat.value}
+                </p>
+              </div>
             </div>
           ))}
         </div>
+
+        {stats.balanceFailed > 0 && (
+          <div className="mb-6 rounded-2xl border border-red-500/35 bg-gradient-to-r from-red-500/[0.08] via-card/95 to-card/90 p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] sm:mb-8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-300">Payment Issues</p>
+                <h3 className="mt-2 text-lg font-semibold text-foreground">
+                  {stats.balanceFailed} booking{stats.balanceFailed > 1 ? 's have' : ' has'} a failed balance charge
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Review these bookings and retry the payment if needed.
+                </p>
+              </div>
+              <div className="shrink-0 rounded-2xl border border-red-500/25 bg-red-500/[0.08] px-5 py-4 text-left sm:min-w-[140px] sm:text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-300">Issues</p>
+                <p className="mt-2 text-3xl font-bold leading-none text-red-400">{stats.balanceFailed}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between">
@@ -539,9 +613,19 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
             <p className="text-xs text-muted-foreground sm:hidden">Swipe for more</p>
           </div>
           <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-            <div className="flex min-w-max gap-2 sm:min-w-0 sm:flex-wrap">
+            <div className="flex min-w-max gap-2 sm:grid sm:min-w-0 sm:grid-cols-3 lg:grid-cols-6">
               {STATUS_OPTIONS.map((s) => (
-                <a key={s} href={filterUrl(s)} className={`rounded-full border px-4 py-2 text-sm font-medium capitalize transition-colors ${currentStatus === s ? 'border-green-600 bg-green-600 text-white' : 'border-border bg-card text-muted-foreground hover:border-foreground/30'}`}>{s}</a>
+                <a
+                  key={s}
+                  href={filterUrl(s)}
+                  className={`rounded-full border px-4 py-2 text-center text-sm font-medium capitalize transition-colors sm:w-full ${
+                    currentStatus === s
+                      ? 'border-green-600 bg-green-600 text-white'
+                      : 'border-border bg-card text-muted-foreground hover:border-foreground/30'
+                  }`}
+                >
+                  {s}
+                </a>
               ))}
             </div>
           </div>

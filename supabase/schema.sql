@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   cal_booking_uid TEXT,
 
   -- Status
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'refunded')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled', 'refunded')),
   waiver_accepted BOOLEAN DEFAULT FALSE,
   waiver_accepted_at TIMESTAMPTZ,
 
