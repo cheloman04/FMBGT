@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useBooking } from '@/context/BookingContext';
 import type { AvailabilitySlot } from '@/types/booking';
+import { BookingStepActions } from '@/components/BookingStepActions';
 import { Button } from '@/components/ui/button';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -101,28 +103,22 @@ export function StepDateTime() {
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}`;
-    console.log('[StepDateTime] Fetching availability:', url);
 
     fetch(url)
       .then((r) => r.json())
       .then((data) => {
         const slots = (data.slots as AvailabilitySlot[]) ?? [];
-        console.log(`[StepDateTime] Received ${slots.length} slot(s)`);
-
         const byDate: Record<string, AvailabilitySlot[]> = {};
+
         for (const slot of slots) {
           if (!byDate[slot.date]) byDate[slot.date] = [];
           byDate[slot.date].push(slot);
         }
 
-        const availableDays = Object.keys(byDate).filter((d) => byDate[d].some((s) => s.available));
-        console.log(`[StepDateTime] Available dates (${availableDays.length}):`, availableDays.slice(0, 10));
-
         setGrouped(byDate);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error('[StepDateTime] Availability fetch error:', err);
+      .catch(() => {
         setError('Failed to load availability. Please try again.');
         setLoading(false);
       });
@@ -160,14 +156,12 @@ export function StepDateTime() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Select Date &amp; Time</h2>
-        <p className="text-muted-foreground mt-1">Choose when you&apos;d like to ride.</p>
+        <p className="mt-1 text-muted-foreground">Choose when you&apos;d like to ride.</p>
       </div>
 
-      <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
-        ← Back
-      </Button>
+      <BookingStepActions onBack={goPrev} />
 
       {loading && <div className="py-8 text-center text-muted-foreground">Loading availability...</div>}
       {error && <div className="py-8 text-center text-destructive">{error}</div>}
@@ -183,8 +177,9 @@ export function StepDateTime() {
                   onClick={() => canGoPrevMonth && setVisibleMonth((current) => addMonths(current, -1))}
                   disabled={!canGoPrevMonth}
                   className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Previous month"
                 >
-                  ←
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 </button>
                 <div className="min-w-[9rem] text-center text-sm font-medium text-foreground">
                   {visibleMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -194,22 +189,27 @@ export function StepDateTime() {
                   onClick={() => canGoNextMonth && setVisibleMonth((current) => addMonths(current, 1))}
                   disabled={!canGoNextMonth}
                   className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Next month"
                 >
-                  →
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-              <div className="mb-2 grid grid-cols-7 gap-2">
+              <div className="mb-2 grid grid-cols-7 gap-1.5 sm:gap-2">
                 {WEEKDAY_LABELS.map((label) => (
-                  <div key={label} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {label}
+                  <div
+                    key={label}
+                    className="py-2 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs"
+                  >
+                    <span className="sm:hidden">{label.slice(0, 1)}</span>
+                    <span className="hidden sm:inline">{label}</span>
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
                 {calendarDays.map((day) => {
                   const isoDate = toIsoDate(day);
                   const inCurrentMonth = isSameMonth(day, visibleMonth);
@@ -225,17 +225,37 @@ export function StepDateTime() {
                       type="button"
                       onClick={() => !isDisabled && handleDateSelect(isoDate)}
                       disabled={isDisabled}
-                      className={`min-h-16 rounded-lg border p-2 text-center transition-colors sm:min-h-20 ${
+                      className={`min-h-[4.5rem] rounded-lg border px-1.5 py-2 text-center transition-colors sm:min-h-20 sm:p-2 ${
                         isSelected
                           ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300'
                           : isDisabled
-                          ? 'border-border bg-muted/40 text-muted-foreground opacity-45'
-                          : 'border-border text-foreground hover:border-muted-foreground hover:bg-muted/40'
+                            ? 'border-border bg-muted/40 text-muted-foreground opacity-45'
+                            : 'border-border text-foreground hover:border-muted-foreground hover:bg-muted/40'
                       }`}
                     >
-                      <div className="text-sm font-semibold">{day.getDate()}</div>
-                      <div className="mt-1 text-[10px] uppercase tracking-wide">
-                        {isAvailable && inCurrentMonth ? 'Available' : 'Unavailable'}
+                      <div className="text-sm font-semibold sm:text-base">{day.getDate()}</div>
+                      <div className="mt-1 flex min-h-[1.5rem] items-center justify-center">
+                        {inCurrentMonth ? (
+                          isAvailable ? (
+                            <>
+                              <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 sm:hidden" />
+                              <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-green-600 dark:text-green-400 sm:inline">
+                                Available
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/50 sm:hidden" />
+                              <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground sm:inline">
+                                Unavailable
+                              </span>
+                            </>
+                          )
+                        ) : (
+                          <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground sm:inline">
+                            Unavailable
+                          </span>
+                        )}
                       </div>
                     </button>
                   );
@@ -247,7 +267,7 @@ export function StepDateTime() {
           {selectedDate && (
             <div className="mb-6">
               <h3 className="mb-3 font-medium text-foreground">
-                Available Times — {formatDate(selectedDate)}
+                Available Times - {formatDate(selectedDate)}
               </h3>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {selectedDateSlots.map((slot) => (
@@ -259,8 +279,8 @@ export function StepDateTime() {
                       !slot.available
                         ? 'cursor-not-allowed border-border bg-muted text-muted-foreground opacity-50'
                         : selectedTime === slot.time
-                        ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300'
-                        : 'border-border text-foreground hover:border-muted-foreground'
+                          ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300'
+                          : 'border-border text-foreground hover:border-muted-foreground'
                     }`}
                   >
                     {formatTime(slot.time)}

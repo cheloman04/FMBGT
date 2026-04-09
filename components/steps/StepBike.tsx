@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useBooking } from '@/context/BookingContext';
 import type { BikeRental, AdditionalParticipant } from '@/types/booking';
+import { BookingStepActions } from '@/components/BookingStepActions';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { formatPrice, PRICING } from '@/lib/pricing';
+import { formatPrice, PRICING, calculatePriceBreakdown } from '@/lib/pricing';
 
 // ── Business rules ────────────────────────────────────────────────────────────
 const MAX_PARTICIPANTS: Record<string, number> = {
@@ -148,7 +149,7 @@ function SanfordBikeSelector({
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function StepBike() {
-  const { state, setBikeRental, setRiderHeight, setParticipants, setCustomer, goNext, goPrev } = useBooking();
+  const { state, setBikeRental, setRiderHeight, setParticipants, setCustomer, setPriceBreakdown, goNext, goPrev } = useBooking();
   const isPaved   = state.trail_type === 'paved';
   const isSanford = state.location_name === 'Sanford Historic Riverfront Tour';
   const electricAllowed = !NO_ELECTRIC_LOCATIONS.has(state.location_name ?? '');
@@ -231,6 +232,20 @@ export function StepBike() {
     if (rider1Height) setRiderHeight(rider1Height);
     setParticipants(count, additionals);
     setCustomer({ ...(state.customer ?? { name: '', email: '' }), name: rider1Name.trim() });
+
+    // For paved trails, both the duration and addons steps are skipped, so
+    // setPriceBreakdown is never called in those steps. Compute it here so
+    // StepPayment always has a valid price_breakdown regardless of trail type.
+    // For MTB, the duration/addons steps will overwrite this with the final value.
+    const breakdown = calculatePriceBreakdown(
+      effectiveBike,
+      state.duration_hours ?? 2,
+      state.addons ?? { gopro: false, pickup_dropoff: false, electric_upgrade: false },
+      state.trail_type,
+      additionals,
+    );
+    setPriceBreakdown(breakdown);
+
     goNext();
   };
 
@@ -262,7 +277,7 @@ export function StepBike() {
   if (isPaved) {
     return (
       <div>
-        <div className="mb-6">
+        <div className="mb-6 text-center">
           <h2 className="text-2xl font-bold text-foreground">Riders &amp; Bikes</h2>
           <p className="text-muted-foreground mt-1">
             {isSanford
@@ -271,7 +286,7 @@ export function StepBike() {
           </p>
         </div>
 
-        <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">← Back</Button>
+        <BookingStepActions onBack={goPrev} />
 
         <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
           <p className="text-sm font-medium text-green-800 dark:text-green-300">
@@ -368,14 +383,14 @@ export function StepBike() {
   // ── MTB flow ───────────────────────────────────────────────────────────────
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Riders &amp; Bike Rental</h2>
         <p className="text-muted-foreground mt-1">
           Select a bike option for each rider. Fleet: {FLEET_MAX_STANDARD} standard bikes and {FLEET_MAX_ELECTRIC} e-bikes available.
         </p>
       </div>
 
-      <Button variant="ghost" onClick={goPrev} className="mb-4 text-muted-foreground">← Back</Button>
+      <BookingStepActions onBack={goPrev} backVariant="ghost" />
 
       {count > 1 && (
         <div className="mb-4 flex gap-4 text-sm">

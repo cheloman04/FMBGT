@@ -5,6 +5,7 @@ import { useBooking } from '@/context/BookingContext';
 import type { TrailType } from '@/types/booking';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { BookingStepActions } from '@/components/BookingStepActions';
 
 const TRAIL_OPTIONS: Array<{
   type: TrailType;
@@ -42,10 +43,12 @@ export function StepTrail() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Choose Your Trail Type</h2>
         <p className="text-muted-foreground mt-1">Select the type of guided tour experience you want.</p>
       </div>
+
+      <BookingStepActions />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {TRAIL_OPTIONS.map((option) => (

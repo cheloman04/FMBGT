@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useBooking } from '@/context/BookingContext';
 import type { SkillLevel } from '@/types/booking';
 import { Button } from '@/components/ui/button';
+import { BookingStepActions } from '@/components/BookingStepActions';
 
 const SKILL_OPTIONS: Array<{
   level: SkillLevel;
@@ -47,16 +48,14 @@ export function StepSkill() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">What&apos;s Your Skill Level?</h2>
         <p className="text-muted-foreground mt-1">
           We&apos;ll match you with the best trail for your experience.
         </p>
       </div>
 
-      <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
-        â† Back
-      </Button>
+      <BookingStepActions onBack={goPrev} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {SKILL_OPTIONS.map((option) => (
@@ -95,3 +94,5 @@ export function StepSkill() {
     </div>
   );
 }
+
+

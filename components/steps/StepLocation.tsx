@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { ExternalLink, MapPin } from 'lucide-react';
 import { useBooking } from '@/context/BookingContext';
 import { getLocations } from '@/lib/supabase';
 import type { Location } from '@/types/booking';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-
-// â”€â”€â”€ Static content per location â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+import { BookingStepActions } from '@/components/BookingStepActions';
 
 interface LocationMeta {
   image: string;
@@ -16,78 +16,98 @@ interface LocationMeta {
   mapLink: string;
 }
 
+function normalizeLocationKey(value: string) {
+  return value
+    .normalize('NFKC')
+    .replace(/ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“|Ã¢â‚¬â€œ|â€“|–/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 const LOCATION_CONTENT: Record<string, LocationMeta> = {
-  // Paved
   'Sanford Historic Riverfront Tour': {
     image: '/images/tours/location-downtown-sanford.png',
-    description: "Explore Sanford's historic district and scenic riverfront on a relaxing ride through oak-lined streets, local shops, and vibrant downtown charm.",
+    description:
+      "Explore Sanford's historic district and scenic riverfront on a relaxing ride through oak-lined streets, local shops, and vibrant downtown charm.",
     mapLink: 'https://maps.app.goo.gl/UQL4WTkzoXVSG4Ti8',
   },
-  'Spring to Spring Trail Tour â€“ Blue Spring State Park': {
+  'Spring to Spring Trail Tour - Blue Spring State Park': {
     image: '/images/tours/location-spring-to-spring.png',
-    description: 'A scenic trail ride to Blue Spring State Park featuring clear springs, wildlife, and seasonal manatee sightings.',
+    description:
+      'A scenic trail ride to Blue Spring State Park featuring clear springs, wildlife, and seasonal manatee sightings.',
     mapLink: 'https://maps.app.goo.gl/imgUh7LBef9cLj2d7',
   },
-  // First Time MTB
   'Lake Druid Park, Orlando': {
     image: '/images/tours/location-lake-druid-park.png',
-    description: 'Wide beginner-friendly trails perfect for learning the basics of mountain biking in a safe and open environment.',
+    description:
+      'Wide beginner-friendly trails perfect for learning the basics of mountain biking in a safe and open environment.',
     mapLink: 'https://maps.app.goo.gl/WjApuDjQubbBJJBQ6',
   },
   'Soldiers Creek Park, Longwood (First Time)': {
     image: '/images/tours/location-soldiers-creek.png',
-    description: 'Smooth and easy trails ideal for practicing balance, braking, and turning while building confidence on dirt.',
+    description:
+      'Smooth and easy trails ideal for practicing balance, braking, and turning while building confidence on dirt.',
     mapLink: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
   },
-  // Beginner MTB
   'Markham Woods Trail, Lake Mary': {
     image: '/images/tours/location-markham-woods.png',
-    description: 'Flowing forest trails with light roots and gentle turns, perfect for riders ready to improve control and bike handling.',
+    description:
+      'Flowing forest trails with light roots and gentle turns, perfect for riders ready to improve control and bike handling.',
     mapLink: 'https://maps.app.goo.gl/u7hqJcQw9RGL16PaA',
   },
-  'Little Big Econ Jones East â€“ Snow Hill Rd, Chuluota': {
+  'Little Big Econ Jones East - Snow Hill Rd, Chuluota': {
     image: '/images/tours/location-econ-jones.png',
-    description: 'A scenic trail through pine forest with smooth sections and gentle climbs, great for riders stepping up from beginner level.',
+    description:
+      'A scenic trail through pine forest with smooth sections and gentle climbs, great for riders stepping up from beginner level.',
     mapLink: 'https://maps.app.goo.gl/KiEEaaJXGJbDHo7r7',
   },
   'Soldiers Creek Park, Longwood': {
     image: '/images/tours/location-soldiers-creek.png',
-    description: 'Fun and approachable trails with mild technical features, ideal for improving skills while keeping the ride enjoyable.',
+    description:
+      'Fun and approachable trails with mild technical features, ideal for improving skills while keeping the ride enjoyable.',
     mapLink: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
   },
-  // Intermediate MTB
   'Mount Dora Mountain Bike Trail, Mount Dora': {
     image: '/images/tours/location-mount-dora-mountain-bike-trail-fl.png',
-    description: 'Technical trail system with climbs, descents, and optional jumps designed for riders ready for a bigger challenge.',
+    description:
+      'Technical trail system with climbs, descents, and optional jumps designed for riders ready for a bigger challenge.',
     mapLink: 'https://maps.app.goo.gl/FQtUAx8ZS2zwpQpZ7',
   },
   'Chuck Lennon Mountain Bike Trailhead, DeLeon Springs': {
     image: '/images/tours/location-chuck-lenon-mountain-delon-springs-fl.png',
-    description: 'Flowing singletrack with roots, climbs, and fast sections that challenge riders while rewarding strong control.',
+    description:
+      'Flowing singletrack with roots, climbs, and fast sections that challenge riders while rewarding strong control.',
     mapLink: 'https://maps.app.goo.gl/Q9oC3jfyLHGtddkZ8',
   },
   'River Bend, Ormond Beach': {
     image: '/images/tours/location-river-bend.png',
-    description: 'A scenic trail with tight tree lines, roots, and flowing terrain that tests balance and bike handling skills.',
+    description:
+      'A scenic trail with tight tree lines, roots, and flowing terrain that tests balance and bike handling skills.',
     mapLink: 'https://maps.app.goo.gl/m9wLtSRAV9dNCuhR6',
   },
   'Doris Leeper Spruce Creek MTB Trailhead, Port Orange': {
     image: '/images/tours/location-spruce-creek.png',
-    description: 'Fast and technical trails with roots and flowing sections, ideal for riders looking to sharpen their technique.',
+    description:
+      'Fast and technical trails with roots and flowing sections, ideal for riders looking to sharpen their technique.',
     mapLink: 'https://maps.app.goo.gl/F1qUgb47Yj5K4MZn7',
   },
-  // Advanced MTB
   'Santos Trailhead, Ocala': {
     image: '/images/tours/location-santos-trailhead-ocala-fl.png',
-    description: 'World-class mountain bike destination featuring jumps, drops, and technical terrain for expert riders.',
+    description:
+      'World-class mountain bike destination featuring jumps, drops, and technical terrain for expert riders.',
     mapLink: 'https://maps.app.goo.gl/YVVXwnwXZiTaJ4tT6',
   },
   'Graham Swamp East Trailhead MTB, Palm Coast': {
     image: '/images/tours/location-graham-swamp-2.png',
-    description: 'Challenging trail with steep climbs, fast descents, and rugged terrain designed for highly skilled riders.',
+    description:
+      'Challenging trail with steep climbs, fast descents, and rugged terrain designed for highly skilled riders.',
     mapLink: 'https://maps.app.goo.gl/3cZ8NEZ4eJFjD8bo6',
   },
 };
+
+const NORMALIZED_LOCATION_CONTENT: Record<string, LocationMeta> = Object.fromEntries(
+  Object.entries(LOCATION_CONTENT).map(([name, meta]) => [normalizeLocationKey(name), meta])
+);
 
 const FALLBACK_META: LocationMeta = {
   image: '/locations/location-placeholder.svg',
@@ -95,34 +115,30 @@ const FALLBACK_META: LocationMeta = {
   mapLink: 'https://maps.google.com',
 };
 
-// â”€â”€â”€ TrailLocationCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 interface TrailLocationCardProps {
   location: Location;
   onSelect: () => void;
 }
 
 function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
-  const meta = LOCATION_CONTENT[location.name] ?? FALLBACK_META;
+  const meta =
+    LOCATION_CONTENT[location.name] ??
+    NORMALIZED_LOCATION_CONTENT[normalizeLocationKey(location.name)] ??
+    FALLBACK_META;
   const [hovered, setHovered] = useState(false);
 
-  // Extract a display name (strip "(First Time)" suffix added for uniqueness)
-  const displayName = location.name.replace(' (First Time)', '');
+  const displayName = normalizeLocationKey(location.name).replace(' (First Time)', '');
 
   return (
     <div
-      className="flex flex-col rounded-xl border border-border/80 bg-card overflow-hidden
-                 transition-all duration-250 ease-in-out
-                 hover:border-green-500 hover:shadow-lg hover:-translate-y-1"
+      className="flex flex-col overflow-hidden rounded-xl border border-border/80 bg-card transition-all duration-250 ease-in-out hover:-translate-y-1 hover:border-green-500 hover:shadow-lg"
     >
-      {/* Image / Map preview */}
       <div
-        className="relative aspect-[4/3] w-full overflow-hidden cursor-pointer select-none"
+        className="relative aspect-[4/3] w-full cursor-pointer select-none overflow-hidden"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={onSelect}
       >
-        {/* Trail image */}
         <Image
           src={meta.image}
           alt={displayName}
@@ -130,47 +146,40 @@ function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
           className={`object-cover transition-opacity duration-300 ${hovered ? 'opacity-0' : 'opacity-100'}`}
         />
 
-        {/* Map overlay â€” desktop hover only */}
         <div
-          className={`absolute inset-0 hidden sm:flex flex-col items-center justify-center gap-3
-                      bg-gradient-to-br from-slate-900/95 to-slate-800/95
-                      transition-opacity duration-300 ${hovered ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 hidden flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-900/95 to-slate-800/95 transition-opacity duration-300 sm:flex ${hovered ? 'opacity-100' : 'opacity-0'}`}
         >
-          <div className="flex flex-col items-center gap-2 text-center px-4">
-            <span className="text-3xl">ðŸ“</span>
-            <p className="text-sm font-medium text-white leading-snug">{displayName}</p>
+          <div className="flex flex-col items-center gap-2 px-4 text-center">
+            <MapPin className="h-8 w-8 text-white" aria-hidden="true" />
+            <p className="text-sm font-medium leading-snug text-white">{displayName}</p>
             <a
               href={meta.mapLink}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20
-                         border border-white/20 px-3 py-1.5 text-xs font-medium text-white
-                         transition-colors duration-150"
+              onClick={(event) => event.stopPropagation()}
+              className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors duration-150 hover:bg-white/20"
             >
-              Open in Google Maps â†’
+              <span>Open in Google Maps</span>
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
           </div>
         </div>
 
-        {/* Trail type badge â€” always visible */}
-        <div className="absolute top-2 right-2 z-10">
+        <div className="absolute right-2 top-2 z-10">
           <Badge variant="secondary" className="text-xs font-medium shadow">
             {location.tour_type === 'paved' ? 'Paved' : 'MTB'}
           </Badge>
         </div>
       </div>
 
-      {/* Card body */}
-      <div className="flex flex-col flex-1 p-4 gap-3">
-        <h3 className="font-semibold text-sm leading-snug text-foreground">{displayName}</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed flex-1">{meta.description}</p>
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <h3 className="text-sm font-semibold leading-snug text-foreground">{displayName}</h3>
+        <p className="flex-1 text-xs leading-relaxed text-muted-foreground">{meta.description}</p>
 
-        {/* Actions */}
         <div className="flex gap-2 pt-1">
           <Button
             size="sm"
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs"
+            className="flex-1 bg-green-600 text-xs text-white hover:bg-green-700"
             onClick={onSelect}
           >
             Select Location
@@ -179,9 +188,7 @@ function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
             href={meta.mapLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-md border border-border
-                       bg-background hover:bg-muted px-3 text-xs font-medium text-muted-foreground
-                       hover:text-foreground transition-colors duration-150 shrink-0"
+            className="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
           >
             View Map
           </a>
@@ -190,8 +197,6 @@ function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
     </div>
   );
 }
-
-// â”€â”€â”€ StepLocation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function StepLocation() {
   const { state, setLocation, goNext, goPrev } = useBooking();
@@ -221,30 +226,28 @@ export function StepLocation() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Choose Your Location</h2>
-        <p className="text-muted-foreground mt-1">
+        <p className="mt-1 text-muted-foreground">
           Select where you&apos;d like to ride.
           {state.skill_level && (
-            <span className="ml-1 text-green-600 font-medium">
+            <span className="ml-1 font-medium text-green-600">
               Showing trails for your skill level.
             </span>
           )}
         </p>
       </div>
 
-      <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
-        â† Back
-      </Button>
+      <BookingStepActions onBack={goPrev} />
 
       {loading ? (
-        <div className="text-center py-8 text-muted-foreground">Loading locations...</div>
+        <div className="py-8 text-center text-muted-foreground">Loading locations...</div>
       ) : loadError ? (
-        <div className="text-center py-8 text-destructive">
+        <div className="py-8 text-center text-destructive">
           Unable to load locations. Please refresh the page and try again.
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
+        <div className="py-8 text-center text-muted-foreground">
           No locations available for your selection. Please go back and try different options.
         </div>
       ) : (

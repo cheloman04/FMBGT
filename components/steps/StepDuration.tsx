@@ -6,6 +6,7 @@ import type { DurationHours } from '@/types/booking';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatPrice, PRICING, calculatePriceBreakdown } from '@/lib/pricing';
+import { BookingStepActions } from '@/components/BookingStepActions';
 
 const DURATION_OPTIONS: Array<{
   hours: DurationHours;
@@ -44,16 +45,14 @@ export function StepDuration() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Choose Duration</h2>
         <p className="text-muted-foreground mt-1">
           Base tour is 2 hours. Additional hours are {formatPrice(PRICING.ADDITIONAL_HOUR)}/hr.
         </p>
       </div>
 
-      <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
-        â† Back
-      </Button>
+      <BookingStepActions onBack={goPrev} />
 
       <div className="space-y-3 mb-6">
         {DURATION_OPTIONS.map((option) => {
@@ -103,3 +102,5 @@ export function StepDuration() {
     </div>
   );
 }
+
+

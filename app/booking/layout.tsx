@@ -1,6 +1,6 @@
 import Image from 'next/image';
+import { BookingFrame } from '@/components/BookingFrame';
 import { BookingProvider } from '@/context/BookingContext';
-import { BookingStepper } from '@/components/BookingStepper';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function BookingLayout({ children }: { children: React.ReactNode }) {
@@ -27,10 +27,7 @@ export default function BookingLayout({ children }: { children: React.ReactNode 
             <ThemeToggle />
           </div>
         </header>
-        <main className="max-w-3xl mx-auto px-4 py-8">
-          <BookingStepper />
-          <div className="mt-6">{children}</div>
-        </main>
+        <BookingFrame>{children}</BookingFrame>
       </div>
     </BookingProvider>
   );

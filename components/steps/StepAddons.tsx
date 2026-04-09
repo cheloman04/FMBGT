@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PriceSummary } from '@/components/PriceSummary';
 import { formatPrice, PRICING, calculatePriceBreakdown } from '@/lib/pricing';
+import { BookingStepActions } from '@/components/BookingStepActions';
 
 interface AddonOption {
   key: keyof Addons;
@@ -103,14 +104,12 @@ export function StepAddons() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Add-ons</h2>
         <p className="text-muted-foreground mt-1">Enhance your experience with optional add-ons.</p>
       </div>
 
-      <Button variant="outline" onClick={goPrev} className="mb-4 gap-1.5 border-border text-foreground hover:bg-muted">
-        ← Back
-      </Button>
+      <BookingStepActions onBack={goPrev} />
 
       <div className="space-y-3 mb-6">
         {visibleAddons.map((addon) => {
@@ -200,3 +199,5 @@ export function StepAddons() {
     </div>
   );
 }
+
+

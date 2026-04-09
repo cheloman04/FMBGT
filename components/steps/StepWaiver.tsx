@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useBooking } from '@/context/BookingContext';
+import { BookingStepActions } from '@/components/BookingStepActions';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -276,20 +278,15 @@ export function StepWaiver() {
       {/* Shared header and back button */}
       {phase !== 'uploading' && phase !== 'done' && (
         <>
-          <div className="mb-6">
+          <div className="mb-6 text-center">
             <h2 className="text-2xl font-bold text-foreground">Waiver &amp; Release</h2>
             <p className="text-muted-foreground mt-1">
               Each adult participant must sign individually. Guardians sign on behalf of minors.
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={handleWaiverBack}
-            disabled={phase === 'signing' && completedSigners.length > 0}
-            className="mb-6 gap-1.5 border-border text-foreground hover:bg-muted disabled:opacity-40"
-          >
-            ← Back
-          </Button>
+          <div className={phase === 'signing' && completedSigners.length > 0 ? 'pointer-events-none opacity-40' : ''}>
+            <BookingStepActions onBack={handleWaiverBack} />
+          </div>
         </>
       )}
 
@@ -370,12 +367,12 @@ export function StepWaiver() {
         </div>
       )}
 
-      {/* ── Phase 2: Review signers ── */}
+      {/* Phase 2: Review signers */}
       {phase === 'review' && (
         <div className="space-y-5">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Required Signatures</h2>
-            <p className="text-muted-foreground mt-1 text-sm">
+            <p className="mt-1 text-sm text-muted-foreground">
               {signerDefs.length === 1
                 ? '1 signature required before booking is confirmed.'
                 : `${signerDefs.length} signatures required. Each signer will complete them in sequence.`}
@@ -384,13 +381,13 @@ export function StepWaiver() {
 
           <div className="space-y-3">
             {signerDefs.map((s, i) => (
-              <div key={i} className="border border-border rounded-xl p-4 bg-card flex items-start gap-3">
-                <div className="mt-0.5 h-7 w-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-foreground shrink-0">
+              <div key={i} className="flex items-start gap-3 rounded-xl border border-border bg-card p-4">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
                   {i + 1}
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">{s.signer_name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {s.role === 'participant'
                       ? 'Signing for themselves'
                       : `Guardian signing for: ${s.participants_covered.join(', ')} (${s.guardian_relationship ?? 'guardian'})`}
@@ -400,7 +397,7 @@ export function StepWaiver() {
             ))}
           </div>
 
-          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
             <p className="text-xs text-amber-800 dark:text-amber-300">
               Each signer must read the full waiver, check the agreement box, and provide a digital signature before the booking can proceed.
             </p>
@@ -412,7 +409,8 @@ export function StepWaiver() {
               onClick={() => setPhase('setup')}
               className="border-border text-foreground"
             >
-              ← Back
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <span>Back</span>
             </Button>
             <Button
               onClick={handleStartSigning}
@@ -591,3 +589,5 @@ export function StepWaiver() {
     </div>
   );
 }
+
+

@@ -7,13 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PriceSummary } from '@/components/PriceSummary';
 import { formatPrice } from '@/lib/pricing';
+import { BookingStepActions } from '@/components/BookingStepActions';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function formatDueDate(tourDateStr: string): string {
   const [y, m, d] = tourDateStr.split('-').map(Number) as [number, number, number];
-  const dueDate = new Date(y, m - 1, d - 1); // day before, local time
-  return dueDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const dueDate = new Date(y, m - 1, d - 1);
+  return dueDate.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 export function StepPayment() {
@@ -87,7 +92,6 @@ export function StepPayment() {
     }
   };
 
-  // Deposit calculation (mirrors server-side logic; server is source of truth)
   const total = state.price_breakdown?.total ?? 0;
   const subtotal = state.price_breakdown?.subtotal ?? 0;
   const taxAmount = state.price_breakdown?.tax_amount ?? 0;
@@ -98,17 +102,16 @@ export function StepPayment() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Your Details &amp; Payment</h2>
-        <p className="text-muted-foreground mt-1">
+        <p className="mt-1 text-muted-foreground">
           You&apos;ll be redirected to Stripe&apos;s secure checkout to pay your deposit.
         </p>
       </div>
 
-      {/* Deposit disclosure banner */}
-      <div className="mb-6 p-4 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 space-y-1.5">
+      <div className="mb-6 space-y-1.5 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/30">
         <p className="text-sm font-semibold text-green-800 dark:text-green-300">
-          50% deposit due today — remaining balance charged automatically
+          50% deposit due today - remaining balance charged automatically
         </p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-sm">
           <span className="text-muted-foreground">Due now (50% deposit):</span>
@@ -125,17 +128,15 @@ export function StepPayment() {
             Includes {formatPrice(taxAmount)} in Florida state tax on a subtotal of {formatPrice(subtotal)}.
           </p>
         )}
-        <p className="text-xs text-green-700 dark:text-green-400 pt-1 border-t border-green-200 dark:border-green-800">
+        <p className="border-t border-green-200 pt-1 text-xs text-green-700 dark:border-green-800 dark:text-green-400">
           By completing checkout you authorize Florida Mountain Bike Guides LLC to charge
           the remaining {formatPrice(remainingBalance)} to your saved card on {dueDateLabel}.
         </p>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <Button variant="outline" onClick={goPrev} className="mb-2 gap-1.5 border-border text-foreground hover:bg-muted">
-            ← Back
-          </Button>
+      <div className="grid items-start gap-6 md:grid-cols-2">
+        <form id="payment-details-form" onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <BookingStepActions onBack={goPrev} />
 
           <div>
             <Label htmlFor="name">Full Name *</Label>
@@ -147,7 +148,7 @@ export function StepPayment() {
               placeholder="Jane Smith"
               className="mt-1"
             />
-            {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
+            {errors.name && <p className="mt-1 text-xs text-destructive">{errors.name}</p>}
           </div>
 
           <div>
@@ -162,9 +163,11 @@ export function StepPayment() {
               className="mt-1"
             />
             {errors.email ? (
-              <p className="text-xs text-destructive mt-1">{errors.email}</p>
+              <p className="mt-1 text-xs text-destructive">{errors.email}</p>
             ) : (
-              <p className="text-xs text-muted-foreground mt-1">Deposit receipt and booking confirmation sent here.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Deposit receipt and booking confirmation sent here.
+              </p>
             )}
           </div>
 
@@ -179,7 +182,7 @@ export function StepPayment() {
               placeholder="(555) 555-5555"
               className="mt-1"
             />
-            {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+            {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
           </div>
 
           <div>
@@ -214,32 +217,16 @@ export function StepPayment() {
           </div>
 
           {apiError && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-700 dark:text-red-300">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">
               {apiError}
             </div>
           )}
-
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-green-600 hover:bg-green-700 text-white"
-            size="lg"
-          >
-            {loading
-              ? 'Redirecting to checkout...'
-              : `Pay ${formatPrice(depositAmount)} Deposit Securely →`}
-          </Button>
-
-          <p className="text-xs text-muted-foreground text-center">
-            🔒 Secured by Stripe. Your card is saved for the automatic balance charge on {dueDateLabel}.
-          </p>
         </form>
 
         <div className="self-start space-y-4">
           <PriceSummary />
 
-          {/* Payment split summary */}
-          <div className="bg-card border border-border rounded-lg p-4 space-y-2 text-sm">
+          <div className="space-y-2 rounded-lg border border-border bg-card p-4 text-sm">
             <h4 className="font-semibold text-foreground">Payment Schedule</h4>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Deposit (today)</span>
@@ -255,13 +242,13 @@ export function StepPayment() {
                 <span className="text-foreground">{formatPrice(taxAmount)}</span>
               </div>
             )}
-            <div className="border-t border-border pt-2 flex justify-between font-semibold">
+            <div className="flex justify-between border-t border-border pt-2 font-semibold">
               <span className="text-foreground">Total</span>
               <span className="text-foreground">{formatPrice(total)}</span>
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-lg p-4 space-y-2 text-sm">
+          <div className="space-y-2 rounded-lg border border-border bg-card p-4 text-sm">
             <h4 className="font-semibold text-foreground">Booking Summary</h4>
             {participantCount > 1 && (
               <div className="flex justify-between">
@@ -272,13 +259,15 @@ export function StepPayment() {
             {state.trail_type && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Trail Type</span>
-                <span className="capitalize text-foreground">{state.trail_type === 'mtb' ? 'Mountain Bike' : 'Paved'}</span>
+                <span className="capitalize text-foreground">
+                  {state.trail_type === 'mtb' ? 'Mountain Bike' : 'Paved'}
+                </span>
               </div>
             )}
             {state.location_name && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Location</span>
-                <span className="text-right text-foreground max-w-[180px]">{state.location_name}</span>
+                <span className="max-w-[180px] text-right text-foreground">{state.location_name}</span>
               </div>
             )}
             {state.date && (
@@ -286,7 +275,9 @@ export function StepPayment() {
                 <span className="text-muted-foreground">Date</span>
                 <span className="text-foreground">
                   {new Date(state.date + 'T00:00:00').toLocaleDateString('en-US', {
-                    month: 'long', day: 'numeric', year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
                   })}
                 </span>
               </div>
@@ -304,6 +295,24 @@ export function StepPayment() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="md:col-span-2">
+          <Button
+            type="submit"
+            form="payment-details-form"
+            disabled={loading}
+            className="w-full bg-green-600 text-white hover:bg-green-700"
+            size="lg"
+          >
+            {loading
+              ? 'Redirecting to checkout...'
+              : `Pay ${formatPrice(depositAmount)} Deposit Securely ->`}
+          </Button>
+
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Stripe secures your payment. Your card is saved for the automatic balance charge on {dueDateLabel}.
+          </p>
         </div>
       </div>
     </div>

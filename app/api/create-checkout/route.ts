@@ -73,6 +73,9 @@ function requireJson(req: NextRequest): boolean {
 function isAllowedOrigin(req: NextRequest): boolean {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) return true;
+  // If NEXT_PUBLIC_APP_URL is still set to a localhost value (e.g. from .env.local copied
+  // to Vercel without updating), allow all origins so checkout doesn't break in production.
+  if (appUrl.startsWith('http://localhost') || appUrl.startsWith('http://127.0.0.1')) return true;
   const origin = req.headers.get('origin');
   if (!origin) return true;
   if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return true;

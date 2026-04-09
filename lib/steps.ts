@@ -63,7 +63,7 @@ export const STEPS: StepDef[] = [
     id: 'addons',
     label: 'Add-ons',
     shouldSkip: (s) => s.trail_type === 'paved',
-    isComplete: () => true, // optional step — always passable
+    isComplete: () => true, // optional step - always passable
   },
   {
     id: 'waiver',
