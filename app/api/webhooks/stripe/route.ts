@@ -121,13 +121,16 @@ export async function POST(req: NextRequest) {
             new Date(startIso).getTime() + confirmedBooking.duration_hours * 3_600_000
           ).toISOString();
 
-          console.log(`[stripe-webhook] Cal.com booking payload: start=${startIso} end=${endIso} name="${session.metadata?.customer_name}" email="${session.customer_email}"`);
+          // session.customer_email can be null when using a saved Stripe customer.
+          // Fall back to the email we stored in session metadata.
+          const calEmail = session.customer_email ?? session.metadata?.customer_email ?? '';
+          console.log(`[stripe-webhook] Cal.com booking payload: start=${startIso} end=${endIso} name="${session.metadata?.customer_name}" email="${calEmail}"`);
 
           const calUid = await createCalBooking({
             startIso,
             endIso,
             name: session.metadata?.customer_name ?? '',
-            email: session.customer_email ?? '',
+            email: calEmail,
             timeZone: 'America/New_York',
             notes: `Florida MTB Tour — ${session.metadata?.location ?? ''} — ${session.metadata?.date ?? ''}`,
           });
