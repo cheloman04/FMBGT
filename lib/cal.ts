@@ -53,9 +53,8 @@ export async function getAvailableSlots(
 
     const url = new URL(`${CAL_API_BASE}/slots`);
     url.searchParams.set('eventTypeId', CAL_EVENT_TYPE_ID);
-    url.searchParams.set('username', CAL_USERNAME);
-    url.searchParams.set('startTime', startDate.toISOString());
-    url.searchParams.set('endTime', endDate.toISOString());
+    url.searchParams.set('start', startDate.toISOString());
+    url.searchParams.set('end', endDate.toISOString());
 
     console.log('[cal] Requesting slots (v2):', url.toString());
 
