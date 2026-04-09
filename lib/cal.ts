@@ -5,7 +5,15 @@ const CAL_API_KEY = process.env.CAL_API_KEY;
 const CAL_EVENT_TYPE_ID = process.env.CAL_EVENT_TYPE_ID;
 const CAL_USERNAME = process.env.CAL_USERNAME;
 
-/** Standard headers for all Cal.com v2 requests */
+/** Headers for Cal.com v2 GET requests (no Content-Type) */
+function calGetHeaders(): HeadersInit {
+  return {
+    Authorization: `Bearer ${CAL_API_KEY}`,
+    'cal-api-version': '2024-09-04',
+  };
+}
+
+/** Headers for Cal.com v2 POST/PATCH requests */
 function calHeaders(): HeadersInit {
   return {
     Authorization: `Bearer ${CAL_API_KEY}`,
@@ -43,7 +51,7 @@ export async function getAvailableSlots(
     const endDate = new Date(`${params.dateTo}T23:59:59.000Z`);
     endDate.setUTCDate(endDate.getUTCDate() + 1);
 
-    const url = new URL(`${CAL_API_BASE}/slots/available`);
+    const url = new URL(`${CAL_API_BASE}/slots`);
     url.searchParams.set('eventTypeId', CAL_EVENT_TYPE_ID);
     url.searchParams.set('username', CAL_USERNAME);
     url.searchParams.set('startTime', startDate.toISOString());
@@ -52,7 +60,7 @@ export async function getAvailableSlots(
     console.log('[cal] Requesting slots (v2):', url.toString());
 
     const response = await fetch(url.toString(), {
-      headers: calHeaders(),
+      headers: calGetHeaders(),
       next: { revalidate: 300 },
     });
 
