@@ -93,39 +93,31 @@ export async function getAvailableSlots(
 }
 
 // ---------------------------------------------------------------------------
-// Transform Cal.com v2 /slots/available response → AvailabilitySlot[]
+// Transform Cal.com v2 /slots response → AvailabilitySlot[]
 //
-// v2 response shape:
+// Actual v2 response shape (confirmed from live API):
 // {
-//   status: "success",
-//   data: {
-//     slots: { "YYYY-MM-DD": [{ time: "<ISO>" }, ...], ... }
+//   "data": {
+//     "YYYY-MM-DD": [{ "start": "<ISO UTC>" }, ...],
+//     ...
 //   }
 // }
 // ---------------------------------------------------------------------------
 
 function transformCalV2Response(data: unknown, timeZone: string): AvailabilitySlot[] {
   const slots: AvailabilitySlot[] = [];
-  const wrapper = data as {
-    status?: string;
-    data?: { slots?: Record<string, Array<{ time?: string }>> };
-  };
+  const wrapper = data as { data?: Record<string, Array<{ start?: string }>> };
 
-  if (wrapper?.status !== 'success') {
-    console.warn('[cal] v2 response status is not "success":', JSON.stringify(data).slice(0, 300));
-    return slots;
-  }
-
-  const slotsMap = wrapper?.data?.slots;
+  const slotsMap = wrapper?.data;
   if (!slotsMap || typeof slotsMap !== 'object') {
-    console.warn('[cal] v2 response has no slots map:', JSON.stringify(data).slice(0, 300));
+    console.warn('[cal] v2 response has no data map:', JSON.stringify(data).slice(0, 300));
     return slots;
   }
 
   for (const [date, timeSlots] of Object.entries(slotsMap)) {
     if (!Array.isArray(timeSlots)) continue;
     for (const slot of timeSlots) {
-      const isoTime = slot.time ?? '';
+      const isoTime = slot.start ?? '';
       if (!isoTime) continue;
 
       const time = extractLocalTime(isoTime, timeZone);
