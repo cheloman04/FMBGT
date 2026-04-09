@@ -17,7 +17,7 @@ function calGetHeaders(): HeadersInit {
 function calHeaders(): HeadersInit {
   return {
     Authorization: `Bearer ${CAL_API_KEY}`,
-    'cal-api-version': '2024-09-04',
+    'cal-api-version': '2024-08-13',
     'Content-Type': 'application/json',
   };
 }
