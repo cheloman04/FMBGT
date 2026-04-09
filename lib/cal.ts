@@ -3,8 +3,7 @@ import type { AvailabilitySlot } from '@/types/booking';
 const CAL_API_BASE = 'https://api.cal.com/v2';
 const CAL_API_KEY = process.env.CAL_API_KEY;
 const CAL_EVENT_TYPE_ID = process.env.CAL_EVENT_TYPE_ID;
-// CAL_USERNAME kept for reference but v2 auth is key-based
-// const CAL_USERNAME = process.env.CAL_USERNAME;
+const CAL_USERNAME = process.env.CAL_USERNAME;
 
 /** Standard headers for all Cal.com v2 requests */
 function calHeaders(): HeadersInit {
@@ -28,7 +27,7 @@ export interface CalAvailabilityParams {
 export async function getAvailableSlots(
   params: CalAvailabilityParams
 ): Promise<AvailabilitySlot[]> {
-  if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID) {
+  if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID || !CAL_USERNAME) {
     console.log('[cal] Credentials not set — using mock data');
     return getMockAvailability(params.dateFrom, params.dateTo);
   }
@@ -46,6 +45,7 @@ export async function getAvailableSlots(
 
     const url = new URL(`${CAL_API_BASE}/slots/available`);
     url.searchParams.set('eventTypeId', CAL_EVENT_TYPE_ID);
+    url.searchParams.set('username', CAL_USERNAME);
     url.searchParams.set('startTime', startDate.toISOString());
     url.searchParams.set('endTime', endDate.toISOString());
 
