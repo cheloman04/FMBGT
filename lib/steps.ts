@@ -2,6 +2,7 @@ import type { BookingState } from '@/types/booking';
 
 export type StepId =
   | 'trail'
+  | 'lead_capture'
   | 'skill'
   | 'location'
   | 'bike'
@@ -26,6 +27,13 @@ export const STEPS: StepDef[] = [
     label: 'Trail Type',
     shouldSkip: () => false,
     isComplete: (s) => !!s.trail_type,
+  },
+  {
+    id: 'lead_capture',
+    label: 'Your Info',
+    shouldSkip: () => false,
+    // Complete once a lead record has been created
+    isComplete: (s) => !!s.lead_id,
   },
   {
     id: 'skill',

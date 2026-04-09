@@ -41,6 +41,7 @@ const BookingStateSchema = z.object({
     zip_code: z.string().max(10).optional(),
     marketing_source: z.string().max(50).optional(),
   }),
+  lead_id: z.string().uuid().optional(),
 });
 
 // Max participants per paved location
@@ -332,6 +333,7 @@ export async function POST(req: NextRequest) {
         waiver_session_id: state.waiver_session_id,
         zip_code: state.customer.zip_code ?? null,
         marketing_source: state.customer.marketing_source ?? null,
+        lead_id: state.lead_id ?? null,
       })
       .select('id')
       .single();

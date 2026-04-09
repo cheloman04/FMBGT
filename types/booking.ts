@@ -1,4 +1,5 @@
 export type TrailType = 'paved' | 'mtb';
+export type LeadStatus = 'lead' | 'converted' | 'archived';
 export type SignerRole = 'participant' | 'guardian';
 
 export interface WaiverParticipant {
@@ -127,8 +128,18 @@ export interface BookingState {
   waiver_signers?: WaiverSigner[];         // excluded from localStorage (large base64)
   waiver_session_id?: string;              // returned by /api/waivers/store
 
-  // Customer info (collected at payment step)
+  // Customer info (collected at lead capture step, pre-filled at payment)
   customer?: Customer;
+
+  // Lead tracking
+  lead_id?: string;
+
+  // UTM attribution (captured silently from URL on first visit)
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  utm_term?: string;
 
   // Computed
   price_breakdown?: PriceBreakdown;

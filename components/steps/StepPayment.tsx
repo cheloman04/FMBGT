@@ -11,6 +11,8 @@ import { BookingStepActions } from '@/components/BookingStepActions';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const HEARD_OPTIONS = ['Facebook', 'Instagram', 'YouTube', 'Google', 'ChatGPT'] as const;
+
 function formatDueDate(tourDateStr: string): string {
   const [y, m, d] = tourDateStr.split('-').map(Number) as [number, number, number];
   const dueDate = new Date(y, m - 1, d - 1);
@@ -24,6 +26,7 @@ function formatDueDate(tourDateStr: string): string {
 export function StepPayment() {
   const { state, setCustomer, goPrev } = useBooking();
 
+  // Fields are pre-filled from lead capture — user can still edit before paying
   const [form, setForm] = useState({
     name: state.customer?.name ?? '',
     email: state.customer?.email ?? '',
@@ -72,6 +75,15 @@ export function StepPayment() {
     };
     setCustomer(customer);
 
+    // Fire lead progress — payment_started (best-effort)
+    if (state.lead_id) {
+      fetch(`/api/leads/${state.lead_id}/progress`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ last_step_completed: 'payment_started' }),
+      }).catch(() => {});
+    }
+
     try {
       const response = await fetch('/api/create-checkout', {
         method: 'POST',
@@ -103,9 +115,9 @@ export function StepPayment() {
   return (
     <div>
       <div className="mb-6 text-center">
-        <h2 className="text-2xl font-bold text-foreground">Your Details &amp; Payment</h2>
+        <h2 className="text-2xl font-bold text-foreground">Review &amp; Pay Deposit</h2>
         <p className="mt-1 text-muted-foreground">
-          You&apos;ll be redirected to Stripe&apos;s secure checkout to pay your deposit.
+          Confirm your details below, then pay your deposit to secure your ride.
         </p>
       </div>
 
@@ -208,11 +220,9 @@ export function StepPayment() {
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">Select an option</option>
-              <option value="Facebook">Facebook</option>
-              <option value="Instagram">Instagram</option>
-              <option value="YouTube">YouTube</option>
-              <option value="Google">Google</option>
-              <option value="ChatGPT">ChatGPT</option>
+              {HEARD_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
             </select>
           </div>
 

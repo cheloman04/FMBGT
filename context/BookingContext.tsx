@@ -69,6 +69,8 @@ type BookingAction =
   | { type: 'SET_PRICE_BREAKDOWN'; payload: PriceBreakdown }
   | { type: 'SET_PARTICIPANTS'; payload: { count: number; additional: AdditionalParticipant[] } }
   | { type: 'SET_BOOKING_ID'; payload: string }
+  | { type: 'SET_LEAD_ID'; payload: string }
+  | { type: 'SET_UTM'; payload: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string } }
   | { type: 'RESET' };
 
 function bookingReducer(state: BookingState, action: BookingAction): BookingState {
@@ -148,12 +150,52 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
     case 'SET_BOOKING_ID':
       return { ...state, booking_id: action.payload };
 
+    case 'SET_LEAD_ID':
+      return { ...state, lead_id: action.payload };
+
+    case 'SET_UTM':
+      return { ...state, ...action.payload };
+
     case 'RESET':
       return {};
 
     default:
       return state;
   }
+}
+
+// ─── Progress step labels (fired in goNext for funnel tracking) ───────────────
+
+const STEP_PROGRESS_LABELS: Partial<Record<StepId, string>> = {
+  // trail: no lead yet at this point
+  // lead_capture: handled by the lead creation API itself
+  skill: 'skill_selected',
+  location: 'location_selected',
+  bike: 'bike_selected',
+  datetime: 'date_selected',
+  duration: 'duration_selected',
+  addons: 'addons_selected',
+  waiver: 'waiver_completed',
+  // payment: fired explicitly in StepPayment before the checkout redirect
+};
+
+function fireLeadProgress(
+  leadId: string,
+  stepLabel: string,
+  state: BookingState
+): void {
+  fetch(`/api/leads/${leadId}/progress`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      last_step_completed: stepLabel,
+      selected_location_name: state.location_name,
+      selected_bike: state.bike_rental,
+      selected_date: state.date,
+      selected_time_slot: state.time_slot,
+      selected_duration_hours: state.duration_hours,
+    }),
+  }).catch(() => {}); // fail silently — never block the booking flow
 }
 
 // ─── Context Interface ────────────────────────────────────────────────────────
@@ -184,6 +226,8 @@ interface BookingContextValue {
   setPriceBreakdown: (breakdown: PriceBreakdown) => void;
   setParticipants: (count: number, additional: AdditionalParticipant[]) => void;
   setBookingId: (id: string) => void;
+  setLeadId: (id: string) => void;
+  setUtm: (params: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) => void;
   reset: () => void;
 }
 
@@ -219,11 +263,19 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   // ─── Navigation ────────────────────────────────────────────────────────────
 
   const goNext = useCallback((stateOverride?: BookingState) => {
+    const effectiveState = stateOverride ?? state;
+    const leadId = effectiveState.lead_id ?? state.lead_id;
+    const progressLabel = STEP_PROGRESS_LABELS[currentStepId];
+
+    if (leadId && progressLabel) {
+      fireLeadProgress(leadId, progressLabel, effectiveState);
+    }
+
     setCurrentStepId((prev) => {
-      const next = getNextStepId(prev, stateOverride ?? state);
+      const next = getNextStepId(prev, effectiveState);
       return next ?? prev;
     });
-  }, [state]);
+  }, [state, currentStepId]);
 
   const goPrev = useCallback(() => {
     setCurrentStepId((prev) => {
@@ -299,9 +351,17 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_PARTICIPANTS', payload: { count, additional } }),
     []
   );
-
   const setBookingId = useCallback(
     (id: string) => dispatch({ type: 'SET_BOOKING_ID', payload: id }),
+    []
+  );
+  const setLeadId = useCallback(
+    (id: string) => dispatch({ type: 'SET_LEAD_ID', payload: id }),
+    []
+  );
+  const setUtm = useCallback(
+    (params: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) =>
+      dispatch({ type: 'SET_UTM', payload: params }),
     []
   );
 
@@ -339,6 +399,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         setPriceBreakdown,
         setParticipants,
         setBookingId,
+        setLeadId,
+        setUtm,
         reset,
       }}
     >

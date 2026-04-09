@@ -760,7 +760,7 @@ export default function FloridaMountainBikeGuidesLanding() {
             whileInView="show"
             viewport={{ once: true, amount: 0.2 }}
             variants={stagger}
-            className="relative mt-12 grid gap-6 lg:grid-cols-2"
+            className="relative mt-12 lg:grid lg:grid-cols-2 lg:gap-6"
           >
             {tours.map((tour, index) => {
               const Icon = tour.icon;
@@ -768,77 +768,80 @@ export default function FloridaMountainBikeGuidesLanding() {
                 <motion.div
                   key={tour.title}
                   variants={fadeUp}
-                  className="group sticky overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] backdrop-blur-sm shadow-[0_15px_50px_rgba(16,38,29,0.06)] md:static"
-                  style={{
-                    top: `${92 + index * 18}px`,
-                    zIndex: index + 1,
-                  }}
+                  className="relative"
                 >
-                  <div className="relative h-64 overflow-hidden">
-                    <Image
-                      src={tour.image}
-                      alt={tour.alt}
-                      fill
-                      sizes="(min-width: 1024px) 44vw, 100vw"
-                      className="object-cover transition duration-700 group-hover:scale-105"
-                      style={{ objectPosition: tour.objectPosition }}
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.08),rgba(16,38,29,0.34))]" />
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-[#d9c6a6]/10 to-transparent opacity-0 transition duration-500 group-hover:opacity-100" />
-                  <div className="relative z-10 p-8">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="inline-flex items-center gap-2 rounded-full bg-[var(--lp-badge-bg)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--lp-badge-text)]">
-                        {tour.badge}
-                      </div>
-                      <div className="rounded-2xl bg-[var(--lp-tan)] p-3 ring-1 ring-[var(--lp-border-soft)]">
-                        <Icon className="h-6 w-6 text-[var(--lp-green)]" />
-                      </div>
+                  <div
+                    className="group overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card)] backdrop-blur-sm shadow-[0_15px_50px_rgba(16,38,29,0.06)]"
+                    style={{
+                      zIndex: index + 1,
+                    }}
+                  >
+                    <div className="relative h-64 overflow-hidden">
+                      <Image
+                        src={tour.image}
+                        alt={tour.alt}
+                        fill
+                        sizes="(min-width: 1024px) 44vw, 100vw"
+                        className="object-cover transition duration-700 group-hover:scale-105"
+                        style={{ objectPosition: tour.objectPosition }}
+                      />
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,38,29,0.08),rgba(16,38,29,0.34))]" />
                     </div>
-                    <h3 className="mt-6 text-2xl font-bold text-[var(--lp-text)] sm:text-3xl">{tour.title}</h3>
-                    <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--lp-text-body)]">{tour.description}</p>
-
-                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-[1.4rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">Duration</p>
-                        <div className="mt-2 flex items-center gap-2 text-sm font-medium text-[var(--lp-text-dark)]">
-                          <Clock3 className="h-4 w-4 text-[var(--lp-green)]" />
-                          <span>{tour.duration}</span>
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-[#d9c6a6]/10 to-transparent opacity-0 transition duration-500 group-hover:opacity-100" />
+                    <div className="relative z-10 p-8">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-[var(--lp-badge-bg)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--lp-badge-text)]">
+                          {tour.badge}
+                        </div>
+                        <div className="rounded-2xl bg-[var(--lp-tan)] p-3 ring-1 ring-[var(--lp-border-soft)]">
+                          <Icon className="h-6 w-6 text-[var(--lp-green)]" />
                         </div>
                       </div>
-                      <div className="rounded-[1.4rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">Starting at</p>
-                        <p className="mt-2 text-sm font-medium text-[var(--lp-text-dark)]">{tour.price}</p>
-                      </div>
-                    </div>
+                      <h3 className="mt-6 text-2xl font-bold text-[var(--lp-text)] sm:text-3xl">{tour.title}</h3>
+                      <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--lp-text-body)]">{tour.description}</p>
 
-                    <div className="mt-5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">What's included</p>
-                      <div className="mt-3 flex flex-wrap gap-2.5">
-                        {tour.includes.map((item) => (
-                          <span
-                            key={item}
-                            className="inline-flex rounded-full border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-3.5 py-2 text-sm text-[var(--lp-text-dark)]"
-                          >
-                            {item}
-                          </span>
+                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-[1.4rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">Duration</p>
+                          <div className="mt-2 flex items-center gap-2 text-sm font-medium text-[var(--lp-text-dark)]">
+                            <Clock3 className="h-4 w-4 text-[var(--lp-green)]" />
+                            <span>{tour.duration}</span>
+                          </div>
+                        </div>
+                        <div className="rounded-[1.4rem] border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">Starting at</p>
+                          <p className="mt-2 text-sm font-medium text-[var(--lp-text-dark)]">{tour.price}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--lp-text-muted)]">What's included</p>
+                        <div className="mt-3 flex flex-wrap gap-2.5">
+                          {tour.includes.map((item) => (
+                            <span
+                              key={item}
+                              className="inline-flex rounded-full border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-3.5 py-2 text-sm text-[var(--lp-text-dark)]"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                        {tour.points.map((point) => (
+                          <div key={point} className="rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-3 text-sm text-[var(--lp-text-dark)]">
+                            {point}
+                          </div>
                         ))}
                       </div>
-                    </div>
 
-                    <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                      {tour.points.map((point) => (
-                        <div key={point} className="rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-card-light)] px-4 py-3 text-sm text-[var(--lp-text-dark)]">
-                          {point}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-8 flex justify-center sm:justify-start">
-                      <a href="/booking" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]">
-                        {tour.cta}
-                        <ChevronRight className="h-4 w-4" />
-                      </a>
+                      <div className="mt-8 flex justify-center sm:justify-start">
+                        <a href="/booking" className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]">
+                          {tour.cta}
+                          <ChevronRight className="h-4 w-4" />
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </motion.div>

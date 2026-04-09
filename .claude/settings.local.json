@@ -18,7 +18,8 @@
       "Bash(cmd /c \"cd /d \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\\" && node -e \\\\\"const u = new URL\\('https://api.cal.com/v1/slots'\\); u.searchParams.set\\('startTime','2026-04-09T00:00:00.000Z'\\); u.searchParams.set\\('endTime','2026-06-30T23:59:59.000Z'\\); console.log\\(u.toString\\(\\).replace\\(/apiKey=[^&]*/,'apiKey=REDACTED'\\)\\)\\\\\"\")",
       "Bash(cmd /c \"type \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\.env.local\\\\\" 2>&1 | findstr /R \\\\\"^CAL\\\\\"\")",
       "Bash(cmd /c \"type \\\\\"c:\\\\Users\\\\chegl\\\\OneDrive\\\\Desktop\\\\Florida Mountain Bike Trail Guided Tours\\\\.env.local\\\\\"\")",
-      "Bash(findstr /b /i \"CAL\")"
+      "Bash(findstr /b /i \"CAL\")",
+      "Bash(grep -E \"\\(step|^[^/]*booking[^/]*$\\)\")"
     ]
   }
 }

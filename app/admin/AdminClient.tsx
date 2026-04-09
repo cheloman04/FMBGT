@@ -42,19 +42,40 @@ interface Booking {
   stripe_payment_method_id: string | null;
 }
 
+interface Lead {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  zip_code: string | null;
+  heard_about_us: string | null;
+  selected_trail_type: string | null;
+  selected_location_name: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  last_step_completed: string | null;
+  last_activity_at: string;
+  status: string;
+  created_at: string;
+  booking_id: string | null;
+}
+
 interface Stats {
   total: number;
+  leads: number;
   confirmed: number;
   completed: number;
-  pending: number;
   revenue: number;
   projectedRevenue: number;
+  conversionRate: number | null;
   balancePending: number;
   balanceFailed: number;
 }
 
 interface Props {
   bookings: Booking[];
+  leads: Lead[];
   stats: Stats;
   currentStatus: string;
 }
@@ -66,14 +87,26 @@ interface DeleteDialogState {
   date: string;
 }
 
-const STATUS_OPTIONS = ['all', 'pending', 'confirmed', 'completed', 'cancelled', 'refunded'];
+const STATUS_OPTIONS = ['all', 'leads', 'confirmed', 'completed', 'cancelled', 'refunded'];
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
   confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
   completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
   cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
   refunded: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+};
+
+const STEP_LABELS: Record<string, string> = {
+  lead_captured: 'Lead captured',
+  skill_selected: 'Skill selected',
+  location_selected: 'Location selected',
+  bike_selected: 'Bike selected',
+  date_selected: 'Date selected',
+  duration_selected: 'Duration selected',
+  addons_selected: 'Add-ons viewed',
+  waiver_completed: 'Waiver signed',
+  payment_started: 'Payment started',
+  booking_confirmed: 'Booking confirmed',
 };
 
 function formatPrice(cents: number) {
@@ -96,6 +129,36 @@ function formatDateTime(iso: string) {
   });
 }
 
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffHrs = diffMs / 3_600_000;
+  if (diffHrs < 1) return 'Just now';
+  if (diffHrs < 24) return `${Math.floor(diffHrs)}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays === 1) return '1 day ago';
+  if (diffDays < 30) return `${diffDays} days ago`;
+  return formatDateTime(iso);
+}
+
+function LeadFreshness({ lastActivityAt }: { lastActivityAt: string }) {
+  const diffHrs = (Date.now() - new Date(lastActivityAt).getTime()) / 3_600_000;
+  if (diffHrs < 24) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+        Hot
+      </span>
+    );
+  }
+  if (diffHrs < 72) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
+        Warm
+      </span>
+    );
+  }
+  return null;
+}
+
 function getBookingStart(booking: Booking) {
   return new Date(`${booking.date}T${booking.time_slot || '00:00'}:00`);
 }
@@ -108,16 +171,6 @@ function getNearestUpcomingBooking(bookings: Booking[]) {
       .filter((booking) => getBookingStart(booking).getTime() >= now.getTime())
       .sort((a, b) => getBookingStart(a).getTime() - getBookingStart(b).getTime())[0] ?? null
   );
-}
-
-function DepositBadge({ status }: { status: string | null }) {
-  if (!status || status === 'pending') {
-    return <span className="text-xs text-yellow-700 dark:text-yellow-300">Deposit pending</span>;
-  }
-  if (status === 'paid') {
-    return <span className="text-xs text-green-700 dark:text-green-400">Deposit paid</span>;
-  }
-  return <span className="text-xs text-red-600 dark:text-red-400">Deposit failed</span>;
 }
 
 function BalanceBadge({
@@ -204,16 +257,19 @@ function WaiverPanel({ records }: { records: WaiverRecord[] }) {
   );
 }
 
-export function AdminClient({ bookings, stats, currentStatus }: Props) {
+export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
+  const [isNextBookingExpanded, setIsNextBookingExpanded] = useState(false);
   const [selectedMobileBookingId, setSelectedMobileBookingId] = useState<string | null>(null);
   const [localBookings, setLocalBookings] = useState(bookings);
   const [expandedWaivers, setExpandedWaivers] = useState<Set<string>>(new Set());
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
-  const nearestBooking = getNearestUpcomingBooking(localBookings);
+
+  const isLeadsView = currentStatus === 'leads';
+  const nearestBooking = isLeadsView ? null : getNearestUpcomingBooking(localBookings);
   const selectedMobileBooking =
     localBookings.find((booking) => booking.id === selectedMobileBookingId) ?? null;
 
@@ -293,17 +349,21 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
   };
 
   const filterUrl = (status: string) => `/admin?status=${status}`;
+
   const statCards = [
     {
       label: 'Total Bookings',
       value: stats.total,
       className: 'border-border bg-card/90',
+      mobileSpanClassName: 'col-span-1',
     },
     {
-      label: 'Awaiting Deposit',
-      value: stats.pending,
-      className: 'border-yellow-500/35 bg-gradient-to-br from-yellow-500/[0.08] via-card/95 to-card/90',
-      valueClassName: 'text-yellow-300 dark:text-yellow-300',
+      label: 'Leads',
+      value: stats.leads,
+      className: 'border-blue-500/30 bg-gradient-to-br from-blue-500/[0.08] via-card/95 to-card/90',
+      valueClassName: 'text-blue-400 dark:text-blue-300',
+      mobileSpanClassName: 'col-span-1',
+      href: filterUrl('leads'),
     },
     {
       label: 'Revenue',
@@ -311,6 +371,7 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
       className: 'border-green-500/30 bg-gradient-to-br from-green-500/[0.10] via-card/95 to-card/90',
       valueClassName: 'tracking-tight',
       featured: true,
+      mobileSpanClassName: 'col-span-2',
     },
     {
       label: 'Projected Revenue',
@@ -318,16 +379,19 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
       className: 'border-green-500/30 bg-gradient-to-br from-green-500/[0.10] via-card/95 to-card/90',
       valueClassName: 'tracking-tight',
       featured: true,
+      mobileSpanClassName: 'col-span-2',
     },
     {
       label: 'Confirmed',
       value: stats.confirmed,
       className: 'border-border bg-card/90',
+      mobileSpanClassName: 'col-span-1',
     },
     {
-      label: 'Completed',
-      value: stats.completed,
+      label: stats.conversionRate !== null ? `Conversion ${stats.conversionRate}%` : 'Completed',
+      value: stats.conversionRate !== null ? `${stats.conversionRate}%` : stats.completed,
       className: 'border-border bg-card/90',
+      mobileSpanClassName: 'col-span-1',
     },
   ];
 
@@ -440,7 +504,6 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Payment</p>
                       <span className="text-sm font-semibold text-foreground">{formatPrice(selectedMobileBooking.total_price)}</span>
                     </div>
-                    <DepositBadge status={selectedMobileBooking.deposit_payment_status} />
                     <BalanceBadge
                       status={selectedMobileBooking.remaining_balance_status}
                       amount={selectedMobileBooking.remaining_balance_amount}
@@ -469,7 +532,6 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
                         onChange={(e) => handleStatusChange(selectedMobileBooking.id, e.target.value)}
                         className="min-h-11 rounded-xl border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
                       >
-                        <option value="pending">pending</option>
                         <option value="confirmed">confirmed</option>
                         <option value="completed">completed</option>
                         <option value="cancelled">cancelled</option>
@@ -515,6 +577,7 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
           </div>
         )}
 
+        {/* Header */}
         <div className="mb-5 rounded-2xl border border-border/70 bg-card/88 p-4 shadow-[0_18px_40px_rgba(23,26,20,0.08)] backdrop-blur-sm sm:mb-8 sm:p-5 dark:shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">
@@ -534,18 +597,23 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
           </div>
         </div>
 
+        {/* Next booking banner */}
         {nearestBooking && currentStatus !== 'completed' && (
           <div className="relative mb-5 overflow-hidden rounded-2xl border border-green-500/30 bg-gradient-to-r from-green-500/[0.06] via-card/95 to-green-500/[0.04] p-4 shadow-[0_0_0_1px_rgba(34,197,94,0.06),0_10px_28px_rgba(22,30,18,0.06)] sm:mb-8 sm:p-5 dark:border-green-500/35 dark:bg-gradient-to-r dark:from-green-950/35 dark:via-card dark:to-emerald-950/20 dark:shadow-[0_0_0_1px_rgba(34,197,94,0.10),0_0_18px_rgba(34,197,94,0.06)]">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_38%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_35%)]" />
-            <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative">
               <div className="space-y-2">
-                <div className="inline-flex items-center rounded-full border border-green-500/35 bg-green-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-green-700 dark:text-green-300">Nearest Booking</div>
+                <div className="inline-flex items-center rounded-full border border-green-500/35 bg-green-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-green-700 dark:text-green-300">Your Next Booking</div>
                 <div>
                   <h2 className="text-lg font-bold text-foreground sm:text-xl">{nearestBooking.customer_name}</h2>
                   <p className="text-sm leading-6 text-muted-foreground">{nearestBooking.location_name} · {formatDate(nearestBooking.date)} · {nearestBooking.time_slot}</p>
                 </div>
               </div>
-              <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[420px]">
+              <button type="button" onClick={() => setIsNextBookingExpanded((prev) => !prev)} className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/55 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-background/75 sm:hidden dark:bg-background/60" aria-expanded={isNextBookingExpanded}>
+                {isNextBookingExpanded ? 'Hide details' : 'Show details'}
+                <svg viewBox="0 0 20 20" fill="none" className={`h-4 w-4 transition-transform ${isNextBookingExpanded ? 'rotate-180' : ''}`} aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              <div className={`${isNextBookingExpanded ? 'mt-4 grid gap-2 text-sm' : 'hidden'} sm:mt-4 sm:grid sm:gap-2 sm:text-sm sm:grid-cols-3 lg:min-w-[420px]`}>
                 <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Tour</p><p className="mt-1 font-semibold text-foreground">{nearestBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {nearestBooking.duration_hours}h</p></div>
                 <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Payment</p><p className="mt-1 font-semibold text-foreground">{formatPrice(nearestBooking.total_price)}</p></div>
                 <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p><p className="mt-1 font-semibold capitalize text-green-700 dark:text-green-300">{nearestBooking.status}</p></div>
@@ -554,32 +622,28 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
           </div>
         )}
 
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:mb-5 lg:grid-cols-6">
+        {/* Stats cards */}
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:mb-5 lg:grid-cols-6">
           {statCards.map((stat) => (
             <div
               key={stat.label}
               className={[
-                'group relative flex min-h-[118px] flex-col justify-between overflow-hidden rounded-2xl border p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] transition-colors',
+                'group relative flex min-h-[104px] flex-col justify-between overflow-hidden rounded-2xl border p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] transition-colors sm:min-h-[118px]',
+                stat.mobileSpanClassName ?? 'col-span-1',
                 'sm:col-span-1 lg:col-span-2',
                 stat.className,
+                stat.href ? 'cursor-pointer hover:opacity-90' : '',
               ].join(' ')}
+              onClick={stat.href ? () => (window.location.href = stat.href!) : undefined}
             >
               {stat.featured && (
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.07),transparent_45%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.14),transparent_42%)]" />
               )}
               <div className="relative">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  {stat.label}
-                </p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{stat.label}</p>
               </div>
               <div className="relative mt-5 flex items-end justify-between gap-3">
-                <p
-                  className={[
-                    'text-3xl font-bold leading-none sm:text-[2rem]',
-                    'text-foreground',
-                    stat.valueClassName ?? '',
-                  ].join(' ')}
-                >
+                <p className={['text-[2rem] font-bold leading-none sm:text-[2rem]', 'text-foreground', stat.valueClassName ?? ''].join(' ')}>
                   {stat.value}
                 </p>
               </div>
@@ -587,6 +651,7 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
           ))}
         </div>
 
+        {/* Failed balance alert */}
         {stats.balanceFailed > 0 && (
           <div className="mb-6 rounded-2xl border border-red-500/35 bg-gradient-to-r from-red-500/[0.08] via-card/95 to-card/90 p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] sm:mb-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -595,9 +660,7 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
                 <h3 className="mt-2 text-lg font-semibold text-foreground">
                   {stats.balanceFailed} booking{stats.balanceFailed > 1 ? 's have' : ' has'} a failed balance charge
                 </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Review these bookings and retry the payment if needed.
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">Review these bookings and retry the payment if needed.</p>
               </div>
               <div className="shrink-0 rounded-2xl border border-red-500/25 bg-red-500/[0.08] px-5 py-4 text-left sm:min-w-[140px] sm:text-center">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-300">Issues</p>
@@ -607,9 +670,10 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
           </div>
         )}
 
+        {/* Filter tabs */}
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-foreground">Filter bookings</p>
+            <p className="text-sm font-medium text-foreground">{isLeadsView ? 'Leads' : 'Bookings'}</p>
             <p className="text-xs text-muted-foreground sm:hidden">Swipe for more</p>
           </div>
           <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
@@ -624,152 +688,252 @@ export function AdminClient({ bookings, stats, currentStatus }: Props) {
                       : 'border-border bg-card text-muted-foreground hover:border-foreground/30'
                   }`}
                 >
-                  {s}
+                  {s === 'all' ? 'All Bookings' : s}
                 </a>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="space-y-3 sm:hidden">
-          {localBookings.length === 0 ? (
-            <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-10 text-center text-sm text-muted-foreground">No bookings found.</div>
-          ) : (
-            localBookings.map((booking) => (
-              <button
-                key={booking.id}
-                type="button"
-                onClick={() => setSelectedMobileBookingId(booking.id)}
-                className="w-full rounded-2xl border border-border/80 bg-card/95 p-4 text-left shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition-all active:scale-[0.99] active:border-green-500/40"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">{booking.customer_name}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {formatDate(booking.date)} · {booking.time_slot}
-                    </p>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>
-                    {booking.status}
-                  </span>
-                </div>
-
-                <div className="mt-3 grid grid-cols-[1fr_auto] gap-3">
-                  <div className="min-w-0 space-y-2">
-                    <p className="truncate text-sm text-foreground">{booking.location_name}</p>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      <span>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'}</span>
-                      <span>·</span>
-                      <span>{booking.duration_hours}hr</span>
-                      <span>·</span>
-                      <span>{booking.bike_rental && booking.bike_rental !== 'none' ? booking.bike_rental : 'BYOB'}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-right">
-                    <p className="text-sm font-semibold text-foreground">{formatPrice(booking.total_price)}</p>
-                    <div className="flex flex-col items-end gap-1">
-                      <WaiverBadge records={booking.waiver_records} />
-                      {booking.remaining_balance_status === 'failed' ? (
-                        <span className="text-[11px] font-medium text-red-400">Balance failed</span>
-                      ) : booking.remaining_balance_status === 'paid' ? (
-                        <span className="text-[11px] font-medium text-green-400">Paid</span>
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground">Open</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
-                  <div className="flex min-w-0 flex-wrap gap-1.5">
-                    {booking.zip_code && (
-                      <span className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">ZIP {booking.zip_code}</span>
-                    )}
-                    {booking.marketing_source && (
-                      <span className="rounded-full bg-blue-100 px-2 py-1 text-[11px] capitalize text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                        {booking.marketing_source}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs font-medium text-green-400">Open details</span>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-        <div className="hidden overflow-hidden rounded-lg border border-border bg-card sm:block">
-          {localBookings.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">No bookings found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-border bg-muted/50">
-                  <tr>
-                    {['Customer', 'Location', 'Date', 'Tour', 'Payment', 'Waivers', 'Status', 'Actions'].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {localBookings.map((booking) => (
-                    <tr key={booking.id} className="transition-colors hover:bg-muted/30">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-foreground">{booking.customer_name}</div>
-                        <div className="text-xs text-muted-foreground">{booking.customer_email}</div>
-                        {booking.customer_phone && <div className="mt-0.5 text-xs text-muted-foreground">{booking.customer_phone}</div>}
-                        {(booking.zip_code || booking.marketing_source) && (
-                          <div className="mt-1 flex flex-wrap gap-2">
-                            {booking.zip_code && <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">ZIP {booking.zip_code}</span>}
-                            {booking.marketing_source && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{booking.marketing_source}</span>}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-foreground/80">{booking.location_name}</td>
-                      <td className="px-4 py-3 text-foreground/80"><div>{formatDate(booking.date)}</div><div className="text-xs text-muted-foreground">{booking.time_slot}</div></td>
-                      <td className="px-4 py-3 text-foreground/80"><div>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'}</div><div className="text-xs text-muted-foreground">{booking.duration_hours}h · {booking.bike_rental}</div></td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-foreground">{formatPrice(booking.total_price)}</div>
-                        {booking.deposit_amount && <div className="mt-0.5 text-xs text-muted-foreground">Deposit: {formatPrice(booking.deposit_amount)}</div>}
-                        <div className="mt-1 space-y-0.5">
-                          <DepositBadge status={booking.deposit_payment_status} />
-                          <div><BalanceBadge status={booking.remaining_balance_status} amount={booking.remaining_balance_amount} dueAt={booking.remaining_balance_due_at} /></div>
-                          {booking.remaining_balance_status === 'failed' && (
-                            <div className="pt-1">
-                              <button onClick={() => handleRetryCharge(booking.id)} disabled={retrying === booking.id} className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 transition-colors hover:bg-red-200 disabled:opacity-50 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60">{retrying === booking.id ? 'Retrying...' : 'Retry'}</button>
-                              {retryErrors[booking.id] && <p className="mt-0.5 text-xs text-red-500">{retryErrors[booking.id]}</p>}
+        {/* ── LEADS VIEW ─────────────────────────────────────────────────────── */}
+        {isLeadsView && (
+          <>
+            <div className="hidden overflow-hidden rounded-lg border border-border bg-card sm:block">
+              {leads.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">No active leads.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-border bg-muted/50">
+                      <tr>
+                        {['Contact', 'Trail', 'Source', 'Funnel Stage', 'Last Active', 'Created'].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {leads.map((lead) => (
+                        <tr key={lead.id} className="transition-colors hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-foreground">{lead.full_name}</div>
+                            <div className="text-xs text-muted-foreground">{lead.email}</div>
+                            {lead.phone && <div className="mt-0.5 text-xs text-muted-foreground">{lead.phone}</div>}
+                            {(lead.zip_code || lead.heard_about_us) && (
+                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                {lead.zip_code && <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">ZIP {lead.zip_code}</span>}
+                                {lead.heard_about_us && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{lead.heard_about_us}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-foreground/80 capitalize">
+                            {lead.selected_trail_type ?? '—'}
+                            {lead.selected_location_name && (
+                              <div className="text-xs text-muted-foreground">{lead.selected_location_name}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {lead.utm_source ? (
+                              <div>
+                                <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{lead.utm_source}</span>
+                                {lead.utm_campaign && <div className="mt-1 text-xs text-muted-foreground">{lead.utm_campaign}</div>}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {lead.last_step_completed ? (
+                              <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-foreground">
+                                {STEP_LABELS[lead.last_step_completed] ?? lead.last_step_completed}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">{timeAgo(lead.last_activity_at)}</span>
+                              <LeadFreshness lastActivityAt={lead.last_activity_at} />
                             </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(lead.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile leads */}
+            <div className="space-y-3 sm:hidden">
+              {leads.length === 0 ? (
+                <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-10 text-center text-sm text-muted-foreground">No active leads.</div>
+              ) : (
+                leads.map((lead) => (
+                  <div key={lead.id} className="rounded-2xl border border-border/80 bg-card/95 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{lead.full_name}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">{lead.email}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <LeadFreshness lastActivityAt={lead.last_activity_at} />
+                        {lead.selected_trail_type && (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">{lead.selected_trail_type}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {lead.heard_about_us && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{lead.heard_about_us}</span>}
+                      {lead.utm_source && <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{lead.utm_source}</span>}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2">
+                      {lead.last_step_completed ? (
+                        <span className="text-[11px] text-muted-foreground">{STEP_LABELS[lead.last_step_completed] ?? lead.last_step_completed}</span>
+                      ) : <span />}
+                      <span className="text-[11px] text-muted-foreground">{timeAgo(lead.last_activity_at)}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="mt-4 text-center text-xs text-muted-foreground">Showing up to 100 most recent leads</p>
+          </>
+        )}
+
+        {/* ── BOOKINGS VIEW ──────────────────────────────────────────────────── */}
+        {!isLeadsView && (
+          <>
+            {/* Mobile booking cards */}
+            <div className="space-y-3 sm:hidden">
+              {localBookings.length === 0 ? (
+                <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-10 text-center text-sm text-muted-foreground">No bookings found.</div>
+              ) : (
+                localBookings.map((booking) => (
+                  <button
+                    key={booking.id}
+                    type="button"
+                    onClick={() => setSelectedMobileBookingId(booking.id)}
+                    className="w-full rounded-2xl border border-border/80 bg-card/95 p-4 text-left shadow-[0_10px_24px_rgba(0,0,0,0.14)] transition-all active:scale-[0.99] active:border-green-500/40"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{booking.customer_name}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{formatDate(booking.date)} · {booking.time_slot}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-[1fr_auto] gap-3">
+                      <div className="min-w-0 space-y-2">
+                        <p className="truncate text-sm text-foreground">{booking.location_name}</p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                          <span>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'}</span>
+                          <span>·</span>
+                          <span>{booking.duration_hours}hr</span>
+                          <span>·</span>
+                          <span>{booking.bike_rental && booking.bike_rental !== 'none' ? booking.bike_rental : 'BYOB'}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-right">
+                        <p className="text-sm font-semibold text-foreground">{formatPrice(booking.total_price)}</p>
+                        <div className="flex flex-col items-end gap-1">
+                          <WaiverBadge records={booking.waiver_records} />
+                          {booking.remaining_balance_status === 'failed' ? (
+                            <span className="text-[11px] font-medium text-red-400">Balance failed</span>
+                          ) : booking.remaining_balance_status === 'paid' ? (
+                            <span className="text-[11px] font-medium text-green-400">Paid in full</span>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">Balance pending</span>
                           )}
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="space-y-1.5">
-                          <WaiverBadge records={booking.waiver_records} />
-                          {booking.waiver_records.length > 0 && <button onClick={() => toggleWaivers(booking.id)} className="block text-xs text-muted-foreground transition-colors hover:text-foreground">{expandedWaivers.has(booking.id) ? 'Hide' : 'View'}</button>}
-                          {expandedWaivers.has(booking.id) && <div className="mt-2 min-w-[220px]"><WaiverPanel records={booking.waiver_records} /></div>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select value={booking.status} disabled={updating === booking.id} onChange={(e) => handleStatusChange(booking.id, e.target.value)} className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground disabled:opacity-50">
-                          <option value="pending">pending</option>
-                          <option value="confirmed">confirmed</option>
-                          <option value="completed">completed</option>
-                          <option value="cancelled">cancelled</option>
-                          <option value="refunded">refunded</option>
-                        </select>
-                        <button onClick={() => setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date })} disabled={deleting === booking.id} className="mt-2 rounded border border-red-500/40 bg-transparent px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50">{deleting === booking.id ? 'Deleting...' : 'Delete'}</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                      <div className="flex min-w-0 flex-wrap gap-1.5">
+                        {booking.zip_code && <span className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">ZIP {booking.zip_code}</span>}
+                        {booking.marketing_source && <span className="rounded-full bg-blue-100 px-2 py-1 text-[11px] capitalize text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{booking.marketing_source}</span>}
+                      </div>
+                      <span className="text-xs font-medium text-green-400">Open details</span>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
-          )}
-        </div>
 
-        <p className="mt-4 text-center text-xs text-muted-foreground">Showing up to 100 most recent bookings</p>
+            {/* Desktop bookings table */}
+            <div className="hidden overflow-hidden rounded-lg border border-border bg-card sm:block">
+              {localBookings.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">No bookings found.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-border bg-muted/50">
+                      <tr>
+                        {['Customer', 'Location', 'Date', 'Tour', 'Payment', 'Waivers', 'Status', 'Actions'].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {localBookings.map((booking) => (
+                        <tr key={booking.id} className="transition-colors hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-foreground">{booking.customer_name}</div>
+                            <div className="text-xs text-muted-foreground">{booking.customer_email}</div>
+                            {booking.customer_phone && <div className="mt-0.5 text-xs text-muted-foreground">{booking.customer_phone}</div>}
+                            {(booking.zip_code || booking.marketing_source) && (
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {booking.zip_code && <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">ZIP {booking.zip_code}</span>}
+                                {booking.marketing_source && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{booking.marketing_source}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-foreground/80">{booking.location_name}</td>
+                          <td className="px-4 py-3 text-foreground/80"><div>{formatDate(booking.date)}</div><div className="text-xs text-muted-foreground">{booking.time_slot}</div></td>
+                          <td className="px-4 py-3 text-foreground/80"><div>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'}</div><div className="text-xs text-muted-foreground">{booking.duration_hours}h · {booking.bike_rental}</div></td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-foreground">{formatPrice(booking.total_price)}</div>
+                            {booking.deposit_amount && <div className="mt-0.5 text-xs text-muted-foreground">Deposit: {formatPrice(booking.deposit_amount)}</div>}
+                            <div className="mt-1 space-y-0.5">
+                              <div><BalanceBadge status={booking.remaining_balance_status} amount={booking.remaining_balance_amount} dueAt={booking.remaining_balance_due_at} /></div>
+                              {booking.remaining_balance_status === 'failed' && (
+                                <div className="pt-1">
+                                  <button onClick={() => handleRetryCharge(booking.id)} disabled={retrying === booking.id} className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 transition-colors hover:bg-red-200 disabled:opacity-50 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60">{retrying === booking.id ? 'Retrying...' : 'Retry'}</button>
+                                  {retryErrors[booking.id] && <p className="mt-0.5 text-xs text-red-500">{retryErrors[booking.id]}</p>}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="space-y-1.5">
+                              <WaiverBadge records={booking.waiver_records} />
+                              {booking.waiver_records.length > 0 && <button onClick={() => toggleWaivers(booking.id)} className="block text-xs text-muted-foreground transition-colors hover:text-foreground">{expandedWaivers.has(booking.id) ? 'Hide' : 'View'}</button>}
+                              {expandedWaivers.has(booking.id) && <div className="mt-2 min-w-[220px]"><WaiverPanel records={booking.waiver_records} /></div>}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <select value={booking.status} disabled={updating === booking.id} onChange={(e) => handleStatusChange(booking.id, e.target.value)} className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground disabled:opacity-50">
+                              <option value="confirmed">confirmed</option>
+                              <option value="completed">completed</option>
+                              <option value="cancelled">cancelled</option>
+                              <option value="refunded">refunded</option>
+                            </select>
+                            <button onClick={() => setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date })} disabled={deleting === booking.id} className="mt-2 rounded border border-red-500/40 bg-transparent px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50">{deleting === booking.id ? 'Deleting...' : 'Delete'}</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <p className="mt-4 text-center text-xs text-muted-foreground">Showing up to 100 most recent bookings</p>
+          </>
+        )}
       </div>
     </div>
   );

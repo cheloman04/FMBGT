@@ -104,6 +104,35 @@ export async function POST(req: NextRequest) {
             .eq('id', bookingId);
         }
 
+        // Convert lead → booking (if a lead was linked at checkout time)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: bookingLeadRow } = await (supabase as any)
+          .from('bookings')
+          .select('lead_id')
+          .eq('id', bookingId)
+          .single();
+
+        const leadId = (bookingLeadRow as { lead_id?: string } | null)?.lead_id;
+        if (leadId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: leadConvertErr } = await (supabase as any)
+            .from('leads')
+            .update({
+              status: 'converted',
+              booking_id: bookingId,
+              last_step_completed: 'booking_confirmed',
+              last_activity_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', leadId);
+
+          if (leadConvertErr) {
+            console.error(`[stripe-webhook] Failed to convert lead ${leadId}:`, leadConvertErr);
+          } else {
+            console.log(`[stripe-webhook] Lead ${leadId} converted → booking ${bookingId}`);
+          }
+        }
+
         // Fetch full booking for Cal.com + n8n
         const { data: confirmedBooking } = await supabase
           .from('bookings')

@@ -53,6 +53,7 @@ async function checkAuth() {
   }
 }
 
+// Bookings: only show confirmed/completed/cancelled/refunded — never pending
 async function getBookings(status?: string) {
   const supabase = getSupabaseAdmin();
 
@@ -70,7 +71,10 @@ async function getBookings(status?: string) {
     .limit(100);
 
   if (status && status !== 'all') {
-    query = query.eq('status', status as 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'refunded');
+    query = query.eq('status', status as 'confirmed' | 'completed' | 'cancelled' | 'refunded');
+  } else {
+    // Default: exclude pending — those are internal pre-payment records
+    query = query.neq('status', 'pending');
   }
 
   const { data, error } = await query;
@@ -146,35 +150,71 @@ async function getBookings(status?: string) {
   }));
 }
 
-async function getStats() {
+async function getLeads() {
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase.from('bookings').select('status, total_price, deposit_payment_status, remaining_balance_status');
-  if (!data) {
-    return {
-      total: 0,
-      confirmed: 0,
-      completed: 0,
-      pending: 0,
-      revenue: 0,
-      projectedRevenue: 0,
-      balancePending: 0,
-      balanceFailed: 0,
-    };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('leads')
+    .select(`
+      id, full_name, email, phone, zip_code, heard_about_us,
+      selected_trail_type, selected_location_name,
+      utm_source, utm_medium, utm_campaign,
+      last_step_completed, last_activity_at, status,
+      created_at, booking_id
+    `)
+    .eq('status', 'lead')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[admin] Failed to fetch leads:', error.message);
+    return [];
   }
 
+  return data ?? [];
+}
+
+async function getStats() {
+  const supabase = getSupabaseAdmin();
+
+  const [bookingsResult, leadsResult] = await Promise.all([
+    supabase.from('bookings').select('status, total_price, remaining_balance_amount, remaining_balance_status, deposit_payment_status'),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('leads').select('status'),
+  ]);
+
+  const bookings = bookingsResult.data ?? [];
+  const leads = leadsResult.data ?? [];
+
+  const realBookings = bookings.filter((b) => b.status !== 'pending');
+  const confirmedBookings = realBookings.filter((b) => b.status === 'confirmed');
+
+  const totalLeads = leads.length;
+  const activeLeads = leads.filter((l: { status: string }) => l.status === 'lead').length;
+  const convertedLeads = leads.filter((l: { status: string }) => l.status === 'converted').length;
+
+  const revenue = realBookings
+    .filter((b) => b.status === 'confirmed' || b.status === 'completed')
+    .reduce((sum, b) => sum + (b.total_price ?? 0), 0);
+
+  // Projected = remaining balance still owed on confirmed bookings
+  const projectedRevenue = confirmedBookings
+    .filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'pending')
+    .reduce((sum, b) => sum + ((b as { remaining_balance_amount?: number }).remaining_balance_amount ?? 0), 0);
+
+  const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : null;
+
   return {
-    total: data.length,
-    confirmed: data.filter((b) => b.status === 'confirmed').length,
-    completed: data.filter((b) => b.status === 'completed').length,
-    pending: data.filter((b) => b.status === 'pending').length,
-    revenue: data
-      .filter((b) => b.status === 'confirmed' || b.status === 'completed')
-      .reduce((sum, b) => sum + (b.total_price ?? 0), 0),
-    projectedRevenue: data
-      .filter((b) => b.status === 'pending')
-      .reduce((sum, b) => sum + (b.total_price ?? 0), 0),
-    balancePending: data.filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'pending').length,
-    balanceFailed: data.filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'failed').length,
+    total: realBookings.length,
+    leads: activeLeads,
+    confirmed: confirmedBookings.length,
+    completed: realBookings.filter((b) => b.status === 'completed').length,
+    revenue,
+    projectedRevenue,
+    conversionRate,
+    balancePending: confirmedBookings.filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'pending').length,
+    balanceFailed: realBookings.filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'failed').length,
   };
 }
 
@@ -186,7 +226,20 @@ export default async function AdminPage({ searchParams }: PageProps) {
   await checkAuth();
 
   const { status } = await searchParams;
-  const [bookings, stats] = await Promise.all([getBookings(status), getStats()]);
+  const isLeadsView = status === 'leads';
 
-  return <AdminClient bookings={bookings} stats={stats} currentStatus={status ?? 'all'} />;
+  const [bookings, leads, stats] = await Promise.all([
+    isLeadsView ? Promise.resolve([]) : getBookings(status),
+    isLeadsView ? getLeads() : Promise.resolve([]),
+    getStats(),
+  ]);
+
+  return (
+    <AdminClient
+      bookings={bookings}
+      leads={leads}
+      stats={stats}
+      currentStatus={status ?? 'all'}
+    />
+  );
 }
