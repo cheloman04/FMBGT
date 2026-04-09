@@ -57,19 +57,19 @@ export function BookingResetButton({ className }: { className?: string }) {
                   <div className="mb-2 inline-flex rounded-full border border-green-500/25 bg-green-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-green-400">
                     Booking Reset
                   </div>
-                  <p className="text-sm font-semibold text-foreground sm:text-[15px]">
+                  <p className="text-sm font-semibold text-white sm:text-[15px]">
                     Florida Mountain Bike Trail Guided Tours
                   </p>
-                  <p className="text-xs text-muted-foreground">Secure Booking Experience</p>
+                  <p className="text-xs text-white/65">Secure Booking Experience</p>
                 </div>
               </div>
 
               <div className="space-y-5">
                 <div>
-                  <h3 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                  <h3 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
                     Start a new booking?
                   </h3>
-                  <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                  <p className="mt-2 max-w-md text-sm leading-6 text-white/70">
                     We&apos;ll clear your current selections and bring you back to step 1 so you can begin with a fresh booking flow.
                   </p>
                 </div>
@@ -77,20 +77,20 @@ export function BookingResetButton({ className }: { className?: string }) {
                 <div className="grid gap-3 rounded-2xl border border-green-500/18 bg-white/[0.03] p-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-white/6 bg-black/10 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-400">Will be cleared</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p className="mt-1 text-sm text-white/68">
                       Riders, bike choices, date and time, totals, waiver progress, and payment step data.
                     </p>
                   </div>
                   <div className="rounded-xl border border-white/6 bg-black/10 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-400">Fresh restart</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p className="mt-1 text-sm text-white/68">
                       Best option if you want to change plans, trail type, or begin a brand-new reservation.
                     </p>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
-                  <p className="text-sm text-foreground">
+                  <p className="text-sm text-amber-50/85">
                     Your current booking is not submitted yet. This only resets the in-progress flow.
                   </p>
                 </div>
@@ -100,7 +100,7 @@ export function BookingResetButton({ className }: { className?: string }) {
                     type="button"
                     variant="outline"
                     onClick={() => setShowResetDialog(false)}
-                    className="w-full border-white/12 bg-white/[0.03] sm:w-auto"
+                    className="w-full border-white/12 bg-white/[0.03] text-white hover:bg-white/[0.08] hover:text-white sm:w-auto"
                   >
                     Keep Current Booking
                   </Button>
