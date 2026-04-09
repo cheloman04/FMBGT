@@ -30,7 +30,7 @@ const BookingStateSchema = z.object({
     gopro: z.boolean().optional(),
     pickup_dropoff: z.boolean().optional(),
     electric_upgrade: z.boolean().optional(),
-  }),
+  }).optional().default({ gopro: false, pickup_dropoff: false, electric_upgrade: false }),
   waiver_accepted: z.boolean(),
   waiver_session_id: z.string().uuid('Invalid waiver session'),
   customer: z.object({
