@@ -5,6 +5,7 @@ import { useBooking } from '@/context/BookingContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -26,6 +27,7 @@ export function StepLeadCapture() {
     phone: state.customer?.phone ?? '',
     zip_code: state.customer?.zip_code ?? '',
     heard_about_us: state.customer?.marketing_source ?? '',
+    communication_consent: false,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
   const [loading, setLoading] = useState(false);
@@ -40,6 +42,10 @@ export function StepLeadCapture() {
     if (errors[name as keyof typeof errors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
+  };
+
+  const handleConsentChange = (checked: boolean) => {
+    setForm((prev) => ({ ...prev, communication_consent: checked }));
   };
 
   const validate = (): boolean => {
@@ -201,6 +207,24 @@ export function StepLeadCapture() {
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
+        </div>
+
+        <div className="flex items-start gap-3 rounded-md border border-border/60 bg-muted/20 p-3">
+          <Checkbox
+            id="communication_consent"
+            checked={form.communication_consent}
+            onCheckedChange={(checked) => handleConsentChange(checked === true)}
+            disabled={alreadyCaptured}
+            aria-label="Consent to email and SMS communications"
+            className="mt-0.5"
+          />
+          <Label
+            htmlFor="communication_consent"
+            className="text-sm leading-6 font-normal text-muted-foreground"
+          >
+            By checking this box, you consent to receive informational and marketing communications
+            from Florida Mountain Bike Trail Guided Tours via email and SMS.
+          </Label>
         </div>
 
         {apiError && (

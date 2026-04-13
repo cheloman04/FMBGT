@@ -290,7 +290,7 @@ export function StepBike() {
 
         <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
           <p className="text-sm font-medium text-green-800 dark:text-green-300">
-            ✓ Bike included — ${(PRICING.PAVED_FLAT / 100).toFixed(0)} flat per booking · 2-hour guided tour
+            ✓ Bike included — {formatPrice(PRICING.PAVED_FLAT)} per rider · 2-hour guided tour
             {isSanford && ` · E-bike upgrade +${formatPrice(PRICING.ADDONS.electric_upgrade)}/rider`}
           </p>
         </div>

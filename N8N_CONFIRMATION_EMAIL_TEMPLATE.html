@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Ride Confirmation</title>
+</head>
+<body style="margin:0;padding:0;background:#07110d;font-family:Arial,Helvetica,sans-serif;color:#eaf3ee;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#07110d;margin:0;padding:0;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;background:#0b1712;border:1px solid #173126;border-radius:20px;overflow:hidden;">
+
+          <tr>
+            <td style="padding:18px 24px;background:linear-gradient(180deg,#101d17 0%,#0b1712 100%);border-bottom:1px solid #173126;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="72" valign="middle">
+                    <img src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png" width="58" alt="Florida Mountain Bike Guides" style="display:block;border:0;outline:none;text-decoration:none;border-radius:50%;" />
+                  </td>
+                  <td valign="middle">
+                    <div style="font-size:28px;line-height:32px;font-weight:700;color:#f4fbf7;">Florida Mountain Bike Guides</div>
+                    <div style="font-size:12px;line-height:18px;color:#89a296;letter-spacing:2px;text-transform:uppercase;">Guided Trail Experiences</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#0b1712;padding:0;">
+              <img
+                src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/other_images/banner-confirmation.png"
+                width="640"
+                alt="Your ride is confirmed"
+                style="display:block;width:100%;max-width:640px;height:auto;border:0;outline:none;text-decoration:none;"
+              />
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:32px 28px 12px 28px;background:#0b1712;">
+              <div style="font-size:14px;line-height:20px;font-weight:700;letter-spacing:2px;color:#f0b06a;text-transform:uppercase;">Ride Confirmed</div>
+              <div style="font-size:34px;line-height:40px;font-weight:700;color:#f4fbf7;padding-top:8px;">You’re all set for the trail.</div>
+              <div style="font-size:16px;line-height:28px;color:#a9beb3;padding-top:14px;">
+                We’re excited to ride with you. Below you’ll find your booking details, what to bring, and everything you need before your experience begins.
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:20px 28px 10px 28px;background:#0b1712;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:8px;" valign="top">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#102019;border:1px solid #1d3d30;border-radius:16px;">
+                      <tr>
+                        <td style="padding:18px;">
+                          <div style="font-size:11px;line-height:16px;color:#88a195;letter-spacing:1.5px;text-transform:uppercase;">Date</div>
+                          <div style="font-size:18px;line-height:24px;font-weight:700;color:#f4fbf7;padding-top:6px;">{{$json.body.data.date}}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-left:8px;" valign="top">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#102019;border:1px solid #1d3d30;border-radius:16px;">
+                      <tr>
+                        <td style="padding:18px;">
+                          <div style="font-size:11px;line-height:16px;color:#88a195;letter-spacing:1.5px;text-transform:uppercase;">Time</div>
+                          <div style="font-size:18px;line-height:24px;font-weight:700;color:#f4fbf7;padding-top:6px;">{{$json.body.data.time}}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:18px 28px;background:#0b1712;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f1b16;border:1px solid #1b3529;border-radius:18px;">
+                <tr>
+                  <td style="padding:24px;">
+                    <div style="font-size:24px;line-height:30px;font-weight:700;color:#f4fbf7;padding-bottom:20px;">Booking Details</div>
+
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:14px;line-height:22px;color:#89a296;width:42%;">Guest Name</td>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:15px;line-height:22px;color:#f4fbf7;font-weight:600;">{{$json.body.data.customer_name}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:14px;line-height:22px;color:#89a296;">Guest Email</td>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:15px;line-height:22px;color:#f4fbf7;font-weight:600;">{{$json.body.data.customer_email}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:14px;line-height:22px;color:#89a296;">Trail Type</td>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:15px;line-height:22px;color:#f4fbf7;font-weight:600;">{{$json.body.data.trail_type}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:14px;line-height:22px;color:#89a296;">Skill Level</td>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:15px;line-height:22px;color:#f4fbf7;font-weight:600;">{{$json.body.data.skill_level}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:14px;line-height:22px;color:#89a296;">Location</td>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:15px;line-height:22px;color:#f4fbf7;font-weight:600;">{{$json.body.data.location}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:14px;line-height:22px;color:#89a296;">Meeting Point</td>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:15px;line-height:22px;color:#f4fbf7;font-weight:600;">{{$json.body.data.meeting_location_address}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:14px;line-height:22px;color:#89a296;">Duration</td>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:15px;line-height:22px;color:#f4fbf7;font-weight:600;">{{$json.body.data.duration_hours}} hours</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:14px;line-height:22px;color:#89a296;">Participants</td>
+                        <td style="padding:10px 0;border-bottom:1px solid #183126;font-size:15px;line-height:22px;color:#f4fbf7;font-weight:600;">{{$json.body.data.participant_count}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0 0 0;font-size:14px;line-height:22px;color:#89a296;">Deposit Paid</td>
+                        <td style="padding:10px 0 0 0;font-size:18px;line-height:24px;color:#7fe0b0;font-weight:700;">${{ ($json.body.data.deposit_amount / 100).toFixed(2) }}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:6px 28px 18px 28px;background:#0b1712;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,#10241c 0%,#0e1d18 50%,#173326 100%);border:1px solid #244937;border-radius:18px;">
+                <tr>
+                  <td style="padding:24px;text-align:center;">
+                    <div style="font-size:22px;line-height:28px;font-weight:700;color:#f4fbf7;">Know where to meet</div>
+                    <div style="font-size:15px;line-height:24px;color:#a8beb2;padding-top:8px;padding-bottom:18px;">
+                      View your meeting location and arrive ready to ride.
+                    </div>
+                    <a href="{{$json.body.data.meeting_location_url}}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 28px;border-radius:999px;">
+                      View Meeting Location
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 28px 18px 28px;background:#0b1712;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f1b16;border:1px solid #1b3529;border-radius:18px;">
+                <tr>
+                  <td style="padding:28px;text-align:center;">
+                    <div style="font-size:22px;line-height:28px;font-weight:700;color:#f4fbf7;padding-bottom:10px;">
+                      What to Bring
+                    </div>
+
+                    <div style="font-size:14px;line-height:22px;color:#a9beb3;padding-bottom:16px;">
+                      Everything you need for a smooth ride:
+                    </div>
+
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+                      <tr>
+                        <td style="padding:6px 0;font-size:15px;color:#dce9e2;">Comfortable clothes</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;font-size:15px;color:#dce9e2;">Closed-toe shoes</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;font-size:15px;color:#dce9e2;">Water bottle</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;font-size:15px;color:#dce9e2;">Sunscreen</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;font-size:15px;color:#7fe0b0;font-weight:600;">Good vibes required</td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 28px 28px 28px;background:#0b1712;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:8px;" valign="top">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f1b16;border:1px solid #1b3529;border-radius:18px;">
+                      <tr>
+                        <td style="padding:20px;text-align:center;">
+                          <div style="font-size:13px;line-height:18px;letter-spacing:1.2px;color:#89a296;text-transform:uppercase;">Forecast</div>
+                          <div style="font-size:34px;line-height:40px;padding-top:8px;">{{$json.body.data.weather_icon || '☀️'}}</div>
+                          <div style="font-size:20px;line-height:26px;font-weight:700;color:#f4fbf7;padding-top:6px;">{{$json.body.data.weather_temp || 'Check local forecast'}}</div>
+                          <div style="font-size:14px;line-height:20px;color:#a9beb3;">{{$json.body.data.weather_condition || 'Florida conditions can change quickly.'}}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-left:8px;" valign="top">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f1b16;border:1px solid #1b3529;border-radius:18px;">
+                      <tr>
+                        <td style="padding:20px;text-align:center;">
+                          <div style="font-size:13px;line-height:18px;letter-spacing:1.2px;color:#89a296;text-transform:uppercase;">Calendar</div>
+                          <div style="font-size:15px;line-height:24px;color:#a9beb3;padding-top:10px;padding-bottom:14px;">
+                            Add your ride to your calendar so you’re ready on time.
+                          </div>
+                          <a href="{{$json.body.data.calendar_url}}" style="display:inline-block;background:#f4fbf7;color:#0b1712;text-decoration:none;font-size:14px;font-weight:700;padding:12px 18px;border-radius:999px;">
+                            Add to Calendar
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:26px 24px;background:#08120e;border-top:1px solid #173126;text-align:center;">
+              <div style="font-size:15px;line-height:22px;font-weight:700;color:#f4fbf7;">Florida Mountain Bike Guides</div>
+              <div style="font-size:13px;line-height:22px;color:#8ca499;padding-top:6px;">
+                229 Magnolia Ave<br />
+                Sanford, FL 32771
+              </div>
+              <div style="font-size:13px;line-height:22px;color:#8ca499;padding-top:14px;">
+                Need help? Reply to this email and we’ll point you in the right direction.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

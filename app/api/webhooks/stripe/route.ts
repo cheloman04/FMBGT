@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { constructWebhookEvent, stripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
+import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
+import { formatSkillLevel } from '@/lib/booking-email';
+import { getBookingLocationMeta } from '@/lib/location-meta';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -136,7 +139,7 @@ export async function POST(req: NextRequest) {
         // Fetch full booking for Cal.com + n8n
         const { data: confirmedBooking } = await supabase
           .from('bookings')
-          .select('date, time_slot, duration_hours, participant_count, participant_info, trail_type, deposit_amount, remaining_balance_amount, remaining_balance_due_at')
+          .select('date, time_slot, duration_hours, participant_count, participant_info, trail_type, skill_level, deposit_amount, remaining_balance_amount, remaining_balance_due_at')
           .eq('id', bookingId)
           .single();
 
@@ -146,9 +149,7 @@ export async function POST(req: NextRequest) {
           // Hardcoding -05:00 (EST) is wrong for March–November when Florida
           // observes EDT (UTC-4). This caused off-by-one-hour bookings in Cal.com.
           const startIso = easternLocalToUtcIso(confirmedBooking.date, confirmedBooking.time_slot);
-          const endIso = new Date(
-            new Date(startIso).getTime() + confirmedBooking.duration_hours * 3_600_000
-          ).toISOString();
+          const endIso = addHoursToIso(startIso, confirmedBooking.duration_hours);
 
           // session.customer_email can be null when using a saved Stripe customer.
           // Fall back to the email we stored in session metadata.
@@ -200,10 +201,22 @@ export async function POST(req: NextRequest) {
         const remainingCents = Number(session.metadata?.remaining_balance ?? 0);
         const dueDateIso = (confirmedBooking as { remaining_balance_due_at?: string } | null)?.remaining_balance_due_at ?? null;
 
+        const customerEmail = session.customer_email ?? session.metadata?.customer_email ?? null;
+        const locationName = session.metadata?.location ?? 'Florida Mountain Bike Guides';
+        const locationMeta = getBookingLocationMeta(locationName);
+        const bookingStartIso = confirmedBooking?.date && confirmedBooking?.time_slot
+          ? easternLocalToUtcIso(confirmedBooking.date, confirmedBooking.time_slot)
+          : null;
+        const bookingEndIso = bookingStartIso && confirmedBooking?.duration_hours
+          ? addHoursToIso(bookingStartIso, confirmedBooking.duration_hours)
+          : null;
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+        const calendarUrl = `${appUrl}/api/calendar/${bookingId}`;
+
         const n8nSent = await triggerN8nWebhook('booking_confirmed', {
           booking_id: bookingId,
           session_id: session.id,
-          customer_email: session.customer_email,
+          customer_email: customerEmail,
           customer_name: session.metadata?.customer_name,
           customer_phone: session.metadata?.customer_phone,
           zip_code: stripePostalCode || session.metadata?.zip_code,
@@ -212,13 +225,20 @@ export async function POST(req: NextRequest) {
           remaining_balance: remainingCents,
           remaining_balance_due_at: dueDateIso,
           total_amount: Number(session.metadata?.total_amount ?? 0),
-          location: session.metadata?.location,
+          location: locationName,
           date: session.metadata?.date,
           time: session.metadata?.time,
           duration_hours: confirmedBooking?.duration_hours,
           participant_count: confirmedBooking?.participant_count,
           participant_info: confirmedBooking?.participant_info,
           trail_type: confirmedBooking?.trail_type,
+          skill_level: formatSkillLevel(confirmedBooking?.skill_level),
+          meeting_location_name: locationMeta.meetingPointName,
+          meeting_location_address: locationMeta.meetingPointAddress,
+          meeting_location_url: locationMeta.meetingPointUrl,
+          booking_start_iso: bookingStartIso,
+          booking_end_iso: bookingEndIso,
+          calendar_url: calendarUrl,
         });
 
         if (n8nSent) {
@@ -350,34 +370,6 @@ export async function POST(req: NextRequest) {
     console.error('[stripe-webhook] Processing error:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
-}
-
-/**
- * Convert a Florida local time (Eastern, DST-aware) to a UTC ISO string.
- * Tries EDT (UTC-4) first (peak season Mar–Nov), then EST (UTC-5), picking
- * whichever offset round-trips correctly via Intl. Falls back to EDT.
- */
-function easternLocalToUtcIso(dateStr: string, localTime: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number) as [number, number, number];
-  const [h, min] = localTime.split(':').map(Number) as [number, number];
-
-  for (const offsetHours of [4, 5]) {
-    const candidate = new Date(Date.UTC(y, m - 1, d, h + offsetHours, min, 0));
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(candidate);
-    const lh = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0');
-    const lm = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0');
-    if ((lh === 24 ? 0 : lh) === h && lm === min) {
-      return candidate.toISOString();
-    }
-  }
-
-  // Fallback: EDT (summer is peak season)
-  return new Date(Date.UTC(y, m - 1, d, h + 4, min, 0)).toISOString();
 }
 
 async function triggerN8nWebhook(event: string, data: Record<string, unknown>): Promise<boolean> {

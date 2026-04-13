@@ -3,7 +3,7 @@ import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParti
 // All prices in cents (USD)
 export const PRICING = {
   FLORIDA_STATE_TAX_RATE: 0.07,
-  PAVED_FLAT: 11500,         // $115.00 - paved 2hr tour, bike always included
+  PAVED_FLAT: 11500,         // $115.00 per rider - paved 2hr tour, bike always included
   BASE_NO_BIKE: 8900,        // $89.00 - MTB 2hr tour, BYOB (no bike)
   BASE_WITH_BIKE: 18900,     // $189.00 - MTB 2hr tour, standard bike included
   ADDITIONAL_HOUR: 5000,     // $50.00 per additional hour (MTB only)
@@ -61,9 +61,9 @@ export function calculatePriceBreakdown(
 ): PriceBreakdown {
   const participantCount = 1 + (additionalParticipants?.length ?? 0);
 
-  // Paved tours: flat $115 per booking, bike always included, no duration surcharge
+  // Paved tours: $115 per rider, bike always included, no duration surcharge
   if (trailType === 'paved') {
-    const base_price = PRICING.PAVED_FLAT;
+    const base_price = PRICING.PAVED_FLAT * participantCount;
     const gopro_price = addons.gopro ? PRICING.ADDONS.gopro * participantCount : 0;
     const pickup_price = addons.pickup_dropoff ? PRICING.ADDONS.pickup_dropoff * participantCount : 0;
     // Electric upgrades: count per-rider selections from bike_rental fields
@@ -142,7 +142,7 @@ export function getPriceLineItems(
   if (trailType === 'paved') {
     items.push({
       label: `Guided Paved Tour - 2 hours (bike included)${countLabel}`,
-      amount: PRICING.PAVED_FLAT,
+      amount: PRICING.PAVED_FLAT * participantCount,
     });
   } else {
     // Group riders by bike type for cleaner display

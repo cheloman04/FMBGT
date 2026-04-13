@@ -788,10 +788,33 @@ Handles Stripe payment lifecycle events.
     "session_id": "cs_...",
     "customer_email": "carlos@example.com",
     "customer_name": "Carlos Rivera",
-    "amount_total": 28800,
-    "location": "Markham Woods Park",
+    "customer_phone": "7273077210",
+    "zip_code": "32771",
+    "marketing_source": "Instagram",
+    "deposit_amount": 13643,
+    "remaining_balance": 13642,
+    "remaining_balance_due_at": "2026-06-26T16:00:00.000Z",
+    "total_amount": 27285,
+    "location": "Sanford Historic Riverfront Tour",
     "date": "2026-04-15",
-    "time": "09:00"
+    "time": "09:00",
+    "duration_hours": 2,
+    "participant_count": 2,
+    "participant_info": [
+      {
+        "name": "Guest 2",
+        "bike_rental": "electric",
+        "height_inches": 70
+      }
+    ],
+    "trail_type": "paved",
+    "skill_level": "All levels",
+    "meeting_location_name": "Fort Mellon Park",
+    "meeting_location_address": "600 E 1st St, Sanford, FL 32771",
+    "meeting_location_url": "https://maps.app.goo.gl/...",
+    "booking_start_iso": "2026-06-27T13:00:00.000Z",
+    "booking_end_iso": "2026-06-27T15:00:00.000Z",
+    "calendar_url": "https://yourdomain.com/api/calendar/{booking_id}"
   },
   "timestamp": "2026-04-10T14:32:00.000Z"
 }
@@ -858,6 +881,7 @@ Sets the `admin_session` httpOnly cookie (8 hours, secure in production). Used b
 
 - **Trigger:** HTTP POST to `N8N_WEBHOOK_URL` after `checkout.session.completed`
 - **Use cases:** Confirmation email, calendar invite, Slack notification, CRM update
+- **Confirmation email helpers:** `lib/location-meta.ts` maps booking locations to meeting point name/address/map URL; `app/api/calendar/[bookingId]` returns a per-booking `.ics` file for the email CTA
 - **Failure handling:** n8n errors are logged but do NOT fail the Stripe webhook response (fire-and-forget)
 
 ### Supabase
@@ -1189,3 +1213,15 @@ vercel
 - Set `NEXT_PUBLIC_APP_URL=https://fmbgt.vercel.app` in Vercel
 
 **Result:** End-to-end booking flow verified working in production — payment processed, booking confirmed in Supabase, Cal.com booking created.
+### Session - April 13, 2026
+
+**Paved Pricing Correction**
+- Corrected `lib/pricing.ts` so paved tours charge `$115 x participant_count` instead of a single flat booking fee
+- Updated paved line items and payment summaries so UI, checkout, and webhook totals all match the server calculation
+- Updated `StepBike` paved messaging to say `per rider` instead of `flat per booking`
+
+**Confirmation Email + Calendar Payload**
+- Added `app/api/calendar/[bookingId]` to generate a public per-booking `.ics` file for the email CTA
+- Added `lib/location-meta.ts` to map each booking location to a meeting point name, address, and map URL
+- Enriched the Stripe webhook to n8n payload with `customer_email` fallback, meeting point metadata, booking start/end ISO timestamps, and `calendar_url`
+- Added `N8N_CONFIRMATION_EMAIL_TEMPLATE.html` and `N8N_CONFIRMATION_EMAIL_PAYLOAD.md` as ready-to-use references for the n8n confirmation email workflow
