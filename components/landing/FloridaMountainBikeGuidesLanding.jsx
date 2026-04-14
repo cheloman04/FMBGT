@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  ExternalLink,
   MapPin,
   Menu,
   Mountain,
@@ -377,6 +378,80 @@ const SOCIAL_LINKS = [
 export default function FloridaMountainBikeGuidesLanding() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [activeGallerySlide, setActiveGallerySlide] = React.useState(0);
+  const [contactForm, setContactForm] = React.useState({
+    name: '',
+    email: '',
+    phone: '',
+    questions: '',
+  });
+  const [contactFormState, setContactFormState] = React.useState({
+    submitting: false,
+    message: '',
+    status: 'idle',
+  });
+
+  const handleContactFormSubmit = async (event) => {
+    event.preventDefault();
+    if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.questions.trim()) {
+      setContactFormState({
+        submitting: false,
+        status: 'error',
+        message: 'Please complete name, email, and questions before submitting.',
+      });
+      return;
+    }
+
+    setContactFormState({
+      submitting: true,
+      status: 'idle',
+      message: '',
+    });
+
+    try {
+      const response = await fetch('https://fmbgt-n8n.yvjziu.easypanel.host/webhook/get-in-touch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event: 'get_in_touch_submitted',
+          source: 'landing_page',
+          submitted_at: new Date().toISOString(),
+          contact: {
+            name: contactForm.name.trim(),
+            email: contactForm.email.trim(),
+            phone: contactForm.phone.trim() || null,
+          },
+          inquiry: {
+            questions: contactForm.questions.trim(),
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Webhook request failed');
+      }
+
+      trackContactFormSubmit();
+      setContactForm({
+        name: '',
+        email: '',
+        phone: '',
+        questions: '',
+      });
+      setContactFormState({
+        submitting: false,
+        status: 'success',
+        message: "Thanks — we got your message and we'll be in touch soon.",
+      });
+    } catch (error) {
+      setContactFormState({
+        submitting: false,
+        status: 'error',
+        message: 'Something went wrong sending your message. Please try again in a moment.',
+      });
+    }
+  };
 
   React.useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -1154,6 +1229,15 @@ export default function FloridaMountainBikeGuidesLanding() {
                       <p className="mt-3 text-sm leading-6 text-[var(--lp-text-body)]">
                         A local shop experience that supports riders who want premium bike rentals without the extra hassle.
                       </p>
+                      <a
+                        href="https://www.bicikletabikeshop.com/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]"
+                      >
+                        Visit Bicikleta Bike Shop
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
                     </div>
                     <div className="flex justify-center md:justify-end">
                       <div className="relative h-28 w-28 overflow-hidden rounded-full border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] p-2 sm:h-32 sm:w-32">
@@ -1284,12 +1368,16 @@ export default function FloridaMountainBikeGuidesLanding() {
             />
 
             <div className="mt-10 rounded-[2rem] border border-[var(--lp-border)] bg-[var(--lp-card-80)] p-6 shadow-[0_16px_50px_rgba(16,38,29,0.05)] sm:p-8">
-              <form className="grid gap-5">
+              <form onSubmit={handleContactFormSubmit} className="grid gap-5">
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Name</label>
                     <input
                       type="text"
+                      value={contactForm.name}
+                      onChange={(event) =>
+                        setContactForm((prev) => ({ ...prev, name: event.target.value }))
+                      }
                       placeholder="Your name"
                       className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                     />
@@ -1298,6 +1386,10 @@ export default function FloridaMountainBikeGuidesLanding() {
                     <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Email</label>
                     <input
                       type="email"
+                      value={contactForm.email}
+                      onChange={(event) =>
+                        setContactForm((prev) => ({ ...prev, email: event.target.value }))
+                      }
                       placeholder="you@example.com"
                       className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                     />
@@ -1308,6 +1400,10 @@ export default function FloridaMountainBikeGuidesLanding() {
                   <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Phone Number (optional)</label>
                   <input
                     type="text"
+                    value={contactForm.phone}
+                    onChange={(event) =>
+                      setContactForm((prev) => ({ ...prev, phone: event.target.value }))
+                    }
                     placeholder="(555) 555-5555"
                     className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                   />
@@ -1317,19 +1413,35 @@ export default function FloridaMountainBikeGuidesLanding() {
                   <label className="mb-2 block text-sm font-medium text-[var(--lp-text-dark)]">Questions?</label>
                   <textarea
                     rows={5}
+                    value={contactForm.questions}
+                    onChange={(event) =>
+                      setContactForm((prev) => ({ ...prev, questions: event.target.value }))
+                    }
                     placeholder="Tell us about your ideal ride, your skill level, or the type of tour you're looking for."
                     className="w-full rounded-2xl border border-[var(--lp-border-soft)] bg-[var(--lp-surface)] px-4 py-3 text-[var(--lp-text)] outline-none placeholder:text-[var(--lp-text-muted)] focus:border-[var(--lp-green)]/40"
                   />
                 </div>
 
-                <div className="pt-2 flex justify-center sm:justify-start">
+                {contactFormState.message && (
+                  <p
+                    className={`text-sm ${
+                      contactFormState.status === 'success'
+                        ? 'text-emerald-600'
+                        : 'text-red-400'
+                    }`}
+                  >
+                    {contactFormState.message}
+                  </p>
+                )}
+
+                <div className="flex justify-center pt-2">
                   <button
-                    type="button"
+                    type="submit"
                     data-track="contact_form_submit"
-                    onClick={() => trackContactFormSubmit()}
+                    disabled={contactFormState.submitting}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--lp-green)] px-5 py-3 text-sm font-semibold text-[var(--lp-surface)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-green-dark)]"
                   >
-                    Submit
+                    {contactFormState.submitting ? 'Sending...' : 'Submit'}
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -1343,6 +1455,17 @@ export default function FloridaMountainBikeGuidesLanding() {
       <footer className="border-t border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-[var(--lp-text-muted)] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <p>© Florida Mountain Bike Guides LLC — Redesign concept landing page.</p>
+          <p>
+            Developed by{' '}
+            <a
+              href="https://www.senzaiautomations.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-[var(--lp-text)] transition hover:text-[var(--lp-green)]"
+            >
+              Senzai Automations
+            </a>
+          </p>
           <div className="flex flex-wrap gap-5">
             <a href="#tours" className="transition hover:text-[var(--lp-text)]">Mountain bike tours</a>
             <a href="#guides" className="transition hover:text-[var(--lp-text)]">Meet Our Guides</a>

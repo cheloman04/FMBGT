@@ -18,7 +18,7 @@ const TRAIL_OPTIONS: Array<{
     type: 'paved',
     label: 'Paved Trail',
     description: 'Smooth paved trails suitable for all riders. Great for scenic rides and relaxed exploration.',
-    image: '/images/booking/trail-type-paved.png',
+    image: '/images/rev-pics-update/booking-paved-main.png',
     badge: 'Paved',
   },
   {
