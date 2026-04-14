@@ -175,7 +175,17 @@ async function getLeads() {
     return [];
   }
 
-  const leads = data ?? [];
+  const leads = (data ?? []).filter((lead: {
+    booking_id: string | null;
+    converted_at: string | null;
+  }) => {
+    const hasConversionSignal =
+      !!lead.booking_id ||
+      !!lead.converted_at;
+
+    return !hasConversionSignal;
+  });
+
   const leadIds = leads.map((lead: { id: string }) => lead.id);
 
   let enrollments: Array<{
@@ -266,7 +276,7 @@ async function getStats() {
   const [bookingsResult, leadsResult] = await Promise.all([
     supabase.from('bookings').select('status, total_price, remaining_balance_amount, remaining_balance_status, deposit_payment_status'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).from('leads').select('status'),
+    (supabase as any).from('leads').select('status, booking_id, converted_at'),
   ]);
 
   const bookings = bookingsResult.data ?? [];
@@ -276,8 +286,29 @@ async function getStats() {
   const confirmedBookings = realBookings.filter((b) => b.status === 'confirmed');
 
   const totalLeads = leads.length;
-  const activeLeads = leads.filter((l: { status: string }) => l.status === 'lead').length;
-  const convertedLeads = leads.filter((l: { status: string }) => l.status === 'converted').length;
+  const activeLeads = leads.filter((lead: {
+    status: string;
+    booking_id: string | null;
+    converted_at: string | null;
+  }) => {
+    const hasConversionSignal =
+      lead.status === 'converted' ||
+      !!lead.booking_id ||
+      !!lead.converted_at;
+
+    return lead.status === 'lead' && !hasConversionSignal;
+  }).length;
+  const convertedLeads = leads.filter((lead: {
+    status: string;
+    booking_id: string | null;
+    converted_at: string | null;
+  }) => {
+    return (
+      lead.status === 'converted' ||
+      !!lead.booking_id ||
+      !!lead.converted_at
+    );
+  }).length;
 
   const revenue = realBookings
     .filter((b) => b.status === 'confirmed' || b.status === 'completed')

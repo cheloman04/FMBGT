@@ -96,6 +96,70 @@ function calcRemainingBalanceDueAt(tourDateStr: string): string {
   return new Date(Date.UTC(y, m - 1, d - 1, 16, 0, 0)).toISOString();
 }
 
+type ReconciledLead = {
+  id: string;
+  status: string;
+  selected_trail_type: TrailType | null;
+  created_at: string;
+  booking_id: string | null;
+  converted_at: string | null;
+};
+
+async function resolveCheckoutLead(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  input: {
+    requestedLeadId?: string;
+    customerEmail: string;
+    trailType: TrailType;
+  }
+): Promise<ReconciledLead | null> {
+  const normalizedEmail = input.customerEmail.trim().toLowerCase();
+
+  if (input.requestedLeadId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: requestedLead } = await (supabase as any)
+      .from('leads')
+      .select('id, status, selected_trail_type, created_at, booking_id, converted_at')
+      .eq('id', input.requestedLeadId)
+      .maybeSingle();
+
+    if (
+      requestedLead &&
+      !requestedLead.booking_id &&
+      !requestedLead.converted_at &&
+      requestedLead.status !== 'converted'
+    ) {
+      return requestedLead as ReconciledLead;
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: matchingLeads, error } = await (supabase as any)
+    .from('leads')
+    .select('id, status, selected_trail_type, created_at, booking_id, converted_at')
+    .eq('email', normalizedEmail)
+    .in('status', ['lead', 'lost'])
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (error || !matchingLeads?.length) {
+    return null;
+  }
+
+  const unresolvedLeads = (matchingLeads as ReconciledLead[]).filter(
+    (lead) => !lead.booking_id && !lead.converted_at && lead.status !== 'converted'
+  );
+
+  if (unresolvedLeads.length === 0) {
+    return null;
+  }
+
+  return (
+    unresolvedLeads.find((lead) => lead.selected_trail_type === input.trailType) ??
+    unresolvedLeads[0]
+  );
+}
+
 export async function POST(req: NextRequest) {
   if (!requireJson(req)) {
     return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 });
@@ -194,6 +258,12 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
+    const reconciledLead = await resolveCheckoutLead(supabase, {
+      requestedLeadId: state.lead_id,
+      customerEmail: state.customer.email,
+      trailType: state.trail_type,
+    });
+    const effectiveLeadId = reconciledLead?.id ?? state.lead_id ?? null;
 
     // Waiver validation
     if (!state.waiver_accepted || !state.waiver_session_id) {
@@ -335,7 +405,7 @@ export async function POST(req: NextRequest) {
         waiver_session_id: state.waiver_session_id,
         zip_code: state.customer.zip_code ?? null,
         marketing_source: state.customer.marketing_source ?? null,
-        lead_id: state.lead_id ?? null,
+        lead_id: effectiveLeadId,
         booking_session_id: state.lead_session_id ?? null,
       })
       .select('id')
@@ -374,8 +444,8 @@ export async function POST(req: NextRequest) {
       .update({ stripe_session_id: session.id })
       .eq('id', booking.id);
 
-    if (state.lead_id && state.lead_session_id) {
-      await markLeadSessionCheckoutStarted(state.lead_id, state.lead_session_id);
+    if (effectiveLeadId && state.lead_session_id) {
+      await markLeadSessionCheckoutStarted(effectiveLeadId, state.lead_session_id);
     }
 
     return NextResponse.json({

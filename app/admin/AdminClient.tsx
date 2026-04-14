@@ -582,41 +582,24 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
             {!lead.heard_about_us && !lead.utm_source && <p className="text-muted-foreground">No attribution data captured.</p>}
           </div>
         </div>
-        <div className="mt-4 rounded-xl border border-border bg-background/80 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Booking Progress</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {bookingProgress.totalSteps > 0
-                  ? `${bookingProgress.completedSteps} of ${bookingProgress.totalSteps} real flow steps completed`
-                  : 'Waiting for enough booking data to calculate progress'}
-              </p>
-            </div>
-            <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
-              {bookingProgress.percent}%
-            </span>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card/70 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Booking Progress</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {bookingProgress.totalSteps > 0
+                ? `${bookingProgress.completedSteps} of ${bookingProgress.totalSteps} real flow steps completed`
+                : 'Waiting for enough booking data to calculate progress'}
+            </p>
           </div>
-          <div className="mt-3">
-            <LeadProgressBar lead={lead} />
-          </div>
+          <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
+            {bookingProgress.percent}%
+          </span>
         </div>
-        <div className="mt-4 rounded-xl border border-border bg-background/80 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Booking Progress</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {bookingProgress.totalSteps > 0
-                  ? `${bookingProgress.completedSteps} of ${bookingProgress.totalSteps} real flow steps completed`
-                  : 'Waiting for enough booking data to calculate progress'}
-              </p>
-            </div>
-            <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
-              {bookingProgress.percent}%
-            </span>
-          </div>
-          <div className="mt-3">
-            <LeadProgressBar lead={lead} />
-          </div>
+        <div className="mt-4">
+          <LeadProgressBar lead={lead} />
         </div>
       </div>
 
@@ -877,6 +860,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
       value: stats.total,
       className: 'border-border bg-card/90',
       mobileSpanClassName: 'col-span-1',
+      href: filterUrl('all'),
     },
     {
       label: 'Leads',
@@ -1231,8 +1215,8 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                   <table className="w-full text-sm">
                     <thead className="border-b border-border bg-muted/50">
                       <tr>
-                        {['Contact', 'Trail', 'Source', 'Funnel Stage', 'Follow-Up', 'Last Active', 'Actions', 'Created'].map((h) => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
+                        {['Contact', 'Trail', 'Source', 'Funnel Stage', 'Follow-Up', 'Last Active', 'Actions'].map((h) => (
+                          <th key={h} className={`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground ${h === 'Actions' || h === 'Source' ? 'text-center' : 'text-left'}`}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1262,9 +1246,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                               <div className="text-xs text-muted-foreground">{lead.selected_location_name}</div>
                             )}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-center align-middle">
                             {lead.utm_source ? (
-                              <div>
+                              <div className="flex flex-col items-center">
                                 <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{lead.utm_source}</span>
                                 {lead.utm_campaign && <div className="mt-1 text-xs text-muted-foreground">{lead.utm_campaign}</div>}
                               </div>
@@ -1300,22 +1284,28 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                               <LeadFreshness lastActivityAt={lead.last_activity_at} />
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="space-y-2">
-                              <button onClick={() => toggleLead(lead.id)} className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted">
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex flex-col items-center gap-2 text-center">
+                              <button
+                                onClick={() => toggleLead(lead.id)}
+                                className={`inline-flex w-32 items-center justify-center rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                  expandedLeads.has(lead.id)
+                                    ? 'border-foreground/20 bg-foreground text-background hover:bg-foreground/90'
+                                    : 'border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20'
+                                }`}
+                              >
                                 {expandedLeads.has(lead.id) ? 'Hide details' : 'View details'}
                               </button>
-                              <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="rounded border border-green-500/40 bg-green-500/10 px-2 py-1 text-xs font-medium text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
+                              <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="inline-flex w-32 items-center justify-center rounded-md border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
                                 {sendingLeadId === lead.id ? 'Sending...' : canSendFollowUp ? 'Send Follow-Up' : followUpDisplay.label}
                               </button>
                               {leadFollowUpStatus[lead.id] && <p className="text-xs text-muted-foreground">{leadFollowUpStatus[lead.id]}</p>}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(lead.created_at)}</td>
                         </tr>
                         {expandedLeads.has(lead.id) && (
                           <tr className="bg-muted/10">
-                            <td colSpan={8} className="px-4 py-4">
+                            <td colSpan={7} className="px-4 py-4">
                               <LeadDetailPanel lead={lead} />
                             </td>
                           </tr>
@@ -1373,11 +1363,18 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                         ? `Next ${formatStepKey(nextPending.step_key)} ${formatDateTime(nextPending.scheduled_for)}`
                         : followUpDisplay.detail}
                     </p>
-                    <div className="mt-3 flex gap-2">
-                      <button onClick={() => toggleLead(lead.id)} className="rounded border border-border bg-background px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-muted">
+                    <div className="mt-3 flex w-full gap-2">
+                      <button
+                        onClick={() => toggleLead(lead.id)}
+                        className={`inline-flex flex-1 items-center justify-center rounded-md border px-3 py-2 text-[11px] font-semibold transition-colors ${
+                          expandedLeads.has(lead.id)
+                            ? 'border-foreground/20 bg-foreground text-background hover:bg-foreground/90'
+                            : 'border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20'
+                        }`}
+                      >
                         {expandedLeads.has(lead.id) ? 'Hide details' : 'View details'}
                       </button>
-                      <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="rounded border border-green-500/40 bg-green-500/10 px-2 py-1 text-[11px] font-medium text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
+                      <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="inline-flex flex-1 items-center justify-center rounded-md border border-green-500/40 bg-green-500/10 px-3 py-2 text-[11px] font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
                         {sendingLeadId === lead.id ? 'Sending...' : canSendFollowUp ? 'Send Follow-Up' : followUpDisplay.label}
                       </button>
                     </div>
