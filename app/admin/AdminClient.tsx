@@ -677,11 +677,50 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
   const [expandedLeads, setExpandedLeads] = useState<Set<string>>(new Set());
   const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
   const [leadFollowUpStatus, setLeadFollowUpStatus] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   const isLeadsView = currentStatus === 'leads';
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredLeads = normalizedSearch
+    ? localLeads.filter((lead) =>
+        [
+          lead.full_name,
+          lead.email,
+          lead.phone,
+          lead.zip_code,
+          lead.heard_about_us,
+          lead.utm_source,
+          lead.utm_campaign,
+          lead.selected_trail_type,
+          lead.selected_location_name,
+          lead.last_step_completed,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+      )
+    : localLeads;
+  const filteredBookings = normalizedSearch
+    ? localBookings.filter((booking) =>
+        [
+          booking.customer_name,
+          booking.customer_email,
+          booking.customer_phone,
+          booking.zip_code,
+          booking.marketing_source,
+          booking.location_name,
+          booking.trail_type,
+          booking.status,
+          booking.time_slot,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+      )
+    : localBookings;
   const nearestBooking = isLeadsView ? null : getNearestUpcomingBooking(localBookings);
   const selectedMobileBooking =
-    localBookings.find((booking) => booking.id === selectedMobileBookingId) ?? null;
+    filteredBookings.find((booking) => booking.id === selectedMobileBookingId) ??
+    localBookings.find((booking) => booking.id === selectedMobileBookingId) ??
+    null;
   const selectedMobileBookingRiders = selectedMobileBooking ? buildRiderDetails(selectedMobileBooking) : [];
 
   const toggleWaivers = (id: string) => {
@@ -1292,11 +1331,29 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
         </div>
 
         {/* ── LEADS VIEW ─────────────────────────────────────────────────────── */}
+        <div className="mb-4">
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.1)]">
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={
+                isLeadsView
+                  ? 'Search leads by name, email, phone, ZIP, source, trail, or location'
+                  : 'Search bookings by customer, email, phone, ZIP, trail, location, or status'
+              }
+              className="w-full rounded-xl border border-border/70 bg-background/80 px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/80 focus:border-green-500/40"
+            />
+          </div>
+        </div>
+
         {isLeadsView && (
           <>
             <div className="hidden overflow-hidden rounded-lg border border-border bg-card sm:block">
-              {localLeads.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground">No active leads.</div>
+              {filteredLeads.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  {normalizedSearch ? 'No leads match your search.' : 'No active leads.'}
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -1308,7 +1365,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {localLeads.map((lead) => {
+                      {filteredLeads.map((lead) => {
                         const followUpDisplay = getLeadFollowUpDisplay(lead);
                         const nextPending = getLeadNextPendingStep(lead);
                         const canSendFollowUp = canStartLeadFollowUp(lead);
@@ -1407,10 +1464,12 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
 
             {/* Mobile leads */}
             <div className="space-y-3 sm:hidden">
-              {localLeads.length === 0 ? (
-                <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-10 text-center text-sm text-muted-foreground">No active leads.</div>
+              {filteredLeads.length === 0 ? (
+                <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-10 text-center text-sm text-muted-foreground">
+                  {normalizedSearch ? 'No leads match your search.' : 'No active leads.'}
+                </div>
               ) : (
-                localLeads.map((lead) => {
+                filteredLeads.map((lead) => {
                   const followUpDisplay = getLeadFollowUpDisplay(lead);
                   const nextPending = getLeadNextPendingStep(lead);
                   const canSendFollowUp = canStartLeadFollowUp(lead);
@@ -1484,10 +1543,12 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
           <>
             {/* Mobile booking cards */}
             <div className="space-y-3 sm:hidden">
-              {localBookings.length === 0 ? (
-                <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-10 text-center text-sm text-muted-foreground">No bookings found.</div>
+              {filteredBookings.length === 0 ? (
+                <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-10 text-center text-sm text-muted-foreground">
+                  {normalizedSearch ? 'No bookings match your search.' : 'No bookings found.'}
+                </div>
               ) : (
-                localBookings.map((booking) => (
+                filteredBookings.map((booking) => (
                   <button
                     key={booking.id}
                     type="button"
@@ -1546,8 +1607,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
 
             {/* Desktop bookings table */}
             <div className="hidden overflow-hidden rounded-lg border border-border bg-card sm:block">
-              {localBookings.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground">No bookings found.</div>
+              {filteredBookings.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  {normalizedSearch ? 'No bookings match your search.' : 'No bookings found.'}
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -1559,7 +1622,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {localBookings.map((booking) => (
+                      {filteredBookings.map((booking) => (
                         <tr key={booking.id} className="transition-colors hover:bg-muted/30">
                           <td className="px-4 py-3">
                             <div className="font-medium text-foreground">{booking.customer_name}</div>

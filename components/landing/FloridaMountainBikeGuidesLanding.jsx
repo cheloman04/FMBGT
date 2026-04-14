@@ -97,7 +97,7 @@ const valueProps = [
     title: "Everything at the trailhead",
     text: "Quality bikes, essential gear, and a friendly local guide waiting for you when you arrive.",
     icon: Bike,
-    image: "/images/skills/skill-first-time-rider.png",
+    image: "/images/rev-pics-update/gallery-1-up.png",
     alt: "A first-time rider getting comfortable on a guided Florida trail ride",
     objectPosition: "center center",
   },
@@ -105,7 +105,7 @@ const valueProps = [
     title: "For every skill level",
     text: "From first-time riders to seasoned riders, every tour is designed to feel approachable and memorable.",
     icon: ShieldCheck,
-    image: "/images/skills/skill-beginner.png",
+    image: "/images/rev-pics-update/gallery-2-up.png",
     alt: "Beginner-friendly coaching on a welcoming mountain bike ride in Florida",
     objectPosition: "center center",
   },
@@ -121,7 +121,7 @@ const valueProps = [
     title: "Optional rider pickup",
     text: "Short on time or can't get the car? Pickup and drop-off can be arranged for added convenience.",
     icon: Route,
-    image: "/images/hero/hero-main.png",
+    image: "/images/rev-pics-update/hero-no-font.png",
     alt: "Guided rider on trail representing an easy, ready-to-go Florida bike experience",
     objectPosition: "center center",
   },
@@ -134,10 +134,10 @@ const tours = [
     description:
       "Guided mountain bike tours designed for riders of every skill level, focused on making Florida's best trails easy, fun, and unforgettable.",
     icon: Mountain,
-    duration: "2-hour guided tour",
-    price: "From $115 / rider",
+    duration: "2, 3, or 4-hour guided tours",
+    price: "From $89 / rider",
     includes: ["Bike & helmet", "Local guide", "All skill levels"],
-    points: ["Guided singletrack", "Bikes & gear included", "Beginner to advanced"],
+    points: ["Guided singletrack", "Bring your own bike or rent one", "Beginner to advanced"],
     cta: "Book a Guide",
     image: "/images/gallery/gallery-4.png",
     alt: "Group riders enjoying a guided trail experience together on a Florida mountain bike tour",
@@ -154,7 +154,7 @@ const tours = [
     includes: ["Bike & helmet", "Local guide", "All ages welcome"],
     points: ["Historic Sanford", "Blue Spring rides", "All ages & levels"],
     cta: "Book This Tour",
-    image: "/images/tours/location-spring-to-spring.png",
+    image: "/images/rev-pics-update/booking-paved-blue.png",
     alt: "Scenic paved trail ride near Florida springs with water and nature views",
     objectPosition: "center center",
   },
@@ -286,14 +286,14 @@ const galleryItems = [
   {
     title: "Mountain Bike Tours",
     category: "Singletrack",
-    image: "/images/gallery/gallery-1.png",
+    image: "/images/rev-pics-update/gallery-1-up.png",
     alt: "Mountain bikers riding a guided singletrack tour in Central Florida",
     objectPosition: "center center",
   },
   {
     title: "Scenic Paved Trails",
     category: "Riverfront",
-    image: "/images/gallery/gallery-2.png",
+    image: "/images/rev-pics-update/gallery-2-up.png",
     alt: "Relaxed scenic paved trail ride near the riverfront in Florida",
     objectPosition: "center center",
   },
@@ -307,7 +307,7 @@ const galleryItems = [
   {
     title: "Guided Ride Moments",
     category: "Experience",
-    image: "/images/gallery/gallery-4.png",
+    image: "/images/rev-pics-update/hero-no-font.png",
     alt: "Group riders enjoying a guided trail experience together",
     objectPosition: "center center",
   },
@@ -476,7 +476,7 @@ export default function FloridaMountainBikeGuidesLanding() {
         <section className="relative overflow-hidden bg-[var(--lp-bg-alt)]">
           <div className="absolute inset-0">
             <Image
-              src="/images/hero/hero-main.png"
+              src="/images/rev-pics-update/hero-no-font.png"
               alt="A guided Florida mountain bike ride with rider and bike visible on trail"
               fill
               priority
@@ -646,7 +646,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               <div className="relative overflow-hidden rounded-[2rem] border border-[var(--lp-border)] bg-[linear-gradient(135deg,rgba(31,90,67,0.16),rgba(215,195,161,0.22),rgba(255,255,255,0.55))] p-4 shadow-[0_25px_80px_rgba(16,38,29,0.12)]">
                 <div className="relative aspect-[4/5] overflow-hidden rounded-[1.5rem] border border-white/60 bg-[radial-gradient(circle_at_top,_rgba(31,90,67,0.18),_transparent_35%),linear-gradient(135deg,rgba(255,255,255,0.75),rgba(255,255,255,0.45))] p-5">
                   <Image
-                    src="/images/tours/location-downtown-sanford.png"
+                    src="/images/rev-pics-update/signature-exp-2.png"
                     alt="A relaxed guided bike ride through historic downtown Sanford"
                     fill
                     sizes="(min-width: 1024px) 34vw, 100vw"

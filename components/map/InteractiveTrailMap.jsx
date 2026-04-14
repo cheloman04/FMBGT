@@ -55,15 +55,6 @@ const LOCATIONS = [
     mapsUrl: 'https://maps.app.goo.gl/KiEEaaJXGJbDHo7r7',
   },
   {
-    id: 'soldiers-creek-b',
-    name: 'Soldiers Creek Park',
-    location: 'Longwood',
-    difficulty: 'Beginner',
-    lat: 28.6990, lng: -81.3440,
-    desc: 'Fun and approachable trails with mild technical features, ideal for improving skills while keeping the ride enjoyable.',
-    mapsUrl: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
-  },
-  {
     id: 'mount-dora',
     name: 'Mount Dora Mountain Bike Trail',
     location: 'Mount Dora',

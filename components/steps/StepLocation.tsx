@@ -61,12 +61,6 @@ const LOCATION_CONTENT: Record<string, LocationMeta> = {
       'A scenic trail through pine forest with smooth sections and gentle climbs, great for riders stepping up from beginner level.',
     mapLink: 'https://maps.app.goo.gl/KiEEaaJXGJbDHo7r7',
   },
-  'Soldiers Creek Park, Longwood': {
-    image: '/images/tours/location-soldiers-creek.png',
-    description:
-      'Fun and approachable trails with mild technical features, ideal for improving skills while keeping the ride enjoyable.',
-    mapLink: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
-  },
   'Mount Dora Mountain Bike Trail, Mount Dora': {
     image: '/images/tours/location-mount-dora-mountain-bike-trail-fl.png',
     description:

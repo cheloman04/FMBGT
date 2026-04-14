@@ -38,7 +38,6 @@ INSERT INTO locations (name, tour_type, skill_levels) VALUES
   -- MTB: Beginner
   ('Markham Woods Trail, Lake Mary',                       'mtb', ARRAY['beginner']),
   ('Little Big Econ Jones East – Snow Hill Rd, Chuluota',  'mtb', ARRAY['beginner']),
-  ('Soldiers Creek Park, Longwood',                        'mtb', ARRAY['beginner']),
   -- MTB: Intermediate
   ('Mount Dora Mountain Bike Trail, Mount Dora',           'mtb', ARRAY['intermediate']),
   ('Chuck Lennon Mountain Bike Trailhead, DeLeon Springs', 'mtb', ARRAY['intermediate']),
