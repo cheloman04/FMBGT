@@ -18,9 +18,8 @@ const HEARD_OPTIONS = [
 ] as const;
 
 export function StepLeadCapture() {
-  const { state, setCustomer, setLeadId, goNext } = useBooking();
+  const { state, setCustomer, setLeadId, setLeadSessionId, goNext } = useBooking();
 
-  // Pre-fill from existing customer state (e.g. if user goes back and returns)
   const [form, setForm] = useState({
     full_name: state.customer?.name ?? '',
     email: state.customer?.email ?? '',
@@ -33,7 +32,6 @@ export function StepLeadCapture() {
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // If a lead was already created for this session, skip re-creation and just advance
   const alreadyCaptured = !!state.lead_id;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -63,7 +61,6 @@ export function StepLeadCapture() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // If lead already exists (user went back), just advance without recreating
     if (alreadyCaptured) {
       goNext();
       return;
@@ -107,12 +104,18 @@ export function StepLeadCapture() {
         throw new Error(data.error ?? 'Could not save your info. Please try again.');
       }
 
-      // Store lead ID and customer info in booking state
       setLeadId(data.id);
+      if (data.session_id) {
+        setLeadSessionId(data.session_id);
+      }
       setCustomer(customer);
 
-      // Advance — pass stateOverride with lead_id so goNext routing sees it
-      goNext({ ...state, lead_id: data.id, customer });
+      goNext({
+        ...state,
+        lead_id: data.id,
+        lead_session_id: data.session_id ?? undefined,
+        customer,
+      });
     } catch (err) {
       setApiError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {

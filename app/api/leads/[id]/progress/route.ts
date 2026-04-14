@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import type { SkillLevel } from '@/types/booking';
 
 const ProgressSchema = z.object({
+  session_id: z.string().uuid().optional(),
   last_step_completed: z.string().max(50).optional(),
+  selected_skill_level: z.enum(['first_time', 'beginner', 'intermediate', 'advanced']).optional().nullable(),
   selected_location_name: z.string().max(200).optional().nullable(),
   selected_bike: z.string().max(20).optional().nullable(),
   selected_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
@@ -40,6 +43,9 @@ export async function PATCH(
     if (parsed.data.last_step_completed) {
       update.last_step_completed = parsed.data.last_step_completed;
     }
+    if (parsed.data.selected_skill_level !== undefined) {
+      update.selected_skill_level = parsed.data.selected_skill_level as SkillLevel | null;
+    }
     if (parsed.data.selected_location_name !== undefined) {
       update.selected_location_name = parsed.data.selected_location_name;
     }
@@ -68,6 +74,13 @@ export async function PATCH(
     if (error) {
       console.error(`[leads] Failed to update progress for lead ${id}:`, error.message);
       // Return 200 anyway — progress updates are best-effort, never block the user
+    }
+
+    if (parsed.data.session_id) {
+      // Keep the active booking session warm while the user is still in the flow.
+      // Session lifecycle decides abandonment; lead capture alone does not.
+      const { touchLeadBookingSession } = await import('@/lib/lead-sessions');
+      await touchLeadBookingSession(id, parsed.data.session_id);
     }
 
     return NextResponse.json({ ok: true });

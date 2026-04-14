@@ -80,7 +80,10 @@ export function StepPayment() {
       fetch(`/api/leads/${state.lead_id}/progress`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ last_step_completed: 'payment_started' }),
+        body: JSON.stringify({
+          session_id: state.lead_session_id,
+          last_step_completed: 'payment_started',
+        }),
       }).catch(() => {});
     }
 

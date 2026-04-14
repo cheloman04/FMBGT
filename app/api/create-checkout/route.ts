@@ -4,6 +4,7 @@ import { createCheckoutSession, createStripeCustomer, getStripeCustomer } from '
 import { validateBookingInventory } from '@/lib/inventory';
 import { calculatePriceBreakdown } from '@/lib/pricing';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { markLeadSessionCheckoutStarted } from '@/lib/lead-sessions';
 import type { BookingState, TrailType } from '@/types/booking';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
@@ -42,6 +43,7 @@ const BookingStateSchema = z.object({
     marketing_source: z.string().max(50).optional(),
   }),
   lead_id: z.string().uuid().optional(),
+  lead_session_id: z.string().uuid().optional(),
 });
 
 // Max participants per paved location
@@ -334,6 +336,7 @@ export async function POST(req: NextRequest) {
         zip_code: state.customer.zip_code ?? null,
         marketing_source: state.customer.marketing_source ?? null,
         lead_id: state.lead_id ?? null,
+        booking_session_id: state.lead_session_id ?? null,
       })
       .select('id')
       .single();
@@ -370,6 +373,10 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       .update({ stripe_session_id: session.id })
       .eq('id', booking.id);
+
+    if (state.lead_id && state.lead_session_id) {
+      await markLeadSessionCheckoutStarted(state.lead_id, state.lead_session_id);
+    }
 
     return NextResponse.json({
       checkout_url: session.url,

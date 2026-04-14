@@ -4,7 +4,9 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
+import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
 import { getBookingLocationMeta } from '@/lib/location-meta';
+import { confirmLeadSessionAbandoned, markLeadSessionConverted } from '@/lib/lead-sessions';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -111,11 +113,12 @@ export async function POST(req: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: bookingLeadRow } = await (supabase as any)
           .from('bookings')
-          .select('lead_id')
+          .select('lead_id, booking_session_id')
           .eq('id', bookingId)
           .single();
 
         const leadId = (bookingLeadRow as { lead_id?: string } | null)?.lead_id;
+        const bookingSessionId = (bookingLeadRow as { booking_session_id?: string } | null)?.booking_session_id;
         if (leadId) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error: leadConvertErr } = await (supabase as any)
@@ -123,6 +126,7 @@ export async function POST(req: NextRequest) {
             .update({
               status: 'converted',
               booking_id: bookingId,
+              converted_at: new Date().toISOString(),
               last_step_completed: 'booking_confirmed',
               last_activity_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
@@ -134,6 +138,14 @@ export async function POST(req: NextRequest) {
           } else {
             console.log(`[stripe-webhook] Lead ${leadId} converted → booking ${bookingId}`);
           }
+        }
+
+        if (leadId) {
+          await cancelActiveFollowUpForConversion(leadId);
+        }
+
+        if (bookingSessionId) {
+          await markLeadSessionConverted(bookingSessionId);
         }
 
         // Fetch full booking for Cal.com + n8n
@@ -325,6 +337,15 @@ export async function POST(req: NextRequest) {
         const bookingId = session.metadata?.booking_id;
         if (!bookingId) break;
 
+        const { data: bookingLeadRow } = await (supabase as any)
+          .from('bookings')
+          .select('lead_id, booking_session_id')
+          .eq('id', bookingId)
+          .single();
+
+        const expiredLeadId = (bookingLeadRow as { lead_id?: string } | null)?.lead_id;
+        const expiredSessionId = (bookingLeadRow as { booking_session_id?: string } | null)?.booking_session_id;
+
         const { error: updateError } = await supabase
           .from('bookings')
           .update({ status: 'cancelled' })
@@ -334,6 +355,15 @@ export async function POST(req: NextRequest) {
         if (updateError) {
           console.error(`[stripe-webhook] Failed to cancel booking ${bookingId}:`, updateError);
           throw updateError;
+        }
+
+        if (expiredLeadId && expiredSessionId) {
+          await confirmLeadSessionAbandoned({
+            leadId: expiredLeadId,
+            sessionId: expiredSessionId,
+            reason: 'checkout_expired',
+            allowedStatuses: ['checkout_started'],
+          });
         }
 
         console.log(`[stripe-webhook] Booking ${bookingId} cancelled (session expired)`);

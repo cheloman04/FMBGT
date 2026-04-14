@@ -1,8 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import Image from 'next/image';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import {
+  getBookingProgressMeta,
+  PERSISTED_STEP_LABELS,
+} from '@/lib/booking-flow-progress';
+import type { SkillLevel, TrailType } from '@/types/booking';
 
 interface WaiverRecord {
   id: string;
@@ -24,6 +29,9 @@ interface Booking {
   time_slot: string;
   duration_hours: number;
   bike_rental: string;
+  rider_height_inches: number | null;
+  participant_count: number | null;
+  participant_info: AdditionalParticipant[] | null;
   total_price: number;
   status: string;
   created_at: string;
@@ -42,6 +50,21 @@ interface Booking {
   stripe_payment_method_id: string | null;
 }
 
+interface AdditionalParticipant {
+  name: string;
+  bike_rental?: string;
+  height_inches?: number;
+}
+
+interface RiderDetail {
+  id: string;
+  label: string;
+  name: string;
+  bikeLabel: string;
+  heightLabel: string;
+  needsSizing: boolean;
+}
+
 interface Lead {
   id: string;
   full_name: string;
@@ -49,16 +72,61 @@ interface Lead {
   phone: string | null;
   zip_code: string | null;
   heard_about_us: string | null;
-  selected_trail_type: string | null;
+  selected_trail_type: TrailType | null;
+  selected_skill_level?: SkillLevel | null;
   selected_location_name: string | null;
+  selected_bike: string | null;
+  selected_date: string | null;
+  selected_time_slot: string | null;
+  selected_duration_hours: number | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
   last_step_completed: string | null;
   last_activity_at: string;
   status: string;
   created_at: string;
   booking_id: string | null;
+  converted_at?: string | null;
+  lost_at?: string | null;
+  followup_enrollment?: LeadFollowUpEnrollment | null;
+  followup_steps?: LeadFollowUpStep[];
+}
+
+interface LeadFollowUpEnrollment {
+  id: string;
+  lead_id: string;
+  trail_type: string;
+  sequence_key: string;
+  status: string;
+  enrolled_at: string;
+  next_step_due_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  lost_at: string | null;
+  stop_reason: string | null;
+  webhook_triggered_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface LeadFollowUpStep {
+  id: string;
+  enrollment_id: string;
+  step_number: number;
+  step_key: string;
+  scheduled_for: string;
+  sent_at: string | null;
+  status: string;
+  channel: string;
+  template_key: string;
+  skipped_at: string | null;
+  cancelled_at: string | null;
+  skip_reason: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Stats {
@@ -97,16 +165,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STEP_LABELS: Record<string, string> = {
-  lead_captured: 'Lead captured',
-  skill_selected: 'Skill selected',
-  location_selected: 'Location selected',
-  bike_selected: 'Bike selected',
-  date_selected: 'Date selected',
-  duration_selected: 'Duration selected',
+  ...PERSISTED_STEP_LABELS,
   addons_selected: 'Add-ons viewed',
   waiver_completed: 'Waiver signed',
-  payment_started: 'Payment started',
-  booking_confirmed: 'Booking confirmed',
 };
 
 function formatPrice(cents: number) {
@@ -159,6 +220,124 @@ function LeadFreshness({ lastActivityAt }: { lastActivityAt: string }) {
   return null;
 }
 
+function getLeadBookingProgress(lead: Lead) {
+  return getBookingProgressMeta({
+    trailType: lead.selected_trail_type,
+    skillLevel: lead.selected_skill_level ?? null,
+    lastStepCompleted: lead.last_step_completed,
+    isCompleted: lead.status === 'converted' || !!lead.converted_at || !!lead.booking_id,
+  });
+}
+
+function LeadProgressBar({ lead }: { lead: Lead }) {
+  const progress = getLeadBookingProgress(lead);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium text-foreground">
+          {progress.percent}% complete
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          {progress.totalSteps > 0
+            ? `${progress.completedSteps}/${progress.totalSteps} steps`
+            : 'No flow data'}
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-muted/80">
+        <div
+          className="h-full rounded-full bg-green-600 transition-all duration-300"
+          style={{ width: `${progress.percent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function formatStepKey(stepKey: string): string {
+  if (stepKey === '1_hour') return '1 hour';
+  if (stepKey === '1_day') return '1 day';
+  if (stepKey === '1_week') return '1 week';
+  return stepKey;
+}
+
+function getLeadFollowUpDisplay(lead: Lead): {
+  label: string;
+  badgeClass: string;
+  detail: string;
+} {
+  if (lead.status === 'converted' || lead.converted_at || lead.booking_id) {
+    return {
+      label: 'Converted',
+      badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+      detail: 'Lead converted to booking',
+    };
+  }
+
+  if (lead.status === 'lost' || lead.lost_at) {
+    return {
+      label: 'Lost',
+      badgeClass: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+      detail: lead.followup_enrollment?.lost_at
+        ? `Lost ${formatDateTime(lead.followup_enrollment.lost_at)}`
+        : 'Sequence exhausted without conversion',
+    };
+  }
+
+  const enrollment = lead.followup_enrollment;
+  if (!enrollment) {
+    return {
+      label: 'Not started',
+      badgeClass: 'bg-muted text-muted-foreground',
+      detail: 'Manual follow-up has not been started',
+    };
+  }
+
+  const sentSteps = (lead.followup_steps ?? []).filter((step) => step.status === 'sent');
+  const nextPending = (lead.followup_steps ?? []).find((step) => step.status === 'pending');
+
+  if (enrollment.status === 'active') {
+    return {
+      label: enrollment.webhook_triggered_at ? 'Active' : 'Enrolled',
+      badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+      detail: nextPending
+        ? `Next ${formatStepKey(nextPending.step_key)} due ${formatDateTime(nextPending.scheduled_for)}`
+        : sentSteps.length > 0
+          ? `Last sent ${formatStepKey(sentSteps[sentSteps.length - 1]!.step_key)}`
+          : `Enrolled ${formatDateTime(enrollment.enrolled_at)}`,
+    };
+  }
+
+  if (enrollment.status === 'cancelled') {
+    return {
+      label: 'Stopped',
+      badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+      detail: enrollment.stop_reason ?? 'Follow-up cancelled',
+    };
+  }
+
+  return {
+    label: enrollment.status,
+    badgeClass: 'bg-muted text-muted-foreground',
+    detail: enrollment.sequence_key,
+  };
+}
+
+function getLeadNextPendingStep(lead: Lead): LeadFollowUpStep | null {
+  return (lead.followup_steps ?? []).find((step) => step.status === 'pending') ?? null;
+}
+
+function getLeadLastSentStep(lead: Lead): LeadFollowUpStep | null {
+  const sentSteps = (lead.followup_steps ?? []).filter((step) => step.status === 'sent');
+  return sentSteps.length > 0 ? sentSteps[sentSteps.length - 1] ?? null : null;
+}
+
+function canStartLeadFollowUp(lead: Lead): boolean {
+  if (lead.status === 'converted' || lead.converted_at || lead.booking_id) return false;
+  if (lead.status === 'lost' || lead.lost_at) return false;
+  return lead.followup_enrollment?.status !== 'active';
+}
+
 function getBookingStart(booking: Booking) {
   return new Date(`${booking.date}T${booking.time_slot || '00:00'}:00`);
 }
@@ -203,6 +382,96 @@ function BalanceBadge({
     return <span className="text-xs text-muted-foreground">Balance waived</span>;
   }
   return null;
+}
+
+function formatBikeLabel(bikeRental: string | null | undefined): string {
+  if (!bikeRental || bikeRental === 'none') return 'BYOB';
+  if (bikeRental === 'electric') return 'E-Bike';
+  return 'Regular Bike';
+}
+
+function formatHeightLabel(heightInches: number | null | undefined): string {
+  if (!heightInches) return 'Size missing';
+  return `${heightInches}"`;
+}
+
+function buildRiderDetails(booking: Booking): RiderDetail[] {
+  const riders: RiderDetail[] = [
+    {
+      id: `${booking.id}-lead`,
+      label: 'Lead Rider',
+      name: booking.customer_name,
+      bikeLabel: formatBikeLabel(booking.bike_rental),
+      heightLabel: formatHeightLabel(booking.rider_height_inches),
+      needsSizing: booking.bike_rental !== 'none' && !booking.rider_height_inches,
+    },
+  ];
+
+  for (const [index, participant] of (booking.participant_info ?? []).entries()) {
+    riders.push({
+      id: `${booking.id}-participant-${index}`,
+      label: `Rider ${index + 2}`,
+      name: participant.name || `Rider ${index + 2}`,
+      bikeLabel: formatBikeLabel(participant.bike_rental),
+      heightLabel: formatHeightLabel(participant.height_inches),
+      needsSizing: participant.bike_rental !== 'none' && !participant.height_inches,
+    });
+  }
+
+  return riders;
+}
+
+function summarizeBikeMix(riders: RiderDetail[]): string {
+  const counts = riders.reduce<Record<string, number>>((acc, rider) => {
+    acc[rider.bikeLabel] = (acc[rider.bikeLabel] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(counts)
+    .map(([label, count]) => `${count} ${label}`)
+    .join(' · ');
+}
+
+function RidersPanel({ riders }: { riders: RiderDetail[] }) {
+  const missingCount = riders.filter((rider) => rider.needsSizing).length;
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-border/70 bg-card/70 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Riders & Bike Sizing</p>
+          <p className="mt-1 text-sm text-muted-foreground">{summarizeBikeMix(riders)}</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${missingCount > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'}`}>
+          {missingCount > 0 ? `${missingCount} size missing` : 'Sizing ready'}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {riders.map((rider) => (
+          <div key={rider.id} className="rounded-xl border border-border bg-background/80 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{rider.label}</p>
+                <p className="truncate text-sm font-semibold text-foreground">{rider.name}</p>
+              </div>
+              {rider.needsSizing && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                  Needs size
+                </span>
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">{rider.bikeLabel}</span>
+              <span className={`rounded-full px-2 py-1 text-[11px] ${rider.needsSizing ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-muted text-muted-foreground'}`}>
+                Height {rider.heightLabel}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function WaiverBadge({ records }: { records: WaiverRecord[] }) {
@@ -257,6 +526,134 @@ function WaiverPanel({ records }: { records: WaiverRecord[] }) {
   );
 }
 
+function getLeadIntentSummary(lead: Lead): string[] {
+  const summary: string[] = [];
+  if (lead.selected_trail_type) summary.push(lead.selected_trail_type === 'mtb' ? 'Mountain Bike' : 'Paved Trail');
+  if (lead.selected_location_name) summary.push(lead.selected_location_name);
+  if (lead.selected_bike) summary.push(`Bike: ${formatBikeLabel(lead.selected_bike)}`);
+  if (lead.selected_date) summary.push(`Date: ${formatDate(lead.selected_date)}`);
+  if (lead.selected_time_slot) summary.push(`Time: ${lead.selected_time_slot}`);
+  if (lead.selected_duration_hours) summary.push(`Duration: ${lead.selected_duration_hours}h`);
+  return summary;
+}
+
+function LeadDetailPanel({ lead }: { lead: Lead }) {
+  const intentSummary = getLeadIntentSummary(lead);
+  const followUpDisplay = getLeadFollowUpDisplay(lead);
+  const nextPending = getLeadNextPendingStep(lead);
+  const lastSent = getLeadLastSentStep(lead);
+  const bookingProgress = getLeadBookingProgress(lead);
+
+  return (
+    <div className="space-y-4 rounded-2xl border border-border/70 bg-background/70 p-4">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card/70 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Contact</p>
+          <div className="mt-2 space-y-1 text-sm">
+            <p className="font-semibold text-foreground">{lead.full_name}</p>
+            <p className="text-muted-foreground">{lead.email}</p>
+            {lead.phone && <p className="text-muted-foreground">{lead.phone}</p>}
+            {lead.zip_code && <p className="text-muted-foreground">ZIP {lead.zip_code}</p>}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card/70 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Booking Intent</p>
+          <div className="mt-2 space-y-1 text-sm">
+            {intentSummary.length > 0 ? (
+              intentSummary.map((item) => (
+                <p key={item} className="text-foreground">{item}</p>
+              ))
+            ) : (
+              <p className="text-muted-foreground">Only contact info captured so far.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card/70 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Attribution</p>
+          <div className="mt-2 space-y-1 text-sm">
+            {lead.heard_about_us && <p className="text-foreground">Heard about us: {lead.heard_about_us}</p>}
+            {lead.utm_source && <p className="text-foreground">UTM Source: {lead.utm_source}</p>}
+            {lead.utm_medium && <p className="text-foreground">UTM Medium: {lead.utm_medium}</p>}
+            {lead.utm_campaign && <p className="text-foreground">UTM Campaign: {lead.utm_campaign}</p>}
+            {lead.utm_content && <p className="text-foreground">UTM Content: {lead.utm_content}</p>}
+            {lead.utm_term && <p className="text-foreground">UTM Term: {lead.utm_term}</p>}
+            {!lead.heard_about_us && !lead.utm_source && <p className="text-muted-foreground">No attribution data captured.</p>}
+          </div>
+        </div>
+        <div className="mt-4 rounded-xl border border-border bg-background/80 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Booking Progress</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {bookingProgress.totalSteps > 0
+                  ? `${bookingProgress.completedSteps} of ${bookingProgress.totalSteps} real flow steps completed`
+                  : 'Waiting for enough booking data to calculate progress'}
+              </p>
+            </div>
+            <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
+              {bookingProgress.percent}%
+            </span>
+          </div>
+          <div className="mt-3">
+            <LeadProgressBar lead={lead} />
+          </div>
+        </div>
+        <div className="mt-4 rounded-xl border border-border bg-background/80 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Booking Progress</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {bookingProgress.totalSteps > 0
+                  ? `${bookingProgress.completedSteps} of ${bookingProgress.totalSteps} real flow steps completed`
+                  : 'Waiting for enough booking data to calculate progress'}
+              </p>
+            </div>
+            <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-300">
+              {bookingProgress.percent}%
+            </span>
+          </div>
+          <div className="mt-3">
+            <LeadProgressBar lead={lead} />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card/70 p-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Follow-Up Context</p>
+        <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">Follow-up status</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${followUpDisplay.badgeClass}`}>
+                {followUpDisplay.label}
+              </span>
+              <span className="text-sm text-muted-foreground">{followUpDisplay.detail}</span>
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">Enrolled at</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {lead.followup_enrollment?.enrolled_at
+                ? formatDateTime(lead.followup_enrollment.enrolled_at)
+                : 'Not enrolled'}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">Last completed step</p>
+            <p className="mt-1 text-sm text-muted-foreground">{lead.last_step_completed ? (STEP_LABELS[lead.last_step_completed] ?? lead.last_step_completed) : 'Unknown'}</p>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">Last active</p>
+            <p className="mt-1 text-sm text-muted-foreground">{timeAgo(lead.last_activity_at)} · {formatDateTime(lead.last_activity_at)}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -265,13 +662,18 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
   const [isNextBookingExpanded, setIsNextBookingExpanded] = useState(false);
   const [selectedMobileBookingId, setSelectedMobileBookingId] = useState<string | null>(null);
   const [localBookings, setLocalBookings] = useState(bookings);
+  const [localLeads, setLocalLeads] = useState(leads);
   const [expandedWaivers, setExpandedWaivers] = useState<Set<string>>(new Set());
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
+  const [expandedLeads, setExpandedLeads] = useState<Set<string>>(new Set());
+  const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
+  const [leadFollowUpStatus, setLeadFollowUpStatus] = useState<Record<string, string>>({});
 
   const isLeadsView = currentStatus === 'leads';
   const nearestBooking = isLeadsView ? null : getNearestUpcomingBooking(localBookings);
   const selectedMobileBooking =
     localBookings.find((booking) => booking.id === selectedMobileBookingId) ?? null;
+  const selectedMobileBookingRiders = selectedMobileBooking ? buildRiderDetails(selectedMobileBooking) : [];
 
   const toggleWaivers = (id: string) => {
     setExpandedWaivers((prev) => {
@@ -279,6 +681,125 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  const toggleLead = (id: string) => {
+    setExpandedLeads((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleSendLeadFollowUp = async (leadId: string) => {
+    setSendingLeadId(leadId);
+    setLeadFollowUpStatus((prev) => ({ ...prev, [leadId]: '' }));
+    try {
+      const res = await fetch('/api/admin/send-lead-follow-up', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const nowIso = new Date().toISOString();
+        const oneHourIso = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+        const oneDayIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        const oneWeekIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        setLeadFollowUpStatus((prev) => ({
+          ...prev,
+          [leadId]: data.already_active ? 'Follow-up already active' : 'Follow-up enrolled',
+        }));
+        setLocalLeads((prev) =>
+          prev.map((lead) =>
+            lead.id === leadId
+              ? {
+                  ...lead,
+                  followup_enrollment: {
+                    ...(lead.followup_enrollment ?? {
+                      id: data.enrollment_id,
+                      lead_id: lead.id,
+                      trail_type: lead.selected_trail_type ?? 'mtb',
+                      sequence_key: 'default_lead_recovery',
+                      status: 'active',
+                      enrolled_at: new Date().toISOString(),
+                      next_step_due_at: null,
+                      completed_at: null,
+                      cancelled_at: null,
+                      lost_at: null,
+                      stop_reason: null,
+                      webhook_triggered_at: nowIso,
+                      created_at: nowIso,
+                      updated_at: nowIso,
+                    }),
+                    status: 'active',
+                    next_step_due_at: lead.followup_enrollment?.next_step_due_at ?? oneHourIso,
+                    webhook_triggered_at: lead.followup_enrollment?.webhook_triggered_at ?? nowIso,
+                    updated_at: nowIso,
+                  },
+                  followup_steps:
+                    lead.followup_steps && lead.followup_steps.length > 0
+                      ? lead.followup_steps
+                      : [
+                          {
+                            id: `${data.enrollment_id}-1-hour`,
+                            enrollment_id: data.enrollment_id,
+                            step_number: 1,
+                            step_key: '1_hour',
+                            scheduled_for: oneHourIso,
+                            sent_at: null,
+                            status: 'pending',
+                            channel: 'email',
+                            template_key: `${lead.selected_trail_type ?? 'mtb'}_1_hour`,
+                            skipped_at: null,
+                            cancelled_at: null,
+                            skip_reason: null,
+                            created_at: nowIso,
+                            updated_at: nowIso,
+                          },
+                          {
+                            id: `${data.enrollment_id}-1-day`,
+                            enrollment_id: data.enrollment_id,
+                            step_number: 2,
+                            step_key: '1_day',
+                            scheduled_for: oneDayIso,
+                            sent_at: null,
+                            status: 'pending',
+                            channel: 'email',
+                            template_key: `${lead.selected_trail_type ?? 'mtb'}_1_day`,
+                            skipped_at: null,
+                            cancelled_at: null,
+                            skip_reason: null,
+                            created_at: nowIso,
+                            updated_at: nowIso,
+                          },
+                          {
+                            id: `${data.enrollment_id}-1-week`,
+                            enrollment_id: data.enrollment_id,
+                            step_number: 3,
+                            step_key: '1_week',
+                            scheduled_for: oneWeekIso,
+                            sent_at: null,
+                            status: 'pending',
+                            channel: 'email',
+                            template_key: `${lead.selected_trail_type ?? 'mtb'}_1_week`,
+                            skipped_at: null,
+                            cancelled_at: null,
+                            skip_reason: null,
+                            created_at: nowIso,
+                            updated_at: nowIso,
+                          },
+                        ],
+                }
+              : lead
+          )
+        );
+      } else {
+        setLeadFollowUpStatus((prev) => ({ ...prev, [leadId]: data.error ?? 'Failed to send' }));
+      }
+    } finally {
+      setSendingLeadId(null);
+    }
   };
 
   const handleStatusChange = async (bookingId: string, newStatus: string) => {
@@ -486,7 +1007,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                     <div className="space-y-1">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Ride</p>
                       <p className="text-sm leading-5 text-foreground">{selectedMobileBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {selectedMobileBooking.duration_hours}hr</p>
-                      <p className="text-sm text-muted-foreground">{selectedMobileBooking.bike_rental && selectedMobileBooking.bike_rental !== 'none' ? selectedMobileBooking.bike_rental : 'BYOB'}</p>
+                      <p className="text-sm text-muted-foreground">{summarizeBikeMix(selectedMobileBookingRiders)}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Date</p>
@@ -498,6 +1019,8 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       <p className="text-base font-semibold text-foreground">{formatPrice(selectedMobileBooking.total_price)}</p>
                     </div>
                   </div>
+
+                  <RidersPanel riders={selectedMobileBookingRiders} />
 
                   <div className="space-y-2 rounded-2xl border border-border/70 bg-card/70 p-4">
                     <div className="flex items-center justify-between">
@@ -553,6 +1076,8 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       </button>
                     </div>
                   </div>
+
+                  <RidersPanel riders={selectedMobileBookingRiders} />
 
                   <div className="space-y-2 rounded-2xl border border-border/70 bg-card/70 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -699,21 +1224,27 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
         {isLeadsView && (
           <>
             <div className="hidden overflow-hidden rounded-lg border border-border bg-card sm:block">
-              {leads.length === 0 ? (
+              {localLeads.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">No active leads.</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="border-b border-border bg-muted/50">
                       <tr>
-                        {['Contact', 'Trail', 'Source', 'Funnel Stage', 'Last Active', 'Created'].map((h) => (
+                        {['Contact', 'Trail', 'Source', 'Funnel Stage', 'Follow-Up', 'Last Active', 'Actions', 'Created'].map((h) => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {leads.map((lead) => (
-                        <tr key={lead.id} className="transition-colors hover:bg-muted/30">
+                      {localLeads.map((lead) => {
+                        const followUpDisplay = getLeadFollowUpDisplay(lead);
+                        const nextPending = getLeadNextPendingStep(lead);
+                        const canSendFollowUp = canStartLeadFollowUp(lead);
+
+                        return (
+                        <Fragment key={lead.id}>
+                        <tr className="transition-colors hover:bg-muted/30">
                           <td className="px-4 py-3">
                             <div className="font-medium text-foreground">{lead.full_name}</div>
                             <div className="text-xs text-muted-foreground">{lead.email}</div>
@@ -751,14 +1282,46 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                             )}
                           </td>
                           <td className="px-4 py-3">
+                            <div className="space-y-1.5">
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${followUpDisplay.badgeClass}`}>
+                                {followUpDisplay.label}
+                              </span>
+                              <p className="max-w-[190px] text-xs text-muted-foreground">
+                                {nextPending
+                                  ? `Next ${formatStepKey(nextPending.step_key)} ${formatDateTime(nextPending.scheduled_for)}`
+                                  : followUpDisplay.detail}
+                              </p>
+                              <LeadProgressBar lead={lead} />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">{timeAgo(lead.last_activity_at)}</span>
                               <LeadFreshness lastActivityAt={lead.last_activity_at} />
                             </div>
                           </td>
+                          <td className="px-4 py-3">
+                            <div className="space-y-2">
+                              <button onClick={() => toggleLead(lead.id)} className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted">
+                                {expandedLeads.has(lead.id) ? 'Hide details' : 'View details'}
+                              </button>
+                              <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="rounded border border-green-500/40 bg-green-500/10 px-2 py-1 text-xs font-medium text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
+                                {sendingLeadId === lead.id ? 'Sending...' : canSendFollowUp ? 'Send Follow-Up' : followUpDisplay.label}
+                              </button>
+                              {leadFollowUpStatus[lead.id] && <p className="text-xs text-muted-foreground">{leadFollowUpStatus[lead.id]}</p>}
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(lead.created_at)}</td>
                         </tr>
-                      ))}
+                        {expandedLeads.has(lead.id) && (
+                          <tr className="bg-muted/10">
+                            <td colSpan={8} className="px-4 py-4">
+                              <LeadDetailPanel lead={lead} />
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
+                      )})}
                     </tbody>
                   </table>
                 </div>
@@ -767,10 +1330,15 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
 
             {/* Mobile leads */}
             <div className="space-y-3 sm:hidden">
-              {leads.length === 0 ? (
+              {localLeads.length === 0 ? (
                 <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-10 text-center text-sm text-muted-foreground">No active leads.</div>
               ) : (
-                leads.map((lead) => (
+                localLeads.map((lead) => {
+                  const followUpDisplay = getLeadFollowUpDisplay(lead);
+                  const nextPending = getLeadNextPendingStep(lead);
+                  const canSendFollowUp = canStartLeadFollowUp(lead);
+
+                  return (
                   <div key={lead.id} className="rounded-2xl border border-border/80 bg-card/95 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -787,6 +1355,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {lead.heard_about_us && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{lead.heard_about_us}</span>}
                       {lead.utm_source && <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{lead.utm_source}</span>}
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${followUpDisplay.badgeClass}`}>
+                        {followUpDisplay.label}
+                      </span>
                     </div>
                     <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2">
                       {lead.last_step_completed ? (
@@ -794,8 +1365,30 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       ) : <span />}
                       <span className="text-[11px] text-muted-foreground">{timeAgo(lead.last_activity_at)}</span>
                     </div>
+                    <div className="mt-2">
+                      <LeadProgressBar lead={lead} />
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      {nextPending
+                        ? `Next ${formatStepKey(nextPending.step_key)} ${formatDateTime(nextPending.scheduled_for)}`
+                        : followUpDisplay.detail}
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button onClick={() => toggleLead(lead.id)} className="rounded border border-border bg-background px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-muted">
+                        {expandedLeads.has(lead.id) ? 'Hide details' : 'View details'}
+                      </button>
+                      <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="rounded border border-green-500/40 bg-green-500/10 px-2 py-1 text-[11px] font-medium text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
+                        {sendingLeadId === lead.id ? 'Sending...' : canSendFollowUp ? 'Send Follow-Up' : followUpDisplay.label}
+                      </button>
+                    </div>
+                    {leadFollowUpStatus[lead.id] && <p className="mt-2 text-[11px] text-muted-foreground">{leadFollowUpStatus[lead.id]}</p>}
+                    {expandedLeads.has(lead.id) && (
+                      <div className="mt-3">
+                        <LeadDetailPanel lead={lead} />
+                      </div>
+                    )}
                   </div>
-                ))
+                )})
               )}
             </div>
             <p className="mt-4 text-center text-xs text-muted-foreground">Showing up to 100 most recent leads</p>
@@ -832,8 +1425,14 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                           <span>·</span>
                           <span>{booking.duration_hours}hr</span>
                           <span>·</span>
-                          <span>{booking.bike_rental && booking.bike_rental !== 'none' ? booking.bike_rental : 'BYOB'}</span>
                         </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {(() => {
+                            const riders = buildRiderDetails(booking);
+                            const missingCount = riders.filter((rider) => rider.needsSizing).length;
+                            return `${summarizeBikeMix(riders)} · ${riders.length} rider${riders.length > 1 ? 's' : ''}${missingCount > 0 ? ` · ${missingCount} size missing` : ''}`;
+                          })()}
+                        </p>
                       </div>
                       <div className="space-y-2 text-right">
                         <p className="text-sm font-semibold text-foreground">{formatPrice(booking.total_price)}</p>
@@ -870,7 +1469,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                   <table className="w-full text-sm">
                     <thead className="border-b border-border bg-muted/50">
                       <tr>
-                        {['Customer', 'Location', 'Date', 'Tour', 'Payment', 'Waivers', 'Status', 'Actions'].map((h) => (
+                        {['Customer', 'Location', 'Date', 'Riders & Bikes', 'Payment', 'Waivers', 'Status', 'Actions'].map((h) => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
                         ))}
                       </tr>
@@ -891,7 +1490,35 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                           </td>
                           <td className="px-4 py-3 text-foreground/80">{booking.location_name}</td>
                           <td className="px-4 py-3 text-foreground/80"><div>{formatDate(booking.date)}</div><div className="text-xs text-muted-foreground">{booking.time_slot}</div></td>
-                          <td className="px-4 py-3 text-foreground/80"><div>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'}</div><div className="text-xs text-muted-foreground">{booking.duration_hours}h · {booking.bike_rental}</div></td>
+                          <td className="px-4 py-3 text-foreground/80">
+                            <div className="flex items-center gap-2">
+                              <span>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {booking.duration_hours}h</span>
+                              {(() => {
+                                const riders = buildRiderDetails(booking);
+                                const missingCount = riders.filter((rider) => rider.needsSizing).length;
+                                return (
+                                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${missingCount > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'}`}>
+                                    {missingCount > 0 ? `${missingCount} size missing` : 'Sizing ready'}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {summarizeBikeMix(buildRiderDetails(booking))}
+                            </div>
+                            <div className="mt-2 space-y-1">
+                              {buildRiderDetails(booking).map((rider) => (
+                                <div key={rider.id} className="flex flex-wrap items-center gap-1.5 text-xs">
+                                  <span className="font-medium text-foreground">{rider.label}:</span>
+                                  <span className="text-foreground/80">{rider.name}</span>
+                                  <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">{rider.bikeLabel}</span>
+                                  <span className={`rounded px-1.5 py-0.5 ${rider.needsSizing ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-muted text-muted-foreground'}`}>
+                                    Height {rider.heightLabel}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
                           <td className="px-4 py-3">
                             <div className="font-medium text-foreground">{formatPrice(booking.total_price)}</div>
                             {booking.deposit_amount && <div className="mt-0.5 text-xs text-muted-foreground">Deposit: {formatPrice(booking.deposit_amount)}</div>}

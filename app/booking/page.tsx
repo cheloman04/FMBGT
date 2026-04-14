@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useBooking } from '@/context/BookingContext';
 import { StepTrail } from '@/components/steps/StepTrail';
 import { StepLeadCapture } from '@/components/steps/StepLeadCapture';
@@ -28,17 +28,19 @@ const STEP_COMPONENTS: Record<StepId, ComponentType> = {
   payment: StepPayment,
 };
 
-// UTM params to capture silently from the URL
 const UTM_PARAMS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'] as const;
+const SESSION_ACTIVITY_PING_MS = 30_000;
+const SESSION_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+const EXIT_TRACKING_ARM_DELAY_MS = 1_500;
 
 export default function BookingPage() {
-  const { currentStepId, state, setUtm } = useBooking();
+  const { currentStepId, state, setLeadSessionId, setUtm } = useBooking();
   const [mounted, setMounted] = useState(false);
+  const exitTrackingArmedRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
 
-    // Capture UTM params from the URL on first entry, but only if not already stored
     const hasUtm = state.utm_source || state.utm_medium || state.utm_campaign;
     if (!hasUtm) {
       const params = new URLSearchParams(window.location.search);
@@ -56,9 +58,165 @@ export default function BookingPage() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || !state.lead_id) return;
+
+    let cancelled = false;
+
+    const ensureSession = async () => {
+      try {
+        const res = await fetch(`/api/leads/${state.lead_id}/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            current_session_id: state.lead_session_id ?? null,
+          }),
+        });
+
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.session_id && data.session_id !== state.lead_session_id) {
+          setLeadSessionId(data.session_id);
+        }
+      } catch {
+        // Best-effort only; the booking flow should keep working
+      }
+    };
+
+    void ensureSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, state.lead_id, state.lead_session_id, setLeadSessionId]);
+
+  useEffect(() => {
+    if (!mounted || !state.lead_id || !state.lead_session_id) return;
+
+    let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+    let abandonSignaled = false;
+
+    const abandonUrl = `/api/leads/${state.lead_id}/abandon`;
+
+    const ensureFreshSession = async () => {
+      try {
+        const res = await fetch(`/api/leads/${state.lead_id}/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            current_session_id: state.lead_session_id,
+          }),
+        });
+
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.session_id && data.session_id !== state.lead_session_id) {
+          abandonSignaled = false;
+          setLeadSessionId(data.session_id);
+        }
+      } catch {
+        // Ignore session recovery failures
+      }
+    };
+
+    const sendAbandonSignal = (reason: 'page_exit' | 'inactivity_timeout') => {
+      if (abandonSignaled) return;
+      abandonSignaled = true;
+
+      const payload = JSON.stringify({
+        session_id: state.lead_session_id,
+        reason,
+      });
+
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(
+          abandonUrl,
+          new Blob([payload], { type: 'application/json' })
+        );
+        return;
+      }
+
+      fetch(abandonUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    const touchSession = () => {
+      fetch(`/api/leads/${state.lead_id}/progress`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: state.lead_session_id,
+        }),
+      }).catch(() => {});
+    };
+
+    const scheduleHeartbeat = () => {
+      if (heartbeatTimer) clearTimeout(heartbeatTimer);
+      heartbeatTimer = setTimeout(() => {
+        touchSession();
+        scheduleHeartbeat();
+      }, SESSION_ACTIVITY_PING_MS);
+    };
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        sendAbandonSignal('inactivity_timeout');
+      }, SESSION_INACTIVITY_TIMEOUT_MS);
+    };
+
+    const handleInteraction = () => {
+      if (abandonSignaled) {
+        void ensureFreshSession();
+        return;
+      }
+      resetInactivityTimer();
+      scheduleHeartbeat();
+    };
+
+    const handlePageHide = () => {
+      sendAbandonSignal('page_exit');
+    };
+
+    const armTimer = setTimeout(() => {
+      exitTrackingArmedRef.current = true;
+    }, EXIT_TRACKING_ARM_DELAY_MS);
+
+    resetInactivityTimer();
+    scheduleHeartbeat();
+
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pointerdown', handleInteraction, { passive: true });
+    window.addEventListener('keydown', handleInteraction);
+    window.addEventListener('scroll', handleInteraction, { passive: true });
+    window.addEventListener('touchstart', handleInteraction, { passive: true });
+
+    return () => {
+      clearTimeout(armTimer);
+      if (heartbeatTimer) clearTimeout(heartbeatTimer);
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pointerdown', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+      window.removeEventListener('scroll', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+
+      if (exitTrackingArmedRef.current) {
+        sendAbandonSignal('page_exit');
+      }
+      exitTrackingArmedRef.current = false;
+    };
+  }, [mounted, setLeadSessionId, state.lead_id, state.lead_session_id]);
 
   if (!mounted) return <div className="min-h-[400px]" />;
+
   const StepComponent = STEP_COMPONENTS[currentStepId];
   return <StepComponent />;
 }

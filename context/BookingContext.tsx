@@ -70,6 +70,7 @@ type BookingAction =
   | { type: 'SET_PARTICIPANTS'; payload: { count: number; additional: AdditionalParticipant[] } }
   | { type: 'SET_BOOKING_ID'; payload: string }
   | { type: 'SET_LEAD_ID'; payload: string }
+  | { type: 'SET_LEAD_SESSION_ID'; payload: string }
   | { type: 'SET_UTM'; payload: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string } }
   | { type: 'RESET' };
 
@@ -153,6 +154,9 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
     case 'SET_LEAD_ID':
       return { ...state, lead_id: action.payload };
 
+    case 'SET_LEAD_SESSION_ID':
+      return { ...state, lead_session_id: action.payload };
+
     case 'SET_UTM':
       return { ...state, ...action.payload };
 
@@ -188,7 +192,9 @@ function fireLeadProgress(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      session_id: state.lead_session_id,
       last_step_completed: stepLabel,
+      selected_skill_level: state.skill_level,
       selected_location_name: state.location_name,
       selected_bike: state.bike_rental,
       selected_date: state.date,
@@ -227,6 +233,7 @@ interface BookingContextValue {
   setParticipants: (count: number, additional: AdditionalParticipant[]) => void;
   setBookingId: (id: string) => void;
   setLeadId: (id: string) => void;
+  setLeadSessionId: (id: string) => void;
   setUtm: (params: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) => void;
   reset: () => void;
 }
@@ -359,6 +366,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     (id: string) => dispatch({ type: 'SET_LEAD_ID', payload: id }),
     []
   );
+  const setLeadSessionId = useCallback(
+    (id: string) => dispatch({ type: 'SET_LEAD_SESSION_ID', payload: id }),
+    []
+  );
   const setUtm = useCallback(
     (params: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) =>
       dispatch({ type: 'SET_UTM', payload: params }),
@@ -400,6 +411,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         setParticipants,
         setBookingId,
         setLeadId,
+        setLeadSessionId,
         setUtm,
         reset,
       }}

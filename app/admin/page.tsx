@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { AdminClient } from './AdminClient';
+import type { AdditionalParticipant } from '@/types/booking';
 
 function extractWaiverStoragePath(urlOrPath: string | null): string | null {
   if (!urlOrPath) return null;
@@ -60,7 +61,7 @@ async function getBookings(status?: string) {
   let query = supabase
     .from('bookings')
     .select(`
-      id, trail_type, date, time_slot, duration_hours, bike_rental,
+      id, trail_type, date, time_slot, duration_hours, bike_rental, rider_height_inches, participant_count, participant_info,
       total_price, status, created_at, location_id, customer_id, waiver_session_id,
       zip_code, marketing_source,
       deposit_amount, remaining_balance_amount, remaining_balance_due_at,
@@ -142,6 +143,7 @@ async function getBookings(status?: string) {
 
   return data.map((b) => ({
     ...b,
+    participant_info: Array.isArray(b.participant_info) ? (b.participant_info as AdditionalParticipant[]) : null,
     location_name: b.location_id ? locationMap[b.location_id] ?? '—' : '—',
     customer_name: b.customer_id ? customerMap[b.customer_id]?.name ?? '—' : '—',
     customer_email: b.customer_id ? customerMap[b.customer_id]?.email ?? '—' : '—',
@@ -158,12 +160,13 @@ async function getLeads() {
     .from('leads')
     .select(`
       id, full_name, email, phone, zip_code, heard_about_us,
-      selected_trail_type, selected_location_name,
-      utm_source, utm_medium, utm_campaign,
+      selected_trail_type, selected_skill_level, selected_location_name,
+      selected_bike, selected_date, selected_time_slot, selected_duration_hours,
+      utm_source, utm_medium, utm_campaign, utm_content, utm_term,
       last_step_completed, last_activity_at, status,
-      created_at, booking_id
+      created_at, booking_id, converted_at, lost_at
     `)
-    .eq('status', 'lead')
+    .in('status', ['lead', 'lost'])
     .order('created_at', { ascending: false })
     .limit(100);
 
@@ -172,7 +175,89 @@ async function getLeads() {
     return [];
   }
 
-  return data ?? [];
+  const leads = data ?? [];
+  const leadIds = leads.map((lead: { id: string }) => lead.id);
+
+  let enrollments: Array<{
+    id: string;
+    lead_id: string;
+    trail_type: string;
+    sequence_key: string;
+    status: string;
+    enrolled_at: string;
+    next_step_due_at: string | null;
+    completed_at: string | null;
+    cancelled_at: string | null;
+    lost_at: string | null;
+    stop_reason: string | null;
+    webhook_triggered_at: string | null;
+    created_at: string;
+    updated_at: string;
+  }> = [];
+
+  if (leadIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: enrollmentData } = await (supabase as any)
+      .from('lead_followup_enrollments')
+      .select('*')
+      .in('lead_id', leadIds)
+      .order('enrolled_at', { ascending: false });
+
+    enrollments = enrollmentData ?? [];
+  }
+
+  const latestEnrollmentByLead = new Map<string, typeof enrollments[number]>();
+  for (const enrollment of enrollments) {
+    if (!latestEnrollmentByLead.has(enrollment.lead_id)) {
+      latestEnrollmentByLead.set(enrollment.lead_id, enrollment);
+    }
+  }
+
+  const enrollmentIds = [...latestEnrollmentByLead.values()].map((enrollment) => enrollment.id);
+
+  let steps: Array<{
+    id: string;
+    enrollment_id: string;
+    step_number: number;
+    step_key: string;
+    scheduled_for: string;
+    sent_at: string | null;
+    status: string;
+    channel: string;
+    template_key: string;
+    skipped_at: string | null;
+    cancelled_at: string | null;
+    skip_reason: string | null;
+    created_at: string;
+    updated_at: string;
+  }> = [];
+
+  if (enrollmentIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: stepsData } = await (supabase as any)
+      .from('lead_followup_steps')
+      .select('*')
+      .in('enrollment_id', enrollmentIds)
+      .order('step_number', { ascending: true });
+
+    steps = stepsData ?? [];
+  }
+
+  const stepsByEnrollment = new Map<string, typeof steps>();
+  for (const step of steps) {
+    const existing = stepsByEnrollment.get(step.enrollment_id) ?? [];
+    existing.push(step);
+    stepsByEnrollment.set(step.enrollment_id, existing);
+  }
+
+  return leads.map((lead: typeof leads[number]) => {
+    const enrollment = latestEnrollmentByLead.get(lead.id) ?? null;
+    return {
+      ...lead,
+      followup_enrollment: enrollment,
+      followup_steps: enrollment ? (stepsByEnrollment.get(enrollment.id) ?? []) : [],
+    };
+  });
 }
 
 async function getStats() {

@@ -1225,3 +1225,66 @@ vercel
 - Added `lib/location-meta.ts` to map each booking location to a meeting point name, address, and map URL
 - Enriched the Stripe webhook to n8n payload with `customer_email` fallback, meeting point metadata, booking start/end ISO timestamps, and `calendar_url`
 - Added `N8N_CONFIRMATION_EMAIL_TEMPLATE.html` and `N8N_CONFIRMATION_EMAIL_PAYLOAD.md` as ready-to-use references for the n8n confirmation email workflow
+
+**Lead Follow-Up Trigger**
+- Added expandable lead details in the admin so abandoned booking context can be reviewed before outreach
+- Added manual `Send Follow-Up` action in the admin, posting a `lead_follow_up_requested` payload to `N8N_LEAD_FOLLOWUP_WEBHOOK_URL`
+- Local env uses `N8N_LEAD_FOLLOWUP_WEBHOOK_URL=https://fmbgt-n8n.yvjziu.easypanel.host/webhook/lead-follow-up`
+
+**Lead Follow-Up Architecture**
+- `Send Follow-Up` is manual only. New leads are not auto-enrolled.
+- Supabase is the source of truth through `lead_followup_enrollments` and `lead_followup_steps`.
+- One active enrollment max per lead is enforced with a partial unique index and server-side eligibility checks.
+- Each enrollment creates three steps at enrollment time: `1_hour`, `1_day`, `1_week`.
+- Trail type is persisted directly on the enrollment so n8n can branch cleanly with template keys like `paved_1_hour` or `mtb_1_day`.
+- The app triggers the first webhook only after enrollment exists in Supabase, then records `webhook_triggered_at`.
+- n8n is expected to call the app back before each touch using the protected `/api/lead-follow-up/eligibility` route with `N8N_FOLLOWUP_SECRET`.
+- If the lead converts, Stripe webhook logic cancels the active enrollment and marks remaining pending steps as `cancelled`.
+- If the sequence finishes without conversion, n8n should call `/api/lead-follow-up/events` with `event=mark_lost`, which marks both the lead and the enrollment as `lost`.
+- Dashboard badges now distinguish `Not started`, `Enrolled`, `Active`, `Converted`, `Stopped`, and `Lost`.
+
+**Follow-Up Tables**
+- `lead_followup_enrollments`: enrollment record, sequence status, next due step, webhook trigger timestamp, and terminal timestamps.
+- `lead_followup_steps`: one row per scheduled touch (`1_hour`, `1_day`, `1_week`) with status and template key.
+
+**n8n Contract**
+- Initial webhook payload event: `lead_follow_up_requested`
+- Payload includes:
+  - contact block
+  - booking intent block
+  - attribution block
+  - funnel block
+  - follow-up reason
+  - follow-up sequence
+  - follow-up enrollment metadata
+- n8n owns the wait timing and email sending.
+- Before each touch, n8n must verify eligibility against Supabase through the app API instead of assuming the lead is still open.
+
+### Session - April 14, 2026
+
+**Lead Booking Progress Bar**
+- Added `lib/booking-flow-progress.ts` as the centralized source of truth for lead progress percentages in the admin dashboard.
+- Real persisted funnel keys confirmed from the repo:
+  - `lead_captured`
+  - `skill_selected`
+  - `location_selected`
+  - `bike_selected`
+  - `date_selected`
+  - `duration_selected`
+  - `addons_selected`
+  - `waiver_completed`
+  - `payment_started`
+  - `booking_confirmed`
+- Real flow definitions confirmed from `lib/steps.ts` plus `context/BookingContext.tsx`:
+  - Paved: `lead_captured -> location_selected -> bike_selected -> date_selected -> waiver_completed -> payment_started -> booking_confirmed`
+  - MTB standard: `lead_captured -> skill_selected -> location_selected -> bike_selected -> date_selected -> duration_selected -> addons_selected -> waiver_completed -> payment_started -> booking_confirmed`
+  - MTB first-time: same as MTB standard but skips `duration_selected`
+- To resolve that MTB ambiguity accurately, leads now persist `selected_skill_level` through `PATCH /api/leads/[id]/progress`.
+- Dashboard lead rows/cards now show:
+  - the existing last completed step
+  - a percentage
+  - a progress bar based on the real flow length for that trail path
+- Safe fallback behavior:
+  - missing or invalid trail/step -> `0%`
+  - converted/completed lead -> `100%`
+  - legacy MTB leads without `selected_skill_level` use the full MTB path until newer data is captured

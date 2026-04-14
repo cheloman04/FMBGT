@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { cookies } from 'next/headers';
+import { createLeadBookingSession } from '@/lib/lead-sessions';
 
 // ── POST /api/leads — create a new lead ──────────────────────────────────────
 
@@ -54,7 +55,18 @@ export async function POST(req: NextRequest) {
         source: 'booking_platform',
         status: 'lead',
       })
-      .select('id')
+    .select(`
+        id,
+        full_name,
+        email,
+        phone,
+        selected_trail_type,
+        selected_skill_level,
+        selected_location_name,
+        selected_date,
+        last_step_completed,
+        created_at
+      `)
       .single();
 
     if (error) {
@@ -62,8 +74,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to save lead' }, { status: 500 });
     }
 
+    const sessionId = await createLeadBookingSession(data.id);
+
     console.log(`[leads] Created lead ${data.id} for ${parsed.data.email}`);
-    return NextResponse.json({ id: data.id }, { status: 201 });
+    return NextResponse.json({ id: data.id, session_id: sessionId }, { status: 201 });
   } catch (err) {
     console.error('[leads] Unexpected error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -90,9 +104,9 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
     .from('leads')
-    .select(`
+      .select(`
       id, full_name, email, phone, zip_code, heard_about_us,
-      selected_trail_type, selected_location_name,
+      selected_trail_type, selected_skill_level, selected_location_name,
       utm_source, utm_medium, utm_campaign,
       last_step_completed, last_activity_at, status,
       created_at, booking_id

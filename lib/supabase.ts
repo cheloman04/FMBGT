@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { TrailType, SkillLevel, BikeRental, BookingStatus, Addons } from '@/types/booking';
+import type { TrailType, SkillLevel, BikeRental, BookingStatus, Addons, LeadStatus } from '@/types/booking';
 
 // Database types for Supabase — explicit inline types to avoid TS inference issues
 export type Database = {
@@ -52,6 +52,7 @@ export type Database = {
           addons_price: number;
           total_price: number;
           waiver_session_id: string | null;
+          booking_session_id: string | null;
           stripe_session_id: string | null;
           stripe_customer_id: string | null;
           stripe_payment_intent_id: string | null;
@@ -91,6 +92,7 @@ export type Database = {
           addons_price: number;
           total_price: number;
           waiver_session_id?: string | null;
+          booking_session_id?: string | null;
           stripe_session_id?: string | null;
           stripe_customer_id?: string | null;
           stripe_payment_intent_id?: string | null;
@@ -113,6 +115,7 @@ export type Database = {
         Update: {
           status?: BookingStatus;
           waiver_session_id?: string | null;
+          booking_session_id?: string | null;
           stripe_session_id?: string | null;
           stripe_customer_id?: string | null;
           stripe_payment_intent_id?: string | null;
@@ -130,6 +133,227 @@ export type Database = {
           zip_code?: string | null;
           marketing_source?: string | null;
           webhook_sent?: boolean;
+        };
+        Relationships: [];
+      };
+      leads: {
+        Row: {
+          id: string;
+          full_name: string;
+          email: string;
+          phone: string | null;
+          zip_code: string | null;
+          heard_about_us: string | null;
+          selected_trail_type: TrailType | null;
+          selected_skill_level: SkillLevel | null;
+          selected_location_name: string | null;
+          selected_bike: string | null;
+          selected_date: string | null;
+          selected_time_slot: string | null;
+          selected_duration_hours: number | null;
+          utm_source: string | null;
+          utm_medium: string | null;
+          utm_campaign: string | null;
+          utm_content: string | null;
+          utm_term: string | null;
+          last_step_completed: string | null;
+          last_activity_at: string;
+          source: string;
+          status: LeadStatus;
+          booking_id: string | null;
+          converted_at: string | null;
+          lost_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          full_name: string;
+          email: string;
+          phone?: string | null;
+          zip_code?: string | null;
+          heard_about_us?: string | null;
+          selected_trail_type?: TrailType | null;
+          selected_skill_level?: SkillLevel | null;
+          selected_location_name?: string | null;
+          selected_bike?: string | null;
+          selected_date?: string | null;
+          selected_time_slot?: string | null;
+          selected_duration_hours?: number | null;
+          utm_source?: string | null;
+          utm_medium?: string | null;
+          utm_campaign?: string | null;
+          utm_content?: string | null;
+          utm_term?: string | null;
+          last_step_completed?: string | null;
+          last_activity_at?: string;
+          source?: string;
+          status?: LeadStatus;
+          booking_id?: string | null;
+          converted_at?: string | null;
+          lost_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          full_name?: string;
+          email?: string;
+          phone?: string | null;
+          zip_code?: string | null;
+          heard_about_us?: string | null;
+          selected_trail_type?: TrailType | null;
+          selected_skill_level?: SkillLevel | null;
+          selected_location_name?: string | null;
+          selected_bike?: string | null;
+          selected_date?: string | null;
+          selected_time_slot?: string | null;
+          selected_duration_hours?: number | null;
+          utm_source?: string | null;
+          utm_medium?: string | null;
+          utm_campaign?: string | null;
+          utm_content?: string | null;
+          utm_term?: string | null;
+          last_step_completed?: string | null;
+          last_activity_at?: string;
+          source?: string;
+          status?: LeadStatus;
+          booking_id?: string | null;
+          converted_at?: string | null;
+          lost_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      lead_booking_sessions: {
+        Row: {
+          id: string;
+          lead_id: string;
+          status: string;
+          started_at: string;
+          last_activity_at: string;
+          exited_at: string | null;
+          checkout_started_at: string | null;
+          converted_at: string | null;
+          abandonment_confirmed_at: string | null;
+          abandoned_alert_sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          lead_id: string;
+          status?: string;
+          started_at?: string;
+          last_activity_at?: string;
+          exited_at?: string | null;
+          checkout_started_at?: string | null;
+          converted_at?: string | null;
+          abandonment_confirmed_at?: string | null;
+          abandoned_alert_sent_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: string;
+          last_activity_at?: string;
+          exited_at?: string | null;
+          checkout_started_at?: string | null;
+          converted_at?: string | null;
+          abandonment_confirmed_at?: string | null;
+          abandoned_alert_sent_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      lead_followup_enrollments: {
+        Row: {
+          id: string;
+          lead_id: string;
+          trail_type: TrailType;
+          sequence_key: string;
+          status: string;
+          enrolled_at: string;
+          next_step_due_at: string | null;
+          completed_at: string | null;
+          cancelled_at: string | null;
+          lost_at: string | null;
+          stop_reason: string | null;
+          webhook_triggered_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          lead_id: string;
+          trail_type: TrailType;
+          sequence_key?: string;
+          status?: string;
+          enrolled_at?: string;
+          next_step_due_at?: string | null;
+          completed_at?: string | null;
+          cancelled_at?: string | null;
+          lost_at?: string | null;
+          stop_reason?: string | null;
+          webhook_triggered_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          trail_type?: TrailType;
+          sequence_key?: string;
+          status?: string;
+          enrolled_at?: string;
+          next_step_due_at?: string | null;
+          completed_at?: string | null;
+          cancelled_at?: string | null;
+          lost_at?: string | null;
+          stop_reason?: string | null;
+          webhook_triggered_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      lead_followup_steps: {
+        Row: {
+          id: string;
+          enrollment_id: string;
+          step_number: number;
+          step_key: string;
+          scheduled_for: string;
+          sent_at: string | null;
+          status: string;
+          channel: string;
+          template_key: string;
+          skipped_at: string | null;
+          cancelled_at: string | null;
+          skip_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          enrollment_id: string;
+          step_number: number;
+          step_key: string;
+          scheduled_for: string;
+          sent_at?: string | null;
+          status?: string;
+          channel?: string;
+          template_key: string;
+          skipped_at?: string | null;
+          cancelled_at?: string | null;
+          skip_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          step_number?: number;
+          step_key?: string;
+          scheduled_for?: string;
+          sent_at?: string | null;
+          status?: string;
+          channel?: string;
+          template_key?: string;
+          skipped_at?: string | null;
+          cancelled_at?: string | null;
+          skip_reason?: string | null;
+          updated_at?: string;
         };
         Relationships: [];
       };

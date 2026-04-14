@@ -1,5 +1,5 @@
 export type TrailType = 'paved' | 'mtb';
-export type LeadStatus = 'lead' | 'converted' | 'archived';
+export type LeadStatus = 'lead' | 'converted' | 'lost' | 'archived';
 export type SignerRole = 'participant' | 'guardian';
 
 export interface WaiverParticipant {
@@ -133,6 +133,7 @@ export interface BookingState {
 
   // Lead tracking
   lead_id?: string;
+  lead_session_id?: string;
 
   // UTM attribution (captured silently from URL on first visit)
   utm_source?: string;
