@@ -100,6 +100,41 @@ async function getBookings(status?: string) {
 
   const bookingIds = data.map((b) => b.id);
   const waiverSessionIds = [...new Set(data.map((b) => b.waiver_session_id).filter(Boolean))];
+  let reviewEnrollments: Array<{
+    id: string;
+    booking_id: string;
+    status: string;
+    enrolled_at: string;
+    next_step_due_at: string | null;
+    review_left_at: string | null;
+    review_platform: string | null;
+    completed_at: string | null;
+    cancelled_at: string | null;
+    stop_reason: string | null;
+    created_at: string;
+    updated_at: string;
+  }> = [];
+
+  if (bookingIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: reviewEnrollmentData } = await (supabase as any)
+      .from('booking_review_request_enrollments')
+      .select(
+        'id, booking_id, status, enrolled_at, next_step_due_at, review_left_at, review_platform, completed_at, cancelled_at, stop_reason, created_at, updated_at'
+      )
+      .in('booking_id', bookingIds)
+      .order('created_at', { ascending: false });
+
+    reviewEnrollments = reviewEnrollmentData ?? [];
+  }
+
+  const latestReviewEnrollmentByBooking = new Map<string, typeof reviewEnrollments[number]>();
+  for (const enrollment of reviewEnrollments) {
+    if (!latestReviewEnrollmentByBooking.has(enrollment.booking_id)) {
+      latestReviewEnrollmentByBooking.set(enrollment.booking_id, enrollment);
+    }
+  }
+
   let waiverData: Array<{
     booking_id: string | null; session_id: string | null; id: string; signer_name: string; signer_role: string;
     participants_covered: string[]; agreed_at: string; pdf_url: string | null;
@@ -149,6 +184,7 @@ async function getBookings(status?: string) {
     customer_email: b.customer_id ? customerMap[b.customer_id]?.email ?? '—' : '—',
     customer_phone: b.customer_id ? customerMap[b.customer_id]?.phone ?? null : null,
     waiver_records: waiverMap[b.id] ?? waiverMap[b.waiver_session_id ?? ''] ?? [],
+    review_request_enrollment: latestReviewEnrollmentByBooking.get(b.id) ?? null,
   }));
 }
 

@@ -48,6 +48,22 @@ interface Booking {
   deposit_payment_status: string | null;
   remaining_balance_status: string | null;
   stripe_payment_method_id: string | null;
+  review_request_enrollment?: BookingReviewRequestEnrollment | null;
+}
+
+interface BookingReviewRequestEnrollment {
+  id: string;
+  booking_id: string;
+  status: string;
+  enrolled_at: string;
+  next_step_due_at: string | null;
+  review_left_at: string | null;
+  review_platform: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  stop_reason: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface AdditionalParticipant {
@@ -259,6 +275,15 @@ function formatStepKey(stepKey: string): string {
   if (stepKey === '1_day') return '1 day';
   if (stepKey === '1_week') return '1 week';
   return stepKey;
+}
+
+function getReviewRequestStatusLabel(enrollment?: BookingReviewRequestEnrollment | null) {
+  if (!enrollment) return 'Review not started';
+  if (enrollment.status === 'reviewed') return 'Review received';
+  if (enrollment.status === 'active') return 'Review request active';
+  if (enrollment.status === 'completed') return 'Review sequence complete';
+  if (enrollment.status === 'cancelled') return 'Review request cancelled';
+  return enrollment.status;
 }
 
 function getLeadFollowUpDisplay(lead: Lead): {
@@ -645,6 +670,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
   const [isNextBookingExpanded, setIsNextBookingExpanded] = useState(false);
   const [selectedMobileBookingId, setSelectedMobileBookingId] = useState<string | null>(null);
   const [localBookings, setLocalBookings] = useState(bookings);
+  const [markingReviewBookingId, setMarkingReviewBookingId] = useState<string | null>(null);
   const [localLeads, setLocalLeads] = useState(leads);
   const [expandedWaivers, setExpandedWaivers] = useState<Set<string>>(new Set());
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
@@ -847,6 +873,48 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
     }
   };
 
+  const handleMarkReviewReceived = async (bookingId: string) => {
+    const booking = localBookings.find((item) => item.id === bookingId);
+    const enrollmentId = booking?.review_request_enrollment?.id;
+    if (!enrollmentId) return;
+
+    setMarkingReviewBookingId(bookingId);
+    try {
+      const res = await fetch('/api/admin/mark-review-received', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enrollment_id: enrollmentId }),
+      });
+
+      if (res.ok) {
+        const nowIso = new Date().toISOString();
+        setLocalBookings((prev) =>
+          prev.map((item) =>
+            item.id === bookingId
+              ? {
+                  ...item,
+                  review_request_enrollment: item.review_request_enrollment
+                    ? {
+                        ...item.review_request_enrollment,
+                        status: 'reviewed',
+                        review_left_at: nowIso,
+                        review_platform: item.review_request_enrollment.review_platform ?? 'manual_admin',
+                        completed_at: nowIso,
+                        stop_reason: 'review_received',
+                        next_step_due_at: null,
+                        updated_at: nowIso,
+                      }
+                    : item.review_request_enrollment,
+                }
+              : item
+          )
+        );
+      }
+    } finally {
+      setMarkingReviewBookingId(null);
+    }
+  };
+
   const handleLogout = async () => {
     await fetch('/api/admin/login', { method: 'DELETE' });
     window.location.href = '/admin/login';
@@ -1032,6 +1100,14 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
 
                   <div className="space-y-3 rounded-2xl border border-border/70 bg-card/70 p-4">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Actions</p>
+                    {selectedMobileBooking.review_request_enrollment && (
+                      <div className="rounded-xl border border-border/70 bg-background/60 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Review Request</p>
+                        <p className="mt-1 text-sm text-foreground">
+                          {getReviewRequestStatusLabel(selectedMobileBooking.review_request_enrollment)}
+                        </p>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 gap-2">
                       <select
                         value={selectedMobileBooking.status}
@@ -1058,6 +1134,17 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       >
                         {deleting === selectedMobileBooking.id ? 'Deleting...' : 'Delete booking'}
                       </button>
+                      {selectedMobileBooking.status === 'completed' &&
+                        selectedMobileBooking.review_request_enrollment &&
+                        selectedMobileBooking.review_request_enrollment.status !== 'reviewed' && (
+                          <button
+                            onClick={() => handleMarkReviewReceived(selectedMobileBooking.id)}
+                            disabled={markingReviewBookingId === selectedMobileBooking.id}
+                            className="min-h-11 rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20 disabled:opacity-50"
+                          >
+                            {markingReviewBookingId === selectedMobileBooking.id ? 'Saving...' : 'Mark Review Received'}
+                          </button>
+                        )}
                     </div>
                   </div>
 
@@ -1540,12 +1627,28 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
                           </td>
                           <td className="px-4 py-3">
+                            {booking.review_request_enrollment && (
+                              <div className="mb-2 text-[11px] text-muted-foreground">
+                                {getReviewRequestStatusLabel(booking.review_request_enrollment)}
+                              </div>
+                            )}
                             <select value={booking.status} disabled={updating === booking.id} onChange={(e) => handleStatusChange(booking.id, e.target.value)} className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground disabled:opacity-50">
                               <option value="confirmed">confirmed</option>
                               <option value="completed">completed</option>
                               <option value="cancelled">cancelled</option>
                               <option value="refunded">refunded</option>
                             </select>
+                            {booking.status === 'completed' &&
+                              booking.review_request_enrollment &&
+                              booking.review_request_enrollment.status !== 'reviewed' && (
+                                <button
+                                  onClick={() => handleMarkReviewReceived(booking.id)}
+                                  disabled={markingReviewBookingId === booking.id}
+                                  className="mt-2 block rounded border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs text-blue-300 transition-colors hover:bg-blue-500/20 disabled:opacity-50"
+                                >
+                                  {markingReviewBookingId === booking.id ? 'Saving...' : 'Mark Review Received'}
+                                </button>
+                              )}
                             <button onClick={() => setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date })} disabled={deleting === booking.id} className="mt-2 rounded border border-red-500/40 bg-transparent px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50">{deleting === booking.id ? 'Deleting...' : 'Delete'}</button>
                           </td>
                         </tr>
