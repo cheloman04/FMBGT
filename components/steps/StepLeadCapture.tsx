@@ -95,6 +95,8 @@ export function StepLeadCapture() {
           utm_campaign: state.utm_campaign,
           utm_content: state.utm_content,
           utm_term: state.utm_term,
+          attribution_first_touch: state.first_touch_attribution,
+          attribution_last_touch: state.last_touch_attribution,
         }),
       });
 

@@ -54,16 +54,49 @@ async function checkAuth() {
   }
 }
 
+async function getLeadConversionSignalSet(leadIds: string[]) {
+  if (leadIds.length === 0) return new Set<string>();
+
+  const supabase = getSupabaseAdmin();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('bookings')
+    .select('lead_id, status, deposit_payment_status')
+    .in('lead_id', leadIds);
+
+  if (error) {
+    console.error('[admin] Failed to inspect lead conversion signals:', error.message);
+    return new Set<string>();
+  }
+
+  const convertedLeadIds = (data ?? [])
+    .filter((booking: { lead_id?: string | null; status?: string | null; deposit_payment_status?: string | null }) => {
+      return (
+        !!booking.lead_id &&
+        (
+          booking.status === 'confirmed' ||
+          booking.status === 'completed' ||
+          booking.deposit_payment_status === 'paid'
+        )
+      );
+    })
+    .map((booking: { lead_id?: string | null }) => booking.lead_id as string);
+
+  return new Set(convertedLeadIds);
+}
+
 // Bookings: only show confirmed/completed/cancelled/refunded — never pending
 async function getBookings(status?: string) {
   const supabase = getSupabaseAdmin();
 
-  let query = supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
     .from('bookings')
     .select(`
-      id, trail_type, date, time_slot, duration_hours, bike_rental, rider_height_inches, participant_count, participant_info,
+      id, lead_id, trail_type, date, time_slot, duration_hours, bike_rental, rider_height_inches, participant_count, participant_info,
       total_price, status, created_at, location_id, customer_id, waiver_session_id,
-      zip_code, marketing_source,
+      zip_code, marketing_source, attribution_snapshot,
       deposit_amount, remaining_balance_amount, remaining_balance_due_at,
       deposit_payment_status, remaining_balance_status,
       stripe_payment_method_id
@@ -81,8 +114,36 @@ async function getBookings(status?: string) {
   const { data, error } = await query;
   if (error) return [];
 
-  const locationIds = [...new Set(data.map((b) => b.location_id).filter(Boolean))];
-  const customerIds = [...new Set(data.map((b) => b.customer_id).filter(Boolean))];
+  const typedBookings = (data ?? []) as Array<{
+    id: string;
+    lead_id: string | null;
+    trail_type: string;
+    date: string;
+    time_slot: string;
+    duration_hours: number;
+    bike_rental: string;
+    rider_height_inches: number | null;
+    participant_count: number | null;
+    participant_info: AdditionalParticipant[] | null;
+    total_price: number;
+    status: string;
+    created_at: string;
+    location_id: string | null;
+    customer_id: string | null;
+    waiver_session_id: string | null;
+    zip_code: string | null;
+    marketing_source: string | null;
+    attribution_snapshot: Record<string, unknown> | null;
+    deposit_amount: number | null;
+    remaining_balance_amount: number | null;
+    remaining_balance_due_at: string | null;
+    deposit_payment_status: string | null;
+    remaining_balance_status: string | null;
+    stripe_payment_method_id: string | null;
+  }>;
+
+  const locationIds = [...new Set(typedBookings.map((b) => b.location_id).filter(Boolean))];
+  const customerIds = [...new Set(typedBookings.map((b) => b.customer_id).filter(Boolean))];
 
   const [{ data: locations }, { data: customers }] = await Promise.all([
     locationIds.length
@@ -98,8 +159,8 @@ async function getBookings(status?: string) {
     (customers ?? []).map((c) => [c.id, { name: c.name, email: c.email, phone: c.phone }])
   );
 
-  const bookingIds = data.map((b) => b.id);
-  const waiverSessionIds = [...new Set(data.map((b) => b.waiver_session_id).filter(Boolean))];
+  const bookingIds = typedBookings.map((b) => b.id);
+  const waiverSessionIds = [...new Set(typedBookings.map((b) => b.waiver_session_id).filter(Boolean))];
   let reviewEnrollments: Array<{
     id: string;
     booking_id: string;
@@ -176,7 +237,7 @@ async function getBookings(status?: string) {
     waiverMap[key]!.push(w);
   }
 
-  return data.map((b) => ({
+  return typedBookings.map((b) => ({
     ...b,
     participant_info: Array.isArray(b.participant_info) ? (b.participant_info as AdditionalParticipant[]) : null,
     location_name: b.location_id ? locationMap[b.location_id] ?? '—' : '—',
@@ -211,11 +272,18 @@ async function getLeads() {
     return [];
   }
 
-  const leads = (data ?? []).filter((lead: {
+  const rawLeads = data ?? [];
+  const conversionSignalLeadIds = await getLeadConversionSignalSet(
+    rawLeads.map((lead: { id: string }) => lead.id)
+  );
+
+  const leads = rawLeads.filter((lead: {
+    id: string;
     booking_id: string | null;
     converted_at: string | null;
   }) => {
     const hasConversionSignal =
+      conversionSignalLeadIds.has(lead.id) ||
       !!lead.booking_id ||
       !!lead.converted_at;
 
@@ -312,22 +380,27 @@ async function getStats() {
   const [bookingsResult, leadsResult] = await Promise.all([
     supabase.from('bookings').select('status, total_price, remaining_balance_amount, remaining_balance_status, deposit_payment_status'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).from('leads').select('status, booking_id, converted_at'),
+    (supabase as any).from('leads').select('id, status, booking_id, converted_at'),
   ]);
 
   const bookings = bookingsResult.data ?? [];
   const leads = leadsResult.data ?? [];
+  const conversionSignalLeadIds = await getLeadConversionSignalSet(
+    leads.map((lead: { id: string }) => lead.id)
+  );
 
   const realBookings = bookings.filter((b) => b.status !== 'pending');
   const confirmedBookings = realBookings.filter((b) => b.status === 'confirmed');
 
   const totalLeads = leads.length;
   const activeLeads = leads.filter((lead: {
+    id: string;
     status: string;
     booking_id: string | null;
     converted_at: string | null;
   }) => {
     const hasConversionSignal =
+      conversionSignalLeadIds.has(lead.id) ||
       lead.status === 'converted' ||
       !!lead.booking_id ||
       !!lead.converted_at;
@@ -335,11 +408,13 @@ async function getStats() {
     return lead.status === 'lead' && !hasConversionSignal;
   }).length;
   const convertedLeads = leads.filter((lead: {
+    id: string;
     status: string;
     booking_id: string | null;
     converted_at: string | null;
   }) => {
     return (
+      conversionSignalLeadIds.has(lead.id) ||
       lead.status === 'converted' ||
       !!lead.booking_id ||
       !!lead.converted_at

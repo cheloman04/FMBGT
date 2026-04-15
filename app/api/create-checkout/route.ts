@@ -15,6 +15,22 @@ const AdditionalParticipantSchema = z.object({
   height_inches: z.number().optional(),
 });
 
+const AttributionPayloadSchema = z.object({
+  utm_source: z.string().max(100).optional(),
+  utm_medium: z.string().max(100).optional(),
+  utm_campaign: z.string().max(200).optional(),
+  utm_content: z.string().max(200).optional(),
+  utm_term: z.string().max(200).optional(),
+  flow: z.string().max(100).optional(),
+  sequence_key: z.string().max(100).optional(),
+  template_key: z.string().max(200).optional(),
+  step_key: z.string().max(100).optional(),
+  enrollment_id: z.string().uuid().optional(),
+  trail_type: z.enum(['paved', 'mtb']).optional(),
+  cta: z.string().max(100).optional(),
+  captured_at: z.string().datetime().optional(),
+});
+
 const BookingStateSchema = z.object({
   trail_type: z.enum(['paved', 'mtb']),
   skill_level: z.enum(['first_time', 'beginner', 'intermediate', 'advanced']).optional(),
@@ -44,6 +60,8 @@ const BookingStateSchema = z.object({
   }),
   lead_id: z.string().uuid().optional(),
   lead_session_id: z.string().uuid().optional(),
+  first_touch_attribution: AttributionPayloadSchema.optional(),
+  last_touch_attribution: AttributionPayloadSchema.optional(),
 });
 
 // Max participants per paved location
@@ -407,6 +425,7 @@ export async function POST(req: NextRequest) {
         marketing_source: state.customer.marketing_source ?? null,
         lead_id: effectiveLeadId,
         booking_session_id: state.lead_session_id ?? null,
+        attribution_snapshot: state.last_touch_attribution ?? state.first_touch_attribution ?? null,
       })
       .select('id')
       .single();

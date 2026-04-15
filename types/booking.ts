@@ -77,6 +77,22 @@ export interface Customer {
   marketing_source?: string;
 }
 
+export interface AttributionPayload {
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  utm_term?: string;
+  flow?: string;
+  sequence_key?: string;
+  template_key?: string;
+  step_key?: string;
+  enrollment_id?: string;
+  trail_type?: TrailType;
+  cta?: string;
+  captured_at?: string;
+}
+
 export interface PriceBreakdown {
   base_price: number;         // in cents - total base for all participants
   duration_surcharge: number; // in cents - total duration surcharge for all participants
@@ -141,6 +157,8 @@ export interface BookingState {
   utm_campaign?: string;
   utm_content?: string;
   utm_term?: string;
+  first_touch_attribution?: AttributionPayload;
+  last_touch_attribution?: AttributionPayload;
 
   // Computed
   price_breakdown?: PriceBreakdown;
@@ -174,6 +192,7 @@ export interface Booking {
   waiver_accepted_at?: string;
   created_at: string;
   updated_at: string;
+  attribution_snapshot?: AttributionPayload | null;
 }
 
 // API Request/Response types

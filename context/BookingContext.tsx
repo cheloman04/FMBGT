@@ -21,6 +21,7 @@ import type {
   AdditionalParticipant,
   WaiverParticipant,
   WaiverSigner,
+  AttributionPayload,
 } from '@/types/booking';
 import {
   DEFAULT_STEP_ID,
@@ -72,6 +73,7 @@ type BookingAction =
   | { type: 'SET_LEAD_ID'; payload: string }
   | { type: 'SET_LEAD_SESSION_ID'; payload: string }
   | { type: 'SET_UTM'; payload: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string } }
+  | { type: 'SET_ATTRIBUTION'; payload: { first_touch?: AttributionPayload; last_touch: AttributionPayload } }
   | { type: 'RESET' };
 
 function bookingReducer(state: BookingState, action: BookingAction): BookingState {
@@ -160,6 +162,13 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
     case 'SET_UTM':
       return { ...state, ...action.payload };
 
+    case 'SET_ATTRIBUTION':
+      return {
+        ...state,
+        first_touch_attribution: action.payload.first_touch ?? state.first_touch_attribution,
+        last_touch_attribution: action.payload.last_touch,
+      };
+
     case 'RESET':
       return {};
 
@@ -235,6 +244,7 @@ interface BookingContextValue {
   setLeadId: (id: string) => void;
   setLeadSessionId: (id: string) => void;
   setUtm: (params: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) => void;
+  captureAttribution: (attribution: AttributionPayload) => void;
   reset: () => void;
 }
 
@@ -375,6 +385,17 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_UTM', payload: params }),
     []
   );
+  const captureAttribution = useCallback(
+    (attribution: AttributionPayload) =>
+      dispatch({
+        type: 'SET_ATTRIBUTION',
+        payload: {
+          first_touch: state.first_touch_attribution ? undefined : attribution,
+          last_touch: attribution,
+        },
+      }),
+    [state.first_touch_attribution]
+  );
 
   const reset = useCallback(() => {
     try {
@@ -413,6 +434,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         setLeadId,
         setLeadSessionId,
         setUtm,
+        captureAttribution,
         reset,
       }}
     >

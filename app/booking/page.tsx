@@ -14,6 +14,7 @@ import { StepWaiver } from '@/components/steps/StepWaiver';
 import { StepPayment } from '@/components/steps/StepPayment';
 import type { StepId } from '@/lib/steps';
 import type { ComponentType } from 'react';
+import { extractAttributionFromSearchParams, pickUtmFromAttribution } from '@/lib/attribution';
 
 const STEP_COMPONENTS: Record<StepId, ComponentType> = {
   trail: StepTrail,
@@ -28,34 +29,22 @@ const STEP_COMPONENTS: Record<StepId, ComponentType> = {
   payment: StepPayment,
 };
 
-const UTM_PARAMS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'] as const;
 const SESSION_ACTIVITY_PING_MS = 30_000;
 const SESSION_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 const EXIT_TRACKING_ARM_DELAY_MS = 1_500;
 
 export default function BookingPage() {
-  const { currentStepId, state, setLeadSessionId, setUtm } = useBooking();
+  const { currentStepId, state, setLeadSessionId, setUtm, captureAttribution } = useBooking();
   const [mounted, setMounted] = useState(false);
   const exitTrackingArmedRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
-
-    const hasUtm = state.utm_source || state.utm_medium || state.utm_campaign;
-    if (!hasUtm) {
-      const params = new URLSearchParams(window.location.search);
-      const utmValues: Record<string, string | undefined> = {};
-      let found = false;
-      for (const key of UTM_PARAMS) {
-        const val = params.get(key);
-        if (val) {
-          utmValues[key] = val;
-          found = true;
-        }
-      }
-      if (found) {
-        setUtm(utmValues as Parameters<typeof setUtm>[0]);
-      }
+    const params = new URLSearchParams(window.location.search);
+    const attribution = extractAttributionFromSearchParams(params);
+    if (attribution) {
+      captureAttribution(attribution);
+      setUtm(pickUtmFromAttribution(attribution));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

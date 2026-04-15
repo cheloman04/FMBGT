@@ -24,6 +24,7 @@ interface WaiverRecord {
 
 interface Booking {
   id: string;
+  lead_id?: string | null;
   trail_type: string;
   date: string;
   time_slot: string;
@@ -41,6 +42,7 @@ interface Booking {
   customer_phone: string | null;
   zip_code: string | null;
   marketing_source: string | null;
+  attribution_snapshot?: Record<string, unknown> | null;
   waiver_records: WaiverRecord[];
   deposit_amount: number | null;
   remaining_balance_amount: number | null;
@@ -49,6 +51,31 @@ interface Booking {
   remaining_balance_status: string | null;
   stripe_payment_method_id: string | null;
   review_request_enrollment?: BookingReviewRequestEnrollment | null;
+}
+
+function getBookingAttributionMeta(booking: Booking) {
+  const snapshot = booking.attribution_snapshot;
+
+  if (!snapshot || typeof snapshot !== 'object') {
+    return {
+      isEmailConversion: false,
+      templateKey: null as string | null,
+      stepKey: null as string | null,
+      flow: null as string | null,
+    };
+  }
+
+  const readString = (key: string) => {
+    const value = snapshot[key];
+    return typeof value === 'string' && value.length > 0 ? value : null;
+  };
+
+  return {
+    isEmailConversion: readString('utm_source') === 'email',
+    templateKey: readString('template_key'),
+    stepKey: readString('step_key'),
+    flow: readString('flow'),
+  };
 }
 
 interface BookingReviewRequestEnrollment {
@@ -707,6 +734,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
           booking.customer_phone,
           booking.zip_code,
           booking.marketing_source,
+          booking.attribution_snapshot ? JSON.stringify(booking.attribution_snapshot) : null,
           booking.location_name,
           booking.trail_type,
           booking.status,
@@ -1548,7 +1576,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                   {normalizedSearch ? 'No bookings match your search.' : 'No bookings found.'}
                 </div>
               ) : (
-                filteredBookings.map((booking) => (
+                filteredBookings.map((booking) => {
+                  const attribution = getBookingAttributionMeta(booking);
+
+                  return (
                   <button
                     key={booking.id}
                     type="button"
@@ -1597,11 +1628,21 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       <div className="flex min-w-0 flex-wrap gap-1.5">
                         {booking.zip_code && <span className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">ZIP {booking.zip_code}</span>}
                         {booking.marketing_source && <span className="rounded-full bg-blue-100 px-2 py-1 text-[11px] capitalize text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{booking.marketing_source}</span>}
+                        {booking.lead_id && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Converted lead</span>}
+                        {attribution.isEmailConversion && <span className="rounded-full bg-purple-100 px-2 py-1 text-[11px] font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">Email Conversion</span>}
+                        {attribution.templateKey && <span className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">{attribution.templateKey}</span>}
                       </div>
-                      <span className="text-xs font-medium text-green-400">Open details</span>
+                      <div className="text-right">
+                        {(attribution.stepKey || attribution.flow) && (
+                          <div className="mb-1 text-[11px] text-muted-foreground">
+                            {[attribution.stepKey ? `Step ${attribution.stepKey}` : null, attribution.flow].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
+                        <span className="text-xs font-medium text-green-400">Open details</span>
+                      </div>
                     </div>
                   </button>
-                ))
+                )})
               )}
             </div>
 
@@ -1622,7 +1663,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {filteredBookings.map((booking) => (
+                      {filteredBookings.map((booking) => {
+                        const attribution = getBookingAttributionMeta(booking);
+
+                        return (
                         <tr key={booking.id} className="transition-colors hover:bg-muted/30">
                           <td className="px-4 py-3">
                             <div className="font-medium text-foreground">{booking.customer_name}</div>
@@ -1632,6 +1676,14 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                               <div className="mt-1 flex flex-wrap gap-2">
                                 {booking.zip_code && <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">ZIP {booking.zip_code}</span>}
                                 {booking.marketing_source && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{booking.marketing_source}</span>}
+                                {booking.lead_id && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Converted lead</span>}
+                                {attribution.isEmailConversion && <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">Email Conversion</span>}
+                                {attribution.templateKey && <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{attribution.templateKey}</span>}
+                              </div>
+                            )}
+                            {(attribution.stepKey || attribution.flow) && (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {[attribution.stepKey ? `Step ${attribution.stepKey}` : null, attribution.flow].filter(Boolean).join(' · ')}
                               </div>
                             )}
                           </td>
@@ -1715,7 +1767,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                             <button onClick={() => setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date })} disabled={deleting === booking.id} className="mt-2 rounded border border-red-500/40 bg-transparent px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50">{deleting === booking.id ? 'Deleting...' : 'Delete'}</button>
                           </td>
                         </tr>
-                      ))}
+                      )})}
                     </tbody>
                   </table>
                 </div>

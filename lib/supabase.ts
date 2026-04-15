@@ -70,6 +70,8 @@ export type Database = {
           waiver_accepted_at: string | null;
           zip_code: string | null;
           marketing_source: string | null;
+          lead_id: string | null;
+          attribution_snapshot: unknown | null;
           webhook_sent: boolean;
           created_at: string;
           updated_at: string;
@@ -110,6 +112,8 @@ export type Database = {
           waiver_accepted_at?: string | null;
           zip_code?: string | null;
           marketing_source?: string | null;
+          lead_id?: string | null;
+          attribution_snapshot?: unknown | null;
           webhook_sent?: boolean;
         };
         Update: {
@@ -132,6 +136,8 @@ export type Database = {
           waiver_accepted_at?: string | null;
           zip_code?: string | null;
           marketing_source?: string | null;
+          lead_id?: string | null;
+          attribution_snapshot?: unknown | null;
           webhook_sent?: boolean;
         };
         Relationships: [];
@@ -156,6 +162,9 @@ export type Database = {
           utm_campaign: string | null;
           utm_content: string | null;
           utm_term: string | null;
+          first_touch_attribution: unknown | null;
+          last_touch_attribution: unknown | null;
+          attribution_updated_at: string | null;
           last_step_completed: string | null;
           last_activity_at: string;
           source: string;
@@ -184,6 +193,9 @@ export type Database = {
           utm_campaign?: string | null;
           utm_content?: string | null;
           utm_term?: string | null;
+          first_touch_attribution?: unknown | null;
+          last_touch_attribution?: unknown | null;
+          attribution_updated_at?: string | null;
           last_step_completed?: string | null;
           last_activity_at?: string;
           source?: string;
@@ -212,6 +224,9 @@ export type Database = {
           utm_campaign?: string | null;
           utm_content?: string | null;
           utm_term?: string | null;
+          first_touch_attribution?: unknown | null;
+          last_touch_attribution?: unknown | null;
+          attribution_updated_at?: string | null;
           last_step_completed?: string | null;
           last_activity_at?: string;
           source?: string;
