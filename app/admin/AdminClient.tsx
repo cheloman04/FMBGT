@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Fragment, useState } from 'react';
 import Image from 'next/image';
@@ -196,6 +196,13 @@ interface DeleteDialogState {
   customerName: string;
   locationName: string;
   date: string;
+}
+
+interface DeleteLeadDialogState {
+  id: string;
+  fullName: string;
+  trailType: TrailType | null;
+  lastActivityAt: string;
 }
 
 const STATUS_OPTIONS = ['all', 'leads', 'confirmed', 'completed', 'cancelled', 'refunded'];
@@ -481,7 +488,7 @@ function summarizeBikeMix(riders: RiderDetail[]): string {
 
   return Object.entries(counts)
     .map(([label, count]) => `${count} ${label}`)
-    .join(' · ');
+    .join(' - ');
 }
 
 function RidersPanel({ riders }: { riders: RiderDetail[] }) {
@@ -681,7 +688,7 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">Last active</p>
-            <p className="mt-1 text-sm text-muted-foreground">{timeAgo(lead.last_activity_at)} · {formatDateTime(lead.last_activity_at)}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{timeAgo(lead.last_activity_at)} - {formatDateTime(lead.last_activity_at)}</p>
           </div>
         </div>
       </div>
@@ -693,7 +700,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
+  const [leadDeleteDialog, setLeadDeleteDialog] = useState<DeleteLeadDialogState | null>(null);
   const [isNextBookingExpanded, setIsNextBookingExpanded] = useState(false);
   const [selectedMobileBookingId, setSelectedMobileBookingId] = useState<string | null>(null);
   const [localBookings, setLocalBookings] = useState(bookings);
@@ -940,6 +949,37 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
     }
   };
 
+  const handleDeleteLead = async (leadId: string) => {
+    setDeletingLeadId(leadId);
+    setLeadFollowUpStatus((prev) => ({ ...prev, [leadId]: '' }));
+    try {
+      const res = await fetch('/api/admin/delete-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setLocalLeads((prev) => prev.filter((lead) => lead.id !== leadId));
+        setExpandedLeads((prev) => {
+          const next = new Set(prev);
+          next.delete(leadId);
+          return next;
+        });
+        setLeadFollowUpStatus((prev) => {
+          const next = { ...prev };
+          delete next[leadId];
+          return next;
+        });
+      } else {
+        setLeadFollowUpStatus((prev) => ({ ...prev, [leadId]: data.error ?? 'Failed to delete lead' }));
+      }
+    } finally {
+      setDeletingLeadId(null);
+      setLeadDeleteDialog(null);
+    }
+  };
   const handleMarkReviewReceived = async (bookingId: string) => {
     const booking = localBookings.find((item) => item.id === bookingId);
     const enrollmentId = booking?.review_request_enrollment?.id;
@@ -1069,6 +1109,36 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
           </div>
         )}
 
+        {leadDeleteDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => (deletingLeadId ? undefined : setLeadDeleteDialog(null))} />
+            <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-red-500/30 bg-zinc-950 shadow-[0_0_0_1px_rgba(239,68,68,0.08),0_20px_80px_rgba(0,0,0,0.55)]">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-400/70 to-transparent" />
+              <div className="p-6">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-300">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-7.5 13A1 1 0 003.66 18h16.68a1 1 0 00.87-1.5l-7.5-13a1 1 0 00-1.74 0z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-foreground">Delete Lead?</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  This will permanently remove <span className="font-semibold text-foreground">{leadDeleteDialog.fullName}</span>, along with related follow-up records, lead sessions, pending bookings, and linked waiver records.
+                </p>
+                <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm">
+                  <p className="font-medium capitalize text-foreground">{leadDeleteDialog.trailType ?? 'Lead'}</p>
+                  <p className="mt-1 text-muted-foreground">Last active {formatDateTime(leadDeleteDialog.lastActivityAt)}</p>
+                </div>
+                <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button onClick={() => setLeadDeleteDialog(null)} disabled={!!deletingLeadId} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50">Keep Lead</button>
+                  <button onClick={() => handleDeleteLead(leadDeleteDialog.id)} disabled={!!deletingLeadId} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50">
+                    {deletingLeadId === leadDeleteDialog.id ? 'Deleting...' : 'Delete Permanently'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {selectedMobileBooking && (
           <div className="fixed inset-0 z-40 flex sm:hidden">
             <div
@@ -1125,7 +1195,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                     </div>
                     <div className="space-y-1">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Ride</p>
-                      <p className="text-sm leading-5 text-foreground">{selectedMobileBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {selectedMobileBooking.duration_hours}hr</p>
+                      <p className="text-sm leading-5 text-foreground">{selectedMobileBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} - {selectedMobileBooking.duration_hours}hr</p>
                       <p className="text-sm text-muted-foreground">{summarizeBikeMix(selectedMobileBookingRiders)}</p>
                     </div>
                     <div className="space-y-1">
@@ -1269,7 +1339,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                 <div className="inline-flex items-center rounded-full border border-green-500/35 bg-green-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-green-700 dark:text-green-300">Your Next Booking</div>
                 <div>
                   <h2 className="text-lg font-bold text-foreground sm:text-xl">{nearestBooking.customer_name}</h2>
-                  <p className="text-sm leading-6 text-muted-foreground">{nearestBooking.location_name} · {formatDate(nearestBooking.date)} · {nearestBooking.time_slot}</p>
+                  <p className="text-sm leading-6 text-muted-foreground">{nearestBooking.location_name} - {formatDate(nearestBooking.date)} - {nearestBooking.time_slot}</p>
                 </div>
               </div>
               <button type="button" onClick={() => setIsNextBookingExpanded((prev) => !prev)} className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/55 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-background/75 sm:hidden dark:bg-background/60" aria-expanded={isNextBookingExpanded}>
@@ -1277,7 +1347,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                 <svg viewBox="0 0 20 20" fill="none" className={`h-4 w-4 transition-transform ${isNextBookingExpanded ? 'rotate-180' : ''}`} aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
               <div className={`${isNextBookingExpanded ? 'mt-4 grid gap-2 text-sm' : 'hidden'} sm:mt-4 sm:grid sm:gap-2 sm:text-sm sm:grid-cols-3 lg:min-w-[420px]`}>
-                <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Tour</p><p className="mt-1 font-semibold text-foreground">{nearestBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {nearestBooking.duration_hours}h</p></div>
+                <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Tour</p><p className="mt-1 font-semibold text-foreground">{nearestBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} - {nearestBooking.duration_hours}h</p></div>
                 <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Payment</p><p className="mt-1 font-semibold text-foreground">{formatPrice(nearestBooking.total_price)}</p></div>
                 <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p><p className="mt-1 font-semibold capitalize text-green-700 dark:text-green-300">{nearestBooking.status}</p></div>
               </div>
@@ -1358,7 +1428,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
           </div>
         </div>
 
-        {/* ── LEADS VIEW ─────────────────────────────────────────────────────── */}
+        {/* â”€â”€ LEADS VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="mb-4">
           <div className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.1)]">
             <input
@@ -1384,12 +1454,16 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full table-fixed text-sm">
                     <thead className="border-b border-border bg-muted/50">
                       <tr>
-                        {['Contact', 'Trail', 'Source', 'Funnel Stage', 'Follow-Up', 'Last Active', 'Actions'].map((h) => (
-                          <th key={h} className={`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground ${h === 'Actions' || h === 'Source' ? 'text-center' : 'text-left'}`}>{h}</th>
-                        ))}
+                        <th className="w-[18%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contact</th>
+                        <th className="w-[12%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Trail</th>
+                        <th className="w-[10%] px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Source</th>
+                        <th className="w-[12%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Funnel Stage</th>
+                        <th className="w-[21%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Follow-Up</th>
+                        <th className="w-[10%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Last Active</th>
+                        <th className="w-[17%] px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -1412,20 +1486,20 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-foreground/80 capitalize">
-                            {lead.selected_trail_type ?? '—'}
+                          <td className="px-4 py-3 align-top text-foreground/80 capitalize">
+                            {lead.selected_trail_type ?? '-'}
                             {lead.selected_location_name && (
                               <div className="text-xs text-muted-foreground">{lead.selected_location_name}</div>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-center align-middle">
+                          <td className="px-4 py-3 align-top text-center">
                             {lead.utm_source ? (
                               <div className="flex flex-col items-center">
                                 <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{lead.utm_source}</span>
                                 {lead.utm_campaign && <div className="mt-1 text-xs text-muted-foreground">{lead.utm_campaign}</div>}
                               </div>
                             ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
+                              <span className="text-xs text-muted-foreground">-</span>
                             )}
                           </td>
                           <td className="px-4 py-3">
@@ -1434,7 +1508,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                                 {STEP_LABELS[lead.last_step_completed] ?? lead.last_step_completed}
                               </span>
                             ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
+                              <span className="text-xs text-muted-foreground">-</span>
                             )}
                           </td>
                           <td className="px-4 py-3">
@@ -1442,7 +1516,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                               <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${followUpDisplay.badgeClass}`}>
                                 {followUpDisplay.label}
                               </span>
-                              <p className="max-w-[190px] text-xs text-muted-foreground">
+                              <p className="max-w-[240px] text-xs leading-5 text-muted-foreground">
                                 {nextPending
                                   ? `Next ${formatStepKey(nextPending.step_key)} ${formatDateTime(nextPending.scheduled_for)}`
                                   : followUpDisplay.detail}
@@ -1470,6 +1544,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                               </button>
                               <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="inline-flex w-32 items-center justify-center rounded-md border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
                                 {sendingLeadId === lead.id ? 'Sending...' : canSendFollowUp ? 'Send Follow-Up' : followUpDisplay.label}
+                              </button>
+                              <button onClick={() => setLeadDeleteDialog({ id: lead.id, fullName: lead.full_name, trailType: lead.selected_trail_type, lastActivityAt: lead.last_activity_at })} disabled={deletingLeadId === lead.id} className="inline-flex w-32 items-center justify-center rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50">
+                                {deletingLeadId === lead.id ? 'Deleting...' : 'Delete Lead'}
                               </button>
                               {leadFollowUpStatus[lead.id] && <p className="text-xs text-muted-foreground">{leadFollowUpStatus[lead.id]}</p>}
                             </div>
@@ -1537,10 +1614,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                         ? `Next ${formatStepKey(nextPending.step_key)} ${formatDateTime(nextPending.scheduled_for)}`
                         : followUpDisplay.detail}
                     </p>
-                    <div className="mt-3 flex w-full gap-2">
+                    <div className="mt-3 grid w-full grid-cols-2 gap-2">
                       <button
                         onClick={() => toggleLead(lead.id)}
-                        className={`inline-flex flex-1 items-center justify-center rounded-md border px-3 py-2 text-[11px] font-semibold transition-colors ${
+                        className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-[11px] font-semibold transition-colors ${
                           expandedLeads.has(lead.id)
                             ? 'border-foreground/20 bg-foreground text-background hover:bg-foreground/90'
                             : 'border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20'
@@ -1548,8 +1625,11 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       >
                         {expandedLeads.has(lead.id) ? 'Hide details' : 'View details'}
                       </button>
-                      <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="inline-flex flex-1 items-center justify-center rounded-md border border-green-500/40 bg-green-500/10 px-3 py-2 text-[11px] font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
+                      <button onClick={() => handleSendLeadFollowUp(lead.id)} disabled={sendingLeadId === lead.id || !canSendFollowUp} className="inline-flex items-center justify-center rounded-md border border-green-500/40 bg-green-500/10 px-3 py-2 text-[11px] font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-50">
                         {sendingLeadId === lead.id ? 'Sending...' : canSendFollowUp ? 'Send Follow-Up' : followUpDisplay.label}
+                      </button>
+                      <button onClick={() => setLeadDeleteDialog({ id: lead.id, fullName: lead.full_name, trailType: lead.selected_trail_type, lastActivityAt: lead.last_activity_at })} disabled={deletingLeadId === lead.id} className="col-span-2 inline-flex items-center justify-center rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50">
+                        {deletingLeadId === lead.id ? 'Deleting...' : 'Delete Lead'}
                       </button>
                     </div>
                     {leadFollowUpStatus[lead.id] && <p className="mt-2 text-[11px] text-muted-foreground">{leadFollowUpStatus[lead.id]}</p>}
@@ -1566,7 +1646,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
           </>
         )}
 
-        {/* ── BOOKINGS VIEW ──────────────────────────────────────────────────── */}
+        {/* â”€â”€ BOOKINGS VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {!isLeadsView && (
           <>
             {/* Mobile booking cards */}
@@ -1589,7 +1669,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-foreground">{booking.customer_name}</p>
-                        <p className="mt-1 truncate text-xs text-muted-foreground">{formatDate(booking.date)} · {booking.time_slot}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{formatDate(booking.date)} - {booking.time_slot}</p>
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
                     </div>
@@ -1598,15 +1678,15 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                         <p className="truncate text-sm text-foreground">{booking.location_name}</p>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'}</span>
-                          <span>·</span>
+                          <span> - </span>
                           <span>{booking.duration_hours}hr</span>
-                          <span>·</span>
+                          <span> - </span>
                         </div>
                         <p className="text-[11px] text-muted-foreground">
                           {(() => {
                             const riders = buildRiderDetails(booking);
                             const missingCount = riders.filter((rider) => rider.needsSizing).length;
-                            return `${summarizeBikeMix(riders)} · ${riders.length} rider${riders.length > 1 ? 's' : ''}${missingCount > 0 ? ` · ${missingCount} size missing` : ''}`;
+                            return `${summarizeBikeMix(riders)} - ${riders.length} rider${riders.length > 1 ? 's' : ''}${missingCount > 0 ? ` - ${missingCount} size missing` : ''}`;
                           })()}
                         </p>
                       </div>
@@ -1635,7 +1715,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                       <div className="text-right">
                         {(attribution.stepKey || attribution.flow) && (
                           <div className="mb-1 text-[11px] text-muted-foreground">
-                            {[attribution.stepKey ? `Step ${attribution.stepKey}` : null, attribution.flow].filter(Boolean).join(' · ')}
+                            {[attribution.stepKey ? `Step ${attribution.stepKey}` : null, attribution.flow].filter(Boolean).join(' - ')}
                           </div>
                         )}
                         <span className="text-xs font-medium text-green-400">Open details</span>
@@ -1683,7 +1763,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                             )}
                             {(attribution.stepKey || attribution.flow) && (
                               <div className="mt-1 text-xs text-muted-foreground">
-                                {[attribution.stepKey ? `Step ${attribution.stepKey}` : null, attribution.flow].filter(Boolean).join(' · ')}
+                                {[attribution.stepKey ? `Step ${attribution.stepKey}` : null, attribution.flow].filter(Boolean).join(' - ')}
                               </div>
                             )}
                           </td>
@@ -1691,7 +1771,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                           <td className="px-4 py-3 text-foreground/80"><div>{formatDate(booking.date)}</div><div className="text-xs text-muted-foreground">{booking.time_slot}</div></td>
                           <td className="px-4 py-3 text-foreground/80">
                             <div className="flex items-center gap-2">
-                              <span>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'} · {booking.duration_hours}h</span>
+                              <span>{booking.trail_type === 'mtb' ? 'MTB' : 'Paved'} - {booking.duration_hours}h</span>
                               {(() => {
                                 const riders = buildRiderDetails(booking);
                                 const missingCount = riders.filter((rider) => rider.needsSizing).length;
@@ -1741,30 +1821,43 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
                           <td className="px-4 py-3">
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
                           </td>
-                          <td className="px-4 py-3">
-                            {booking.review_request_enrollment && (
-                              <div className="mb-2 text-[11px] text-muted-foreground">
-                                {getReviewRequestStatusLabel(booking.review_request_enrollment)}
-                              </div>
-                            )}
-                            <select value={booking.status} disabled={updating === booking.id} onChange={(e) => handleStatusChange(booking.id, e.target.value)} className="rounded border border-border bg-background px-2 py-1 text-xs text-foreground disabled:opacity-50">
-                              <option value="confirmed">confirmed</option>
-                              <option value="completed">completed</option>
-                              <option value="cancelled">cancelled</option>
-                              <option value="refunded">refunded</option>
-                            </select>
-                            {booking.status === 'completed' &&
-                              booking.review_request_enrollment &&
-                              booking.review_request_enrollment.status !== 'reviewed' && (
-                                <button
-                                  onClick={() => handleMarkReviewReceived(booking.id)}
-                                  disabled={markingReviewBookingId === booking.id}
-                                  className="mt-2 block rounded border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs text-blue-300 transition-colors hover:bg-blue-500/20 disabled:opacity-50"
-                                >
-                                  {markingReviewBookingId === booking.id ? 'Saving...' : 'Mark Review Received'}
-                                </button>
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex flex-col items-center gap-2 text-center">
+                              {booking.review_request_enrollment && (
+                                <div className="w-32 text-[11px] text-muted-foreground">
+                                  {getReviewRequestStatusLabel(booking.review_request_enrollment)}
+                                </div>
                               )}
-                            <button onClick={() => setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date })} disabled={deleting === booking.id} className="mt-2 rounded border border-red-500/40 bg-transparent px-2 py-1 text-xs text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50">{deleting === booking.id ? 'Deleting...' : 'Delete'}</button>
+                              <select
+                                value={booking.status}
+                                disabled={updating === booking.id}
+                                onChange={(e) => handleStatusChange(booking.id, e.target.value)}
+                                className="w-32 rounded-md border border-foreground/15 bg-background/90 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors focus:border-blue-500/40 focus:outline-none disabled:opacity-50"
+                              >
+                                <option value="confirmed">confirmed</option>
+                                <option value="completed">completed</option>
+                                <option value="cancelled">cancelled</option>
+                                <option value="refunded">refunded</option>
+                              </select>
+                              {booking.status === 'completed' &&
+                                booking.review_request_enrollment &&
+                                booking.review_request_enrollment.status !== 'reviewed' && (
+                                  <button
+                                    onClick={() => handleMarkReviewReceived(booking.id)}
+                                    disabled={markingReviewBookingId === booking.id}
+                                    className="inline-flex w-32 items-center justify-center rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-300 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {markingReviewBookingId === booking.id ? 'Saving...' : 'Mark Review Received'}
+                                  </button>
+                                )}
+                              <button
+                                onClick={() => setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date })}
+                                disabled={deleting === booking.id}
+                                className="inline-flex w-32 items-center justify-center rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {deleting === booking.id ? 'Deleting...' : 'Delete'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )})}
@@ -1780,3 +1873,6 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
     </div>
   );
 }
+
+
+
