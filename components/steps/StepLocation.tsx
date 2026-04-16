@@ -14,6 +14,7 @@ interface LocationMeta {
   image: string;
   description: string;
   mapLink: string;
+  imagePosition?: string;
 }
 
 function normalizeLocationKey(value: string) {
@@ -44,16 +45,25 @@ const LOCATION_CONTENT: Record<string, LocationMeta> = {
     mapLink: 'https://maps.app.goo.gl/WjApuDjQubbBJJBQ6',
   },
   'Soldiers Creek Park, Longwood (First Time)': {
-    image: '/images/tours/location-soldiers-creek.png',
+    image: '/images/ultimos-maps/Soldier-Creek.png',
     description:
       'Smooth and easy trails ideal for practicing balance, braking, and turning while building confidence on dirt.',
     mapLink: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
+    imagePosition: 'left center',
+  },
+  'Soldiers Creek Park, Longwood': {
+    image: '/images/ultimos-maps/Soldier-Creek.png',
+    description:
+      'Smooth and easy trails ideal for practicing balance, braking, and turning while building confidence on dirt.',
+    mapLink: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
+    imagePosition: 'left center',
   },
   'Markham Woods Trail, Lake Mary': {
-    image: '/images/tours/location-markham-woods.png',
+    image: '/images/ultimos-maps/Markham-Woods.png',
     description:
       'Flowing forest trails with light roots and gentle turns, perfect for riders ready to improve control and bike handling.',
     mapLink: 'https://maps.app.goo.gl/u7hqJcQw9RGL16PaA',
+    imagePosition: 'center top',
   },
   'Little Big Econ Jones East - Snow Hill Rd, Chuluota': {
     image: '/images/tours/location-econ-jones.png',
@@ -68,16 +78,18 @@ const LOCATION_CONTENT: Record<string, LocationMeta> = {
     mapLink: 'https://maps.app.goo.gl/FQtUAx8ZS2zwpQpZ7',
   },
   'Chuck Lennon Mountain Bike Trailhead, DeLeon Springs': {
-    image: '/images/tours/location-chuck-lenon-mountain-delon-springs-fl.png',
+    image: '/images/ultimos-maps/Chuck-Lennon.png',
     description:
       'Flowing singletrack with roots, climbs, and fast sections that challenge riders while rewarding strong control.',
     mapLink: 'https://maps.app.goo.gl/Q9oC3jfyLHGtddkZ8',
+    imagePosition: 'center 68%',
   },
   'River Bend, Ormond Beach': {
-    image: '/images/tours/location-river-bend.png',
+    image: '/images/ultimos-maps/Riverbend-Mountain.png',
     description:
       'A scenic trail with tight tree lines, roots, and flowing terrain that tests balance and bike handling skills.',
     mapLink: 'https://maps.app.goo.gl/m9wLtSRAV9dNCuhR6',
+    imagePosition: '68% center',
   },
   'Doris Leeper Spruce Creek MTB Trailhead, Port Orange': {
     image: '/images/tours/location-spruce-creek.png',
@@ -86,16 +98,18 @@ const LOCATION_CONTENT: Record<string, LocationMeta> = {
     mapLink: 'https://maps.app.goo.gl/F1qUgb47Yj5K4MZn7',
   },
   'Santos Trailhead, Ocala': {
-    image: '/images/tours/location-santos-trailhead-ocala-fl.png',
+    image: '/images/ultimos-maps/Santos-Trailhead.png',
     description:
       'World-class mountain bike destination featuring jumps, drops, and technical terrain for expert riders.',
     mapLink: 'https://maps.app.goo.gl/YVVXwnwXZiTaJ4tT6',
+    imagePosition: '62% center',
   },
   'Graham Swamp East Trailhead MTB, Palm Coast': {
-    image: '/images/tours/location-graham-swamp-2.png',
+    image: '/images/ultimos-maps/Graham-Swamp.png',
     description:
       'Challenging trail with steep climbs, fast descents, and rugged terrain designed for highly skilled riders.',
     mapLink: 'https://maps.app.goo.gl/3cZ8NEZ4eJFjD8bo6',
+    imagePosition: 'center 42%',
   },
 };
 
@@ -138,6 +152,7 @@ function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
           alt={displayName}
           fill
           className={`object-cover transition-opacity duration-300 ${hovered ? 'opacity-0' : 'opacity-100'}`}
+          style={meta.imagePosition ? { objectPosition: meta.imagePosition } : undefined}
         />
 
         <div
