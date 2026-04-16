@@ -10,17 +10,24 @@ const FALLBACK_LOCATION_META: BookingLocationMeta = {
   meetingPointUrl: 'https://maps.google.com',
 };
 
+const SANFORD_PAVED_META: BookingLocationMeta = {
+  meetingPointName: 'Downtown Sanford, Bicikleta Bike Shop',
+  meetingPointAddress: '229 Magnolia Ave, Sanford, FL 32771',
+  meetingPointUrl:
+    'https://www.google.com/maps/search/?api=1&query=Downtown+Sanford%2C+Bicikleta+Bike+Shop%2C+229+Magnolia+Ave%2C+Sanford%2C+FL+32771',
+};
+
+const SPRING_TO_SPRING_PAVED_META: BookingLocationMeta = {
+  meetingPointName: 'Spring to Spring, Blue Springs State Park - Lake Beresford Park',
+  meetingPointAddress: '2100 Fatio Rd, DeLand, FL 32720',
+  meetingPointUrl:
+    'https://www.google.com/maps/search/?api=1&query=Spring+to+Spring%2C+Blue+Springs+State+Park+-+Lake+Beresford+Park%2C+2100+Fatio+Rd%2C+DeLand%2C+FL+32720',
+};
+
 const LOCATION_META: Record<string, BookingLocationMeta> = {
-  'Sanford Historic Riverfront Tour': {
-    meetingPointName: 'Fort Mellon Park',
-    meetingPointAddress: '600 E 1st St, Sanford, FL 32771',
-    meetingPointUrl: 'https://maps.app.goo.gl/UQL4WTkzoXVSG4Ti8',
-  },
-  'Spring to Spring Trail Tour - Blue Spring State Park': {
-    meetingPointName: 'Blue Spring State Park',
-    meetingPointAddress: '2100 W French Ave, Orange City, FL 32763',
-    meetingPointUrl: 'https://maps.app.goo.gl/imgUh7LBef9cLj2d7',
-  },
+  'Sanford Historic Riverfront Tour': SANFORD_PAVED_META,
+  'Spring to Spring Trail Tour - Blue Spring State Park': SPRING_TO_SPRING_PAVED_META,
+  ['Spring to Spring Trail Tour \u2013 Blue Spring State Park']: SPRING_TO_SPRING_PAVED_META,
   'Lake Druid Park, Orlando': {
     meetingPointName: 'Lake Druid Park',
     meetingPointAddress: '899 Coy Dr, Orlando, FL 32803',
@@ -32,9 +39,10 @@ const LOCATION_META: Record<string, BookingLocationMeta> = {
     meetingPointUrl: 'https://maps.app.goo.gl/Xq7WKPN9pFJuGZGw8',
   },
   'Markham Woods Trail, Lake Mary': {
-    meetingPointName: 'Markham Woods Trail',
+    meetingPointName: 'Markham Woods Park',
     meetingPointAddress: '8515 Markham Rd, Lake Mary, FL 32746',
-    meetingPointUrl: 'https://maps.app.goo.gl/u7hqJcQw9RGL16PaA',
+    meetingPointUrl:
+      'https://www.google.com/maps/search/?api=1&query=Markham+Woods+Park%2C+8515+Markham+Rd%2C+Lake+Mary%2C+FL+32746',
   },
   'Little Big Econ Jones East - Snow Hill Rd, Chuluota': {
     meetingPointName: 'Jones East Trailhead',
@@ -62,9 +70,10 @@ const LOCATION_META: Record<string, BookingLocationMeta> = {
     meetingPointUrl: 'https://maps.app.goo.gl/m9wLtSRAV9dNCuhR6',
   },
   'Doris Leeper Spruce Creek MTB Trailhead, Port Orange': {
-    meetingPointName: 'Doris Leeper Spruce Creek MTB Trailhead',
-    meetingPointAddress: "1755 Martin's Dairy Rd, Port Orange, FL 32127",
-    meetingPointUrl: 'https://maps.app.goo.gl/F1qUgb47Yj5K4MZn7',
+    meetingPointName: 'Spruce Creek',
+    meetingPointAddress: '2317 Creek Shore Trail, New Smyrna Beach, FL 32168',
+    meetingPointUrl:
+      'https://www.google.com/maps/search/?api=1&query=Spruce+Creek%2C+2317+Creek+Shore+Trail%2C+New+Smyrna+Beach%2C+FL+32168',
   },
   'Santos Trailhead, Ocala': {
     meetingPointName: 'Santos Trailhead & Campground',
@@ -72,9 +81,10 @@ const LOCATION_META: Record<string, BookingLocationMeta> = {
     meetingPointUrl: 'https://maps.app.goo.gl/YVVXwnwXZiTaJ4tT6',
   },
   'Graham Swamp East Trailhead MTB, Palm Coast': {
-    meetingPointName: 'Graham Swamp East Trailhead',
-    meetingPointAddress: '5140 Colbert Ln, Palm Coast, FL 32137',
-    meetingPointUrl: 'https://maps.app.goo.gl/3cZ8NEZ4eJFjD8bo6',
+    meetingPointName: 'Graham Swamp East TrailHead',
+    meetingPointAddress: 'Lehigh Trail Trailhead, Palm Coast, FL 32137',
+    meetingPointUrl:
+      'https://www.google.com/maps/search/?api=1&query=Graham+Swamp+East+TrailHead%2C+Lehigh+Trail+Trailhead%2C+Palm+Coast%2C+FL+32137',
   },
 };
 
@@ -86,4 +96,3 @@ export function getBookingLocationMeta(locationName?: string | null): BookingLoc
     meetingPointUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationName)}`,
   };
 }
-
