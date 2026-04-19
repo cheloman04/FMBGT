@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
@@ -189,6 +189,7 @@ interface Props {
   leads: Lead[];
   stats: Stats;
   currentStatus: string;
+  initialLeadId?: string | null;
 }
 
 interface DeleteDialogState {
@@ -696,7 +697,7 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
   );
 }
 
-export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
+export function AdminClient({ bookings, leads, stats, currentStatus, initialLeadId = null }: Props) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -759,6 +760,18 @@ export function AdminClient({ bookings, leads, stats, currentStatus }: Props) {
     localBookings.find((booking) => booking.id === selectedMobileBookingId) ??
     null;
   const selectedMobileBookingRiders = selectedMobileBooking ? buildRiderDetails(selectedMobileBooking) : [];
+
+  useEffect(() => {
+    if (!initialLeadId) return;
+    if (!localLeads.some((lead) => lead.id === initialLeadId)) return;
+
+    setExpandedLeads((prev) => {
+      if (prev.has(initialLeadId)) return prev;
+      const next = new Set(prev);
+      next.add(initialLeadId);
+      return next;
+    });
+  }, [initialLeadId, localLeads]);
 
   const toggleWaivers = (id: string) => {
     setExpandedWaivers((prev) => {

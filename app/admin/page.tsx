@@ -446,14 +446,14 @@ async function getStats() {
 }
 
 interface PageProps {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; leadId?: string }>;
 }
 
 export default async function AdminPage({ searchParams }: PageProps) {
   await checkAuth();
 
-  const { status } = await searchParams;
-  const isLeadsView = status === 'leads';
+  const { status, leadId } = await searchParams;
+  const isLeadsView = status === 'leads' || !!leadId;
 
   const [bookings, leads, stats] = await Promise.all([
     isLeadsView ? Promise.resolve([]) : getBookings(status),
@@ -466,7 +466,8 @@ export default async function AdminPage({ searchParams }: PageProps) {
       bookings={bookings}
       leads={leads}
       stats={stats}
-      currentStatus={status ?? 'all'}
+      currentStatus={isLeadsView ? 'leads' : status ?? 'all'}
+      initialLeadId={leadId ?? null}
     />
   );
 }
