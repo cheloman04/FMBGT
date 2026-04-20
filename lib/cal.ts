@@ -10,6 +10,15 @@ const CAL_EVENT_TYPE_ID_PAVED_BLUE_SPRING = process.env.CAL_EVENT_TYPE_ID_PAVED_
 
 const SANFORD_PAVED_LOCATION = 'Sanford Historic Riverfront Tour';
 const BLUE_SPRING_PAVED_LOCATION = 'Spring to Spring Trail Tour - Blue Spring State Park';
+const BLUE_SPRING_PAVED_LOCATION_ALT = 'Spring to Spring Trail Tour – Blue Spring State Park';
+
+function normalizeCalLocationName(value: string | null | undefined) {
+  return (value ?? '')
+    .normalize('NFKC')
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export interface CalEventTypeLookupInput {
   trailType?: TrailType | null;
@@ -17,16 +26,21 @@ export interface CalEventTypeLookupInput {
 }
 
 export function getCalEventTypeId(input: CalEventTypeLookupInput): string | null {
+  const normalizedLocationName = normalizeCalLocationName(input.locationName);
+
   if (input.trailType === 'mtb') {
     return CAL_EVENT_TYPE_ID_MTB ?? null;
   }
 
   if (input.trailType === 'paved') {
-    if (input.locationName === SANFORD_PAVED_LOCATION) {
+    if (normalizedLocationName === normalizeCalLocationName(SANFORD_PAVED_LOCATION)) {
       return CAL_EVENT_TYPE_ID_PAVED_SANFORD ?? null;
     }
 
-    if (input.locationName === BLUE_SPRING_PAVED_LOCATION) {
+    if (
+      normalizedLocationName === normalizeCalLocationName(BLUE_SPRING_PAVED_LOCATION) ||
+      normalizedLocationName === normalizeCalLocationName(BLUE_SPRING_PAVED_LOCATION_ALT)
+    ) {
       return CAL_EVENT_TYPE_ID_PAVED_BLUE_SPRING ?? null;
     }
   }
