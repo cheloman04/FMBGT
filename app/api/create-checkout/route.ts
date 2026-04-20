@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createCheckoutSession, createStripeCustomer, getStripeCustomer } from '@/lib/stripe';
 import { validateBookingInventory } from '@/lib/inventory';
-import { calculatePriceBreakdown } from '@/lib/pricing';
+import { calculatePriceBreakdown, PRICING } from '@/lib/pricing';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { markLeadSessionCheckoutStarted } from '@/lib/lead-sessions';
 import type { BookingState, TrailType } from '@/types/booking';
@@ -60,6 +60,8 @@ const BookingStateSchema = z.object({
   }),
   lead_id: z.string().uuid().optional(),
   lead_session_id: z.string().uuid().optional(),
+  live_test_mode: z.boolean().optional(),
+  live_test_token: z.string().max(200).optional(),
   first_touch_attribution: AttributionPayloadSchema.optional(),
   last_touch_attribution: AttributionPayloadSchema.optional(),
 });
@@ -112,6 +114,13 @@ function calcRemainingBalanceDueAt(tourDateStr: string): string {
   const [y, m, d] = tourDateStr.split('-').map(Number) as [number, number, number];
   // Day before tour at 16:00 UTC = noon ET (covers both EST and EDT)
   return new Date(Date.UTC(y, m - 1, d - 1, 16, 0, 0)).toISOString();
+}
+
+function isLiveTestModeAuthorized(input: { requested?: boolean; token?: string }): boolean {
+  if (!input.requested) return false;
+  const expectedToken = process.env.LIVE_TEST_BOOKING_TOKEN;
+  if (!expectedToken) return false;
+  return input.token === expectedToken;
 }
 
 type ReconciledLead = {
@@ -323,12 +332,18 @@ export async function POST(req: NextRequest) {
     const effectiveBike = (state.trail_type === 'paved' && state.location_name === 'Blue Spring State Park')
       ? 'standard'
       : state.bike_rental;
+    const liveTestMode = isLiveTestModeAuthorized({
+      requested: state.live_test_mode,
+      token: state.live_test_token,
+    });
+
     const priceBreakdown = calculatePriceBreakdown(
       effectiveBike,
       effectiveDuration,
       state.addons,
       state.trail_type,
-      state.additional_participants
+      state.additional_participants,
+      { liveTestMode }
     );
 
     // Deposit split: 50% now, 50% charged the day before the tour
@@ -425,7 +440,10 @@ export async function POST(req: NextRequest) {
         marketing_source: state.customer.marketing_source ?? null,
         lead_id: effectiveLeadId,
         booking_session_id: state.lead_session_id ?? null,
-        attribution_snapshot: state.last_touch_attribution ?? state.first_touch_attribution ?? null,
+        attribution_snapshot: {
+          ...(state.last_touch_attribution ?? state.first_touch_attribution ?? {}),
+          ...(liveTestMode ? { live_test_mode: true, live_test_total: PRICING.LIVE_TEST_TOTAL } : {}),
+        },
       })
       .select('id')
       .single();
@@ -455,6 +473,7 @@ export async function POST(req: NextRequest) {
       cancelUrl: `${appUrl}/booking`,
       bookingId: booking.id,
       stripeCustomerId,
+      liveTestMode,
     });
 
     // Update booking with Stripe session ID

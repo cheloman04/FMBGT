@@ -34,19 +34,26 @@ export function PriceSummary({
     effectiveDurationHours,
     effectiveAddons,
     effectiveTrailType,
-    effectiveAdditionalParticipants
+    effectiveAdditionalParticipants,
+    { liveTestMode: state.live_test_mode }
   );
   const breakdown = calculatePriceBreakdown(
     effectiveBikeRental,
     effectiveDurationHours,
     effectiveAddons,
     effectiveTrailType,
-    effectiveAdditionalParticipants
+    effectiveAdditionalParticipants,
+    { liveTestMode: state.live_test_mode }
   );
 
   return (
     <div className="bg-card border border-border rounded-lg p-4">
       <h3 className="font-semibold text-foreground mb-3">Price Summary</h3>
+      {state.live_test_mode && (
+        <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+          Internal live test mode active. This booking uses a fixed $5.00 verification price.
+        </p>
+      )}
       <div className="space-y-2">
         {lineItems.map((item, i) => (
           <div key={i} className="flex justify-between text-sm">

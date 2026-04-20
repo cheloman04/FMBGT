@@ -72,6 +72,7 @@ type BookingAction =
   | { type: 'SET_BOOKING_ID'; payload: string }
   | { type: 'SET_LEAD_ID'; payload: string }
   | { type: 'SET_LEAD_SESSION_ID'; payload: string }
+  | { type: 'SET_LIVE_TEST_MODE'; payload: { enabled: boolean; token?: string } }
   | { type: 'SET_UTM'; payload: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string } }
   | { type: 'SET_ATTRIBUTION'; payload: { first_touch?: AttributionPayload; last_touch: AttributionPayload } }
   | { type: 'RESET' };
@@ -159,6 +160,13 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
     case 'SET_LEAD_SESSION_ID':
       return { ...state, lead_session_id: action.payload };
 
+    case 'SET_LIVE_TEST_MODE':
+      return {
+        ...state,
+        live_test_mode: action.payload.enabled,
+        live_test_token: action.payload.enabled ? action.payload.token : undefined,
+      };
+
     case 'SET_UTM':
       return { ...state, ...action.payload };
 
@@ -243,6 +251,7 @@ interface BookingContextValue {
   setBookingId: (id: string) => void;
   setLeadId: (id: string) => void;
   setLeadSessionId: (id: string) => void;
+  setLiveTestMode: (enabled: boolean, token?: string) => void;
   setUtm: (params: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) => void;
   captureAttribution: (attribution: AttributionPayload) => void;
   reset: () => void;
@@ -380,6 +389,11 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     (id: string) => dispatch({ type: 'SET_LEAD_SESSION_ID', payload: id }),
     []
   );
+  const setLiveTestMode = useCallback(
+    (enabled: boolean, token?: string) =>
+      dispatch({ type: 'SET_LIVE_TEST_MODE', payload: { enabled, token } }),
+    []
+  );
   const setUtm = useCallback(
     (params: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) =>
       dispatch({ type: 'SET_UTM', payload: params }),
@@ -433,6 +447,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         setBookingId,
         setLeadId,
         setLeadSessionId,
+        setLiveTestMode,
         setUtm,
         captureAttribution,
         reset,

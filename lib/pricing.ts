@@ -3,6 +3,7 @@ import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParti
 // All prices in cents (USD)
 export const PRICING = {
   FLORIDA_STATE_TAX_RATE: 0.07,
+  LIVE_TEST_TOTAL: 500,      // $5.00 total all-in for internal live payment verification
   PAVED_FLAT: 11500,         // $115.00 per rider - paved 2hr tour, bike always included
   BASE_NO_BIKE: 8900,        // $89.00 - MTB 2hr tour, BYOB (no bike)
   BASE_WITH_BIKE: 18900,     // $189.00 - MTB 2hr tour, standard bike included
@@ -21,6 +22,24 @@ export const PRICING = {
     electric: 0,      // Electric upgrade is an addon on top of standard
   } as const,
 } as const;
+
+interface PricingOptions {
+  liveTestMode?: boolean;
+}
+
+function buildLiveTestBreakdown(participantCount: number): PriceBreakdown {
+  return {
+    base_price: PRICING.LIVE_TEST_TOTAL,
+    duration_surcharge: 0,
+    addons_price: 0,
+    subtotal: PRICING.LIVE_TEST_TOTAL,
+    tax_amount: 0,
+    total: PRICING.LIVE_TEST_TOTAL,
+    currency: 'usd',
+    participant_count: participantCount,
+    is_live_test_mode: true,
+  };
+}
 
 export function calculateFloridaStateTax(subtotal: number): number {
   return Math.round(subtotal * PRICING.FLORIDA_STATE_TAX_RATE);
@@ -57,9 +76,14 @@ export function calculatePriceBreakdown(
   durationHours: DurationHours,
   addons: Addons,
   trailType?: string,
-  additionalParticipants?: AdditionalParticipant[]
+  additionalParticipants?: AdditionalParticipant[],
+  options: PricingOptions = {}
 ): PriceBreakdown {
   const participantCount = 1 + (additionalParticipants?.length ?? 0);
+
+  if (options.liveTestMode) {
+    return buildLiveTestBreakdown(participantCount);
+  }
 
   // Paved tours: $115 per rider, bike always included, no duration surcharge
   if (trailType === 'paved') {
@@ -133,11 +157,21 @@ export function getPriceLineItems(
   durationHours: DurationHours,
   addons: Addons,
   trailType?: string,
-  additionalParticipants?: AdditionalParticipant[]
+  additionalParticipants?: AdditionalParticipant[],
+  options: PricingOptions = {}
 ): Array<{ label: string; amount: number }> {
   const items: Array<{ label: string; amount: number }> = [];
   const participantCount = 1 + (additionalParticipants?.length ?? 0);
   const countLabel = participantCount > 1 ? ` x${participantCount}` : '';
+
+  if (options.liveTestMode) {
+    return [
+      {
+        label: 'Internal live payment verification booking',
+        amount: PRICING.LIVE_TEST_TOTAL,
+      },
+    ];
+  }
 
   if (trailType === 'paved') {
     items.push({

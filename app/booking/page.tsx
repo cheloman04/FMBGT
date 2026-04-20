@@ -34,7 +34,7 @@ const SESSION_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 const EXIT_TRACKING_ARM_DELAY_MS = 1_500;
 
 export default function BookingPage() {
-  const { currentStepId, state, setLeadSessionId, setUtm, captureAttribution } = useBooking();
+  const { currentStepId, state, setLeadSessionId, setLiveTestMode, setUtm, captureAttribution } = useBooking();
   const [mounted, setMounted] = useState(false);
   const exitTrackingArmedRef = useRef(false);
 
@@ -42,12 +42,14 @@ export default function BookingPage() {
     setMounted(true);
     const params = new URLSearchParams(window.location.search);
     const attribution = extractAttributionFromSearchParams(params);
+    const liveTestRequested = params.get('live_test') === '1';
+    const liveTestToken = params.get('test_token')?.trim() || undefined;
+    setLiveTestMode(liveTestRequested, liveTestToken);
     if (attribution) {
       captureAttribution(attribution);
       setUtm(pickUtmFromAttribution(attribution));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [captureAttribution, setLiveTestMode, setUtm]);
 
   useEffect(() => {
     if (!mounted || !state.lead_id) return;
@@ -207,5 +209,14 @@ export default function BookingPage() {
   if (!mounted) return <div className="min-h-[400px]" />;
 
   const StepComponent = STEP_COMPONENTS[currentStepId];
-  return <StepComponent />;
+  return (
+    <>
+      {state.live_test_mode && (
+        <div className="mx-auto mb-4 max-w-3xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Internal live payment verification mode. Use this flow only for real Stripe end-to-end testing.
+        </div>
+      )}
+      <StepComponent />
+    </>
+  );
 }

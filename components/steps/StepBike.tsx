@@ -243,6 +243,7 @@ export function StepBike() {
       state.addons ?? { gopro: false, pickup_dropoff: false, electric_upgrade: false },
       state.trail_type,
       additionals,
+      { liveTestMode: state.live_test_mode }
     );
     setPriceBreakdown(breakdown);
 

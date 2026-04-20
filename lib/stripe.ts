@@ -43,6 +43,7 @@ export interface CreateCheckoutSessionParams {
   cancelUrl: string;
   bookingId: string;
   stripeCustomerId: string;   // must be created before calling this
+  liveTestMode?: boolean;
 }
 
 export async function createCheckoutSession({
@@ -54,6 +55,7 @@ export async function createCheckoutSession({
   cancelUrl,
   bookingId,
   stripeCustomerId,
+  liveTestMode = false,
 }: CreateCheckoutSessionParams): Promise<Stripe.Checkout.Session> {
   const { customer, location_name } = bookingState;
 
@@ -74,6 +76,7 @@ export async function createCheckoutSession({
       metadata: {
         booking_id: bookingId,
         charge_type: 'deposit',
+        ...(liveTestMode ? { live_test_mode: 'true' } : {}),
       },
     },
     line_items: [
@@ -85,7 +88,8 @@ export async function createCheckoutSession({
             description:
               `Tour on ${dateLabel}. ` +
               `Full price: ${formatCents(fullTotal)}. ` +
-              `Remaining ${formatCents(remainingBalance)} will be charged automatically the day before your tour.`,
+              `Remaining ${formatCents(remainingBalance)} will be charged automatically the day before your tour.` +
+              (liveTestMode ? ' Internal live payment verification booking.' : ''),
           },
           unit_amount: depositAmount,
         },
@@ -105,6 +109,7 @@ export async function createCheckoutSession({
       total_amount: String(fullTotal),
       deposit_amount: String(depositAmount),
       remaining_balance: String(remainingBalance),
+      live_test_mode: liveTestMode ? 'true' : 'false',
     },
     success_url: successUrl,
     cancel_url: cancelUrl,

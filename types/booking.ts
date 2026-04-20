@@ -102,6 +102,7 @@ export interface PriceBreakdown {
   total: number;              // in cents
   currency: 'usd';
   participant_count?: number; // for display
+  is_live_test_mode?: boolean;
 }
 
 export interface InventoryStatus {
@@ -159,6 +160,8 @@ export interface BookingState {
   utm_term?: string;
   first_touch_attribution?: AttributionPayload;
   last_touch_attribution?: AttributionPayload;
+  live_test_mode?: boolean;
+  live_test_token?: string;
 
   // Computed
   price_breakdown?: PriceBreakdown;
