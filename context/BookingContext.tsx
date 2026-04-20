@@ -82,10 +82,22 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
     case 'SET_TRAIL_TYPE':
       // Changing trail type resets all downstream selections.
       // For paved: bike is always included (standard) and duration is fixed at 2hrs.
+      const preservedTestMode = {
+        live_test_mode: state.live_test_mode,
+        live_test_token: state.live_test_token,
+      };
       if (action.payload === 'paved') {
-        return { trail_type: action.payload, bike_rental: 'standard', duration_hours: 2 };
+        return {
+          ...preservedTestMode,
+          trail_type: action.payload,
+          bike_rental: 'standard',
+          duration_hours: 2,
+        };
       }
-      return { trail_type: action.payload };
+      return {
+        ...preservedTestMode,
+        trail_type: action.payload,
+      };
 
     case 'SET_SKILL_LEVEL':
       return {
