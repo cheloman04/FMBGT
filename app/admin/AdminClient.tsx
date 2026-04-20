@@ -53,6 +53,9 @@ interface Booking {
   stripe_payment_method_id: string | null;
   cal_booking_status?: string | null;
   webhook_sent?: boolean | null;
+  webhook_last_attempt_at?: string | null;
+  webhook_last_status_code?: number | null;
+  webhook_last_error?: string | null;
   review_request_enrollment?: BookingReviewRequestEnrollment | null;
 }
 
@@ -242,6 +245,16 @@ function formatDateTime(iso: string) {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+function formatWebhookAttempt(booking: Booking) {
+  if (!booking.webhook_last_attempt_at) return null;
+
+  const statusLabel = typeof booking.webhook_last_status_code === 'number'
+    ? `HTTP ${booking.webhook_last_status_code}`
+    : 'No response';
+
+  return `${timeAgo(booking.webhook_last_attempt_at)} · ${statusLabel}`;
 }
 
 function timeAgo(iso: string): string {
@@ -957,9 +970,30 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
       if (res.status === 401) { handleUnauthorized(); return; }
       const data = await res.json();
       if (res.ok) {
-        setLocalBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, webhook_sent: true } : b)));
+        setLocalBookings((prev) => prev.map((b) => (
+          b.id === bookingId
+            ? {
+                ...b,
+                webhook_sent: true,
+                webhook_last_attempt_at: new Date().toISOString(),
+                webhook_last_status_code: 200,
+                webhook_last_error: null,
+              }
+            : b
+        )));
         setWebhookRetriggerStatus((prev) => ({ ...prev, [bookingId]: 'Sent' }));
       } else {
+        setLocalBookings((prev) => prev.map((b) => (
+          b.id === bookingId
+            ? {
+                ...b,
+                webhook_sent: false,
+                webhook_last_attempt_at: new Date().toISOString(),
+                webhook_last_status_code: null,
+                webhook_last_error: data.error ?? 'Failed',
+              }
+            : b
+        )));
         setWebhookRetriggerStatus((prev) => ({ ...prev, [bookingId]: data.error ?? 'Failed' }));
       }
     } finally {
@@ -1873,7 +1907,15 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                                 <div className="rounded bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">No Cal event</div>
                               )}
                               {booking.webhook_sent === false && (
-                                <div className="rounded bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">Email not sent</div>
+                                <div className="space-y-1">
+                                  <div className="rounded bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">Confirmation email not sent</div>
+                                  {formatWebhookAttempt(booking) && (
+                                    <div className="text-[11px] text-muted-foreground">{formatWebhookAttempt(booking)}</div>
+                                  )}
+                                  {booking.webhook_last_error && (
+                                    <div className="max-w-[220px] text-[11px] text-orange-700 dark:text-orange-300">{booking.webhook_last_error}</div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </td>
@@ -1906,14 +1948,14 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                                     {markingReviewBookingId === booking.id ? 'Saving...' : 'Mark Review Received'}
                                   </button>
                                 )}
-                              {booking.webhook_sent === false && (
+                              {booking.status === 'confirmed' && booking.webhook_sent === false && (
                                 <div className="w-32 space-y-0.5">
                                   <button
                                     onClick={() => handleRetriggerWebhook(booking.id)}
                                     disabled={retriggeringWebhook === booking.id}
                                     className="inline-flex w-full items-center justify-center rounded-md border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-300 transition-colors hover:bg-orange-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
-                                    {retriggeringWebhook === booking.id ? 'Sending...' : 'Re-trigger n8n'}
+                                    {retriggeringWebhook === booking.id ? 'Sending...' : 'Resend C. Email'}
                                   </button>
                                   {webhookRetriggerStatus[booking.id] && (
                                     <p className="text-center text-[11px] text-muted-foreground">{webhookRetriggerStatus[booking.id]}</p>
@@ -1943,6 +1985,3 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
     </div>
   );
 }
-
-
-

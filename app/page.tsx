@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import FloridaMountainBikeGuidesLanding from '@/components/landing/FloridaMountainBikeGuidesLanding';
+import { getSiteUrl } from '@/lib/site-url';
+
+const SITE_URL = getSiteUrl();
 
 // ─────────────────────────────────────────────
 // Page-level SEO metadata
@@ -9,19 +12,19 @@ export const metadata: Metadata = {
   title: 'Guided Mountain Bike Tours in Central Florida | Florida Mountain Bike Guides',
   description:
     'Expert-guided mountain bike and paved trail tours across Central Florida. Bikes included, all skill levels welcome. Ride Sanford, Mount Dora, Ocala, and beyond.',
-  metadataBase: new URL('https://fmbgt.vercel.app'),
+  metadataBase: new URL(SITE_URL),
   alternates: {
-    canonical: 'https://fmbgt.vercel.app',
+    canonical: SITE_URL,
   },
   openGraph: {
     title: 'Guided Mountain Bike Tours in Central Florida | Florida Mountain Bike Guides',
     description:
       'Expert-guided mountain bike and paved trail tours across Central Florida. Bikes included, all skill levels welcome. Ride Sanford, Mount Dora, Ocala, and beyond.',
-    url: 'https://fmbgt.vercel.app',
+    url: SITE_URL,
     siteName: 'Florida Mountain Bike Guides',
     images: [
       {
-        url: 'https://fmbgt.vercel.app/og-image.jpg',
+        url: `${SITE_URL}/og-image.jpg`,
         width: 1200,
         height: 630,
         alt: 'Guided mountain bike tour on a Central Florida trail — Florida Mountain Bike Guides',
@@ -35,7 +38,7 @@ export const metadata: Metadata = {
     title: 'Guided Mountain Bike Tours in Central Florida | Florida Mountain Bike Guides',
     description:
       'All skill levels. Bikes included. Local guides. Book your Central Florida trail adventure today.',
-    images: ['https://fmbgt.vercel.app/og-image.jpg'],
+    images: [`${SITE_URL}/og-image.jpg`],
   },
   robots: {
     index: true,
@@ -51,7 +54,7 @@ const organizationSchema = {
   '@type': 'Organization',
   name: 'Florida Mountain Bike Guides',
   alternateName: 'FMBGT',
-  url: 'https://fmbgt.vercel.app',
+  url: SITE_URL,
   logo: 'https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png',
   foundingDate: '2024',
   description:
@@ -74,9 +77,9 @@ const localBusinessSchema = {
   name: 'Florida Mountain Bike Guides',
   description:
     'Guided mountain bike and scenic paved trail tours across Central Florida. All skill levels welcome. Bikes and gear provided at the trailhead.',
-  url: 'https://fmbgt.vercel.app',
+  url: SITE_URL,
   logo: 'https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png',
-  image: 'https://fmbgt.vercel.app/og-image.jpg',
+  image: `${SITE_URL}/og-image.jpg`,
   foundingDate: '2024',
   priceRange: '$$',
   address: {
@@ -107,14 +110,14 @@ const localBusinessSchema = {
         name: 'Mountain Bike Guided Tour',
         description:
           'Guided singletrack mountain bike tour across Central Florida trails. Bikes and gear included. All skill levels.',
-        url: 'https://fmbgt.vercel.app/booking',
+        url: `${SITE_URL}/booking`,
       },
       {
         '@type': 'Offer',
         name: 'Scenic Paved Trail Tour',
         description:
           'Relaxed guided paved trail ride through historic Sanford, Blue Spring, and scenic Central Florida riverfront routes.',
-        url: 'https://fmbgt.vercel.app/booking',
+        url: `${SITE_URL}/booking`,
       },
     ],
   },

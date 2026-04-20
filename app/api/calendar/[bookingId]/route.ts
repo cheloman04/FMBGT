@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { buildBookingIcs } from '@/lib/booking-email';
+import { getSiteUrl } from '@/lib/site-url';
 
 export async function GET(
   _req: NextRequest,
@@ -31,7 +32,7 @@ export async function GET(
 
   const startIso = easternLocalToUtcIso(booking.date, booking.time_slot);
   const endIso = addHoursToIso(startIso, booking.duration_hours);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = getSiteUrl();
   const ics = buildBookingIcs({
     bookingId: booking.id,
     customerName: customer?.name ?? 'Guest',
@@ -54,4 +55,3 @@ export async function GET(
     },
   });
 }
-

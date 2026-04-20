@@ -205,12 +205,12 @@ export function ConfirmationClient({ booking, bookingId }: Props) {
         <Link href="/booking" className={cn(buttonVariants({ variant: 'outline' }))}>
           Book Another Tour
         </Link>
-        <a
-          href="https://floridamtbguidedtours.com"
+        <Link
+          href="/"
           className={cn(buttonVariants({ variant: 'default' }), 'bg-green-600 hover:bg-green-700 text-white')}
         >
           Return to Website
-        </a>
+        </Link>
       </div>
     </div>
   );

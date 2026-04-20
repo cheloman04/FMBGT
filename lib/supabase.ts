@@ -73,6 +73,9 @@ export type Database = {
           lead_id: string | null;
           attribution_snapshot: unknown | null;
           webhook_sent: boolean;
+          webhook_last_attempt_at: string | null;
+          webhook_last_status_code: number | null;
+          webhook_last_error: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -115,6 +118,9 @@ export type Database = {
           lead_id?: string | null;
           attribution_snapshot?: unknown | null;
           webhook_sent?: boolean;
+          webhook_last_attempt_at?: string | null;
+          webhook_last_status_code?: number | null;
+          webhook_last_error?: string | null;
         };
         Update: {
           status?: BookingStatus;
@@ -139,6 +145,9 @@ export type Database = {
           lead_id?: string | null;
           attribution_snapshot?: unknown | null;
           webhook_sent?: boolean;
+          webhook_last_attempt_at?: string | null;
+          webhook_last_status_code?: number | null;
+          webhook_last_error?: string | null;
         };
         Relationships: [];
       };

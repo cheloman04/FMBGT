@@ -126,6 +126,9 @@ CREATE TABLE IF NOT EXISTS bookings (
 
   -- n8n webhook tracking
   webhook_sent BOOLEAN DEFAULT FALSE,
+  webhook_last_attempt_at TIMESTAMPTZ,
+  webhook_last_status_code INTEGER,
+  webhook_last_error TEXT,
 
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

@@ -9,6 +9,13 @@ import { getBookingLocationMeta } from '@/lib/location-meta';
 import { confirmLeadSessionAbandoned, markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
 
+type WebhookAttemptResult = {
+  ok: boolean;
+  attemptedAt: string;
+  statusCode: number | null;
+  error: string | null;
+};
+
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const signature = req.headers.get('stripe-signature');
@@ -231,7 +238,7 @@ export async function POST(req: NextRequest) {
         const appUrl = getAppUrl();
         const calendarUrl = `${appUrl}/api/calendar/${bookingId}`;
 
-        const n8nSent = await triggerN8nWebhook('booking_confirmed', {
+        const n8nResult = await triggerN8nWebhook('booking_confirmed', {
           booking_id: bookingId,
           session_id: session.id,
           customer_email: customerEmail,
@@ -259,12 +266,7 @@ export async function POST(req: NextRequest) {
           calendar_url: calendarUrl,
         });
 
-        if (n8nSent) {
-          await supabase
-            .from('bookings')
-            .update({ webhook_sent: true })
-            .eq('id', bookingId);
-        }
+        await recordBookingWebhookAttempt(supabase, bookingId, n8nResult);
 
         console.log(`[stripe-webhook] Booking ${bookingId} confirmed — deposit paid, PM saved: ${stripePaymentMethodId ?? 'none'}`);
         break;
@@ -423,11 +425,41 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function triggerN8nWebhook(event: string, data: Record<string, unknown>): Promise<boolean> {
+function trimWebhookError(message: string): string {
+  return message.replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
+async function recordBookingWebhookAttempt(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  bookingId: string,
+  result: WebhookAttemptResult
+) {
+  const { error } = await supabase
+    .from('bookings')
+    .update({
+      webhook_sent: result.ok,
+      webhook_last_attempt_at: result.attemptedAt,
+      webhook_last_status_code: result.statusCode,
+      webhook_last_error: result.ok ? null : result.error,
+    })
+    .eq('id', bookingId);
+
+  if (error) {
+    console.error(`[stripe-webhook] Failed to persist webhook status for booking ${bookingId}:`, error);
+  }
+}
+
+async function triggerN8nWebhook(event: string, data: Record<string, unknown>): Promise<WebhookAttemptResult> {
+  const attemptedAt = new Date().toISOString();
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
   if (!webhookUrl || webhookUrl === 'your_n8n_webhook_url_here') {
     console.warn('[stripe-webhook] N8N_WEBHOOK_URL not configured, skipping');
-    return false;
+    return {
+      ok: false,
+      attemptedAt,
+      statusCode: null,
+      error: 'N8N_WEBHOOK_URL not configured',
+    };
   }
 
   try {
@@ -439,14 +471,34 @@ async function triggerN8nWebhook(event: string, data: Record<string, unknown>): 
     });
 
     if (!response.ok) {
-      console.error(`[stripe-webhook] n8n webhook returned ${response.status}`);
-      return false;
+      const responseText = trimWebhookError(await response.text());
+      const errorMessage = responseText
+        ? `n8n returned ${response.status}: ${responseText}`
+        : `n8n returned ${response.status}`;
+      console.error(`[stripe-webhook] ${errorMessage}`);
+      return {
+        ok: false,
+        attemptedAt,
+        statusCode: response.status,
+        error: errorMessage,
+      };
     }
 
     console.log(`[stripe-webhook] n8n notified: ${event}`);
-    return true;
+    return {
+      ok: true,
+      attemptedAt,
+      statusCode: response.status,
+      error: null,
+    };
   } catch (error) {
     console.error('[stripe-webhook] n8n webhook failed:', error);
-    return false;
+    const message = error instanceof Error ? error.message : 'Unknown network error';
+    return {
+      ok: false,
+      attemptedAt,
+      statusCode: null,
+      error: trimWebhookError(message),
+    };
   }
 }

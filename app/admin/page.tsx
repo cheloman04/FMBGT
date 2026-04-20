@@ -93,7 +93,8 @@ async function getBookings(status?: string) {
       zip_code, marketing_source, attribution_snapshot,
       deposit_amount, remaining_balance_amount, remaining_balance_due_at,
       deposit_payment_status, remaining_balance_status,
-      stripe_payment_method_id, cal_booking_status, webhook_sent
+      stripe_payment_method_id, cal_booking_status, webhook_sent,
+      webhook_last_attempt_at, webhook_last_status_code, webhook_last_error
     `)
     .order('date', { ascending: false })
     .limit(100);
@@ -136,6 +137,9 @@ async function getBookings(status?: string) {
     stripe_payment_method_id: string | null;
     cal_booking_status: string | null;
     webhook_sent: boolean | null;
+    webhook_last_attempt_at: string | null;
+    webhook_last_status_code: number | null;
+    webhook_last_error: string | null;
   }>;
 
   const locationIds = [...new Set(typedBookings.map((b) => b.location_id).filter(Boolean))];
@@ -244,6 +248,9 @@ async function getBookings(status?: string) {
     review_request_enrollment: latestReviewEnrollmentByBooking.get(b.id) ?? null,
     cal_booking_status: b.cal_booking_status,
     webhook_sent: b.webhook_sent,
+    webhook_last_attempt_at: b.webhook_last_attempt_at,
+    webhook_last_status_code: b.webhook_last_status_code,
+    webhook_last_error: b.webhook_last_error,
   }));
 }
 

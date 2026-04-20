@@ -7,6 +7,10 @@ import { formatSkillLevel } from '@/lib/booking-email';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { getAppUrl } from '@/lib/app-url';
 
+function trimWebhookError(message: string): string {
+  return message.replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -123,19 +127,51 @@ export async function POST(
     });
 
     if (!res.ok) {
-      console.error(`[retrigger-webhook] n8n returned ${res.status} for booking ${bookingId}`);
-      return NextResponse.json({ error: `n8n returned ${res.status}` }, { status: 502 });
+      const responseText = trimWebhookError(await res.text());
+      const errorMessage = responseText
+        ? `n8n returned ${res.status}: ${responseText}`
+        : `n8n returned ${res.status}`;
+
+      await supabase
+        .from('bookings')
+        .update({
+          webhook_sent: false,
+          webhook_last_attempt_at: new Date().toISOString(),
+          webhook_last_status_code: res.status,
+          webhook_last_error: errorMessage,
+        })
+        .eq('id', bookingId);
+
+      console.error(`[retrigger-webhook] ${errorMessage} for booking ${bookingId}`);
+      return NextResponse.json({ error: errorMessage }, { status: 502 });
     }
 
     await supabase
       .from('bookings')
-      .update({ webhook_sent: true })
+      .update({
+        webhook_sent: true,
+        webhook_last_attempt_at: new Date().toISOString(),
+        webhook_last_status_code: res.status,
+        webhook_last_error: null,
+      })
       .eq('id', bookingId);
 
     console.log(`[retrigger-webhook] Webhook re-triggered for booking ${bookingId} by admin ${adminUser.email}`);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[retrigger-webhook] Failed:', err);
-    return NextResponse.json({ error: 'Failed to reach n8n' }, { status: 502 });
+    const errorMessage = trimWebhookError(err instanceof Error ? err.message : 'Failed to reach n8n');
+
+    await supabase
+      .from('bookings')
+      .update({
+        webhook_sent: false,
+        webhook_last_attempt_at: new Date().toISOString(),
+        webhook_last_status_code: null,
+        webhook_last_error: errorMessage,
+      })
+      .eq('id', bookingId);
+
+    return NextResponse.json({ error: errorMessage }, { status: 502 });
   }
 }
