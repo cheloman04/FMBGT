@@ -3,9 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
+
+const ADMIN_EMAIL = 'floridamountainbikeguides@gmail.com';
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const [email] = useState(ADMIN_EMAIL);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +23,7 @@ export default function AdminLoginPage() {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: password }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (res.ok) {
@@ -60,8 +64,21 @@ export default function AdminLoginPage() {
         <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1.5">
+                Admin Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                readOnly
+                value={email}
+                className="w-full border border-input bg-muted text-foreground rounded-lg px-3 py-2.5 text-sm"
+              />
+            </div>
+
+            <div>
               <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1.5">
-                Dashboard Password
+                Password
               </label>
               <input
                 id="password"
@@ -89,6 +106,12 @@ export default function AdminLoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          <div className="mt-5 text-center">
+            <Link href="/admin/forgot-password" className="text-sm font-medium text-green-600 hover:text-green-700">
+              Forgot password?
+            </Link>
+          </div>
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">

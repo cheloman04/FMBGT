@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { cookies } from 'next/headers';
 import { createLeadBookingSession } from '@/lib/lead-sessions';
 import type { TrailType } from '@/types/booking';
+import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 
 // ── POST /api/leads — create a new lead ──────────────────────────────────────
 
@@ -208,9 +209,8 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   // Admin auth check
   const cookieStore = await cookies();
-  const session = cookieStore.get('admin_session')?.value;
-  const adminSecret = process.env.ADMIN_SECRET;
-  if (!adminSecret || session !== adminSecret) {
+  const adminUser = await getAdminUserFromCookieStore(cookieStore);
+  if (!adminUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

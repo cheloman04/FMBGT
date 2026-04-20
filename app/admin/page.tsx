@@ -1,8 +1,7 @@
-import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { AdminClient } from './AdminClient';
 import type { AdditionalParticipant } from '@/types/booking';
+import { requireAdminUser } from '@/lib/admin-auth';
 
 function extractWaiverStoragePath(urlOrPath: string | null): string | null {
   if (!urlOrPath) return null;
@@ -46,12 +45,7 @@ async function createSignedWaiverUrl(pathOrUrl: string | null) {
 }
 
 async function checkAuth() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('admin_session')?.value;
-  const adminSecret = process.env.ADMIN_SECRET;
-  if (!adminSecret || session !== adminSecret) {
-    redirect('/admin/login');
-  }
+  await requireAdminUser();
 }
 
 async function getLeadConversionSignalSet(leadIds: string[]) {

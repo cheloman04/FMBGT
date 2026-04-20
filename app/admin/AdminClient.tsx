@@ -1337,6 +1337,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
               <div className="text-xs uppercase tracking-[0.24em] text-green-400 sm:hidden">Operations</div>
               <div className="flex items-center gap-2">
                 <ThemeToggle />
+                <a href="/admin/forgot-password" className="rounded-xl border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Change Password</a>
                 <button onClick={handleLogout} className="rounded-xl border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Sign Out</button>
               </div>
             </div>

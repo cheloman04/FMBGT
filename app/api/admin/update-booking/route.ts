@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyCompletedService } from '@/lib/completed-service-alert';
 import { enrollBookingInReviewRequest } from '@/lib/review-requests';
+import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 
 const Schema = z.object({
   booking_id: z.string().uuid(),
@@ -13,8 +14,8 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   // Verify admin session cookie
   const cookieStore = await cookies();
-  const session = cookieStore.get('admin_session')?.value;
-  if (!process.env.ADMIN_SECRET || session !== process.env.ADMIN_SECRET) {
+  const adminUser = await getAdminUserFromCookieStore(cookieStore);
+  if (!adminUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
