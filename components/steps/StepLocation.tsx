@@ -39,7 +39,7 @@ const LOCATION_CONTENT: Record<string, LocationMeta> = {
     mapLink: 'https://maps.app.goo.gl/imgUh7LBef9cLj2d7',
   },
   'Lake Druid Park, Orlando': {
-    image: '/images/tours/location-lake-druid-park.png',
+    image: '/images/ultimos-maps/Lake-Druid.png',
     description:
       'Wide beginner-friendly trails perfect for learning the basics of mountain biking in a safe and open environment.',
     mapLink: 'https://maps.app.goo.gl/WjApuDjQubbBJJBQ6',

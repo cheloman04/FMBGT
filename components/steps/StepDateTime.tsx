@@ -99,10 +99,13 @@ export function StepDateTime() {
   const [visibleMonth, setVisibleMonth] = useState(() =>
     state.date ? startOfMonth(new Date(`${state.date}T00:00:00`)) : startOfMonth(minDate)
   );
+  const missingBookingContext = !state.trail_type || !state.location_name;
 
   useEffect(() => {
+    if (missingBookingContext) return;
+
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}`;
+    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}&trailType=${encodeURIComponent(state.trail_type)}&locationName=${encodeURIComponent(state.location_name)}`;
 
     fetch(url)
       .then((r) => r.json())
@@ -122,7 +125,7 @@ export function StepDateTime() {
         setError('Failed to load availability. Please try again.');
         setLoading(false);
       });
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, missingBookingContext, state.location_name, state.trail_type]);
 
   const availableDates = useMemo(
     () =>
@@ -163,10 +166,15 @@ export function StepDateTime() {
 
       <BookingStepActions onBack={goPrev} />
 
+      {missingBookingContext && (
+        <div className="py-8 text-center text-muted-foreground">
+          Please choose a trail type and location first.
+        </div>
+      )}
       {loading && <div className="py-8 text-center text-muted-foreground">Loading availability...</div>}
       {error && <div className="py-8 text-center text-destructive">{error}</div>}
 
-      {!loading && !error && (
+      {!missingBookingContext && !loading && !error && (
         <>
           <div className="mb-6">
             <div className="mb-3 flex items-center justify-between gap-3">

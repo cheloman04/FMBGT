@@ -1,9 +1,38 @@
-import type { AvailabilitySlot } from '@/types/booking';
+import type { AvailabilitySlot, TrailType } from '@/types/booking';
 
 const CAL_API_BASE = 'https://api.cal.com/v2';
 const CAL_API_KEY = process.env.CAL_API_KEY;
-const CAL_EVENT_TYPE_ID = process.env.CAL_EVENT_TYPE_ID;
 const CAL_USERNAME = process.env.CAL_USERNAME;
+const CAL_EVENT_TYPE_ID = process.env.CAL_EVENT_TYPE_ID;
+const CAL_EVENT_TYPE_ID_MTB = process.env.CAL_EVENT_TYPE_ID_MTB ?? CAL_EVENT_TYPE_ID;
+const CAL_EVENT_TYPE_ID_PAVED_SANFORD = process.env.CAL_EVENT_TYPE_ID_PAVED_SANFORD;
+const CAL_EVENT_TYPE_ID_PAVED_BLUE_SPRING = process.env.CAL_EVENT_TYPE_ID_PAVED_BLUE_SPRING;
+
+const SANFORD_PAVED_LOCATION = 'Sanford Historic Riverfront Tour';
+const BLUE_SPRING_PAVED_LOCATION = 'Spring to Spring Trail Tour - Blue Spring State Park';
+
+export interface CalEventTypeLookupInput {
+  trailType?: TrailType | null;
+  locationName?: string | null;
+}
+
+export function getCalEventTypeId(input: CalEventTypeLookupInput): string | null {
+  if (input.trailType === 'mtb') {
+    return CAL_EVENT_TYPE_ID_MTB ?? null;
+  }
+
+  if (input.trailType === 'paved') {
+    if (input.locationName === SANFORD_PAVED_LOCATION) {
+      return CAL_EVENT_TYPE_ID_PAVED_SANFORD ?? null;
+    }
+
+    if (input.locationName === BLUE_SPRING_PAVED_LOCATION) {
+      return CAL_EVENT_TYPE_ID_PAVED_BLUE_SPRING ?? null;
+    }
+  }
+
+  return null;
+}
 
 /** Headers for Cal.com v2 GET requests (no Content-Type) */
 function calGetHeaders(): HeadersInit {
@@ -26,6 +55,8 @@ export interface CalAvailabilityParams {
   dateFrom: string; // YYYY-MM-DD (local date in the target timezone)
   dateTo: string;   // YYYY-MM-DD
   timeZone?: string;
+  trailType?: TrailType | null;
+  locationName?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -35,7 +66,12 @@ export interface CalAvailabilityParams {
 export async function getAvailableSlots(
   params: CalAvailabilityParams
 ): Promise<AvailabilitySlot[]> {
-  if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID || !CAL_USERNAME) {
+  const eventTypeId = getCalEventTypeId({
+    trailType: params.trailType,
+    locationName: params.locationName,
+  });
+
+  if (!CAL_API_KEY || !eventTypeId || !CAL_USERNAME) {
     console.log('[cal] Credentials not set — using mock data');
     return getMockAvailability(params.dateFrom, params.dateTo);
   }
@@ -52,10 +88,13 @@ export async function getAvailableSlots(
     endDate.setUTCDate(endDate.getUTCDate() + 1);
 
     const url = new URL(`${CAL_API_BASE}/slots`);
-    url.searchParams.set('eventTypeId', CAL_EVENT_TYPE_ID);
+    url.searchParams.set('eventTypeId', eventTypeId);
     url.searchParams.set('start', startDate.toISOString());
     url.searchParams.set('end', endDate.toISOString());
 
+    console.log(
+      `[cal] Resolved event type ${eventTypeId} for trail=${params.trailType ?? 'unknown'} location="${params.locationName ?? 'unknown'}"`
+    );
     console.log('[cal] Requesting slots (v2):', url.toString());
 
     const response = await fetch(url.toString(), {
@@ -227,16 +266,23 @@ export interface CalBookingParams {
   email: string;
   timeZone?: string;
   notes?: string;
+  trailType?: TrailType | null;
+  locationName?: string | null;
 }
 
 export async function createCalBooking(
   params: CalBookingParams
 ): Promise<string | null> {
-  if (!CAL_API_KEY || !CAL_EVENT_TYPE_ID) {
+  const eventTypeId = getCalEventTypeId({
+    trailType: params.trailType,
+    locationName: params.locationName,
+  });
+
+  if (!CAL_API_KEY || !eventTypeId) {
     console.error(
       '[cal] SKIPPED booking creation — missing env vars:',
       !CAL_API_KEY ? 'CAL_API_KEY' : '',
-      !CAL_EVENT_TYPE_ID ? 'CAL_EVENT_TYPE_ID' : '',
+      !eventTypeId ? `eventTypeId for ${params.trailType ?? 'unknown'} / ${params.locationName ?? 'unknown'}` : '',
       '| booking will have cal_booking_uid=NULL'
     );
     return null;
@@ -246,7 +292,7 @@ export async function createCalBooking(
     const url = new URL(`${CAL_API_BASE}/bookings`);
 
     const body = {
-      eventTypeId: Number(CAL_EVENT_TYPE_ID),
+      eventTypeId: Number(eventTypeId),
       start: params.startIso,
       attendee: {
         name: params.name,
@@ -257,6 +303,9 @@ export async function createCalBooking(
       metadata: {},
     };
 
+    console.log(
+      `[cal] Resolved booking event type ${eventTypeId} for trail=${params.trailType ?? 'unknown'} location="${params.locationName ?? 'unknown'}"`
+    );
     console.log('[cal] Creating booking (v2):', JSON.stringify({ ...body, attendee: { ...body.attendee, email: '[REDACTED]' } }));
 
     const response = await fetch(url.toString(), {

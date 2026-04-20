@@ -183,6 +183,8 @@ export async function POST(req: NextRequest) {
             email: calEmail,
             timeZone: 'America/New_York',
             notes: `Florida MTB Tour — ${session.metadata?.location ?? ''} — ${session.metadata?.date ?? ''}`,
+            trailType: confirmedBooking?.trail_type ?? null,
+            locationName: session.metadata?.location ?? null,
           });
 
           await supabase

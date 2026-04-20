@@ -254,14 +254,14 @@ export function ReviewPageClient({ params }: ReviewPageProps) {
           </div>
 
           <div className="mt-8 rounded-[1.5rem] border border-white/12 bg-white/6 p-5 text-sm leading-7 text-white/72">
-            <p>
-              Flow: <span className="font-medium text-white">{derived.flow || 'review_request'}</span>
+            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/55">
+              Helpful Prompt
+            </div>
+            <p className="mt-3">
+              If you&apos;re not sure what to write, a great review can be as simple as mentioning the guide, the trail vibe, and what made the ride feel fun, comfortable, or memorable.
             </p>
-            <p>
-              Enrollment: <span className="font-medium text-white">{derived.enrollmentId || 'not provided'}</span>
-            </p>
-            <p>
-              Booking: <span className="font-medium text-white">{derived.bookingId || 'not provided'}</span>
+            <p className="mt-3 text-white/88">
+              Honest, personal, and short is perfect.
             </p>
           </div>
         </aside>

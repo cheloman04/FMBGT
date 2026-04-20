@@ -928,7 +928,7 @@ export default function FloridaMountainBikeGuidesLanding() {
         <section id="map" className="relative overflow-hidden border-y border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
           <div className="absolute inset-0 opacity-20">
             <Image
-              src="/images/booking/trail-type-paved.png"
+              src="/images/rev-pics-update/booking-paved-main.png"
               alt="Scenic paved trail background texture"
               fill
               sizes="100vw"
