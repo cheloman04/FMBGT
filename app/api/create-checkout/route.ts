@@ -8,6 +8,7 @@ import { markLeadSessionCheckoutStarted } from '@/lib/lead-sessions';
 import type { BookingState, TrailType } from '@/types/booking';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import { getAppUrl, isLocalOrigin } from '@/lib/app-url';
 
 const AdditionalParticipantSchema = z.object({
   name: z.string().min(1),
@@ -94,26 +95,20 @@ function requireJson(req: NextRequest): boolean {
 }
 
 function isAllowedOrigin(req: NextRequest): boolean {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!appUrl) return true;
-  // If NEXT_PUBLIC_APP_URL is still set to a localhost value (e.g. from .env.local copied
-  // to Vercel without updating), allow all origins so checkout doesn't break in production.
-  if (appUrl.startsWith('http://localhost') || appUrl.startsWith('http://127.0.0.1')) return true;
+  const appUrl = getAppUrl();
   const origin = req.headers.get('origin');
   if (!origin) return true;
-  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return true;
+  if (isLocalOrigin(origin)) return true;
   return origin === appUrl;
 }
 
 /**
- * Calculate the remaining balance due date: noon ET (16:00 UTC) on the day
- * before the tour. The cron job runs daily at 10 AM ET and charges all bookings
- * whose due date is <= now().
+ * Calculate the remaining balance due date as the start of the UTC day before
+ * the tour, so the daily cron run always picks it up on the day before.
  */
 function calcRemainingBalanceDueAt(tourDateStr: string): string {
   const [y, m, d] = tourDateStr.split('-').map(Number) as [number, number, number];
-  // Day before tour at 16:00 UTC = noon ET (covers both EST and EDT)
-  return new Date(Date.UTC(y, m - 1, d - 1, 16, 0, 0)).toISOString();
+  return new Date(Date.UTC(y, m - 1, d - 1, 0, 0, 0)).toISOString();
 }
 
 function isLiveTestModeAuthorized(input: { requested?: boolean; token?: string }): boolean {
@@ -188,6 +183,13 @@ async function resolveCheckoutLead(
 }
 
 export async function POST(req: NextRequest) {
+  try {
+    getAppUrl();
+  } catch (error) {
+    console.error('[checkout] Invalid NEXT_PUBLIC_APP_URL:', error);
+    return NextResponse.json({ error: 'Application URL is misconfigured' }, { status: 500 });
+  }
+
   if (!requireJson(req)) {
     return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 });
   }
@@ -461,7 +463,7 @@ export async function POST(req: NextRequest) {
     }
 
     const booking = bookingData as { id: string };
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const appUrl = getAppUrl();
 
     // ── Create Stripe Checkout Session ────────────────────────────────────────
     const session = await createCheckoutSession({

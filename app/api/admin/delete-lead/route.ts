@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: bookingRows, error: bookingLookupError } = await (supabase as any)
     .from('bookings')
-    .select('id, waiver_session_id')
+    .select('id, status, waiver_session_id')
     .eq('lead_id', lead_id);
 
   if (bookingLookupError) {
@@ -45,11 +45,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to inspect related bookings' }, { status: 500 });
   }
 
-  const bookings = bookingRows ?? [];
-  const bookingIds = bookings.map((booking: { id: string }) => booking.id);
+  const bookings = (bookingRows ?? []) as Array<{ id: string; status: string; waiver_session_id?: string | null }>;
+  const blockingBookings = bookings.filter((b) =>
+    b.status === 'confirmed' || b.status === 'completed'
+  );
+
+  if (blockingBookings.length > 0) {
+    return NextResponse.json(
+      {
+        error: `Cannot delete this lead — it has ${blockingBookings.length} confirmed or completed booking(s). Cancel or refund the booking(s) first.`,
+      },
+      { status: 409 }
+    );
+  }
+
+  const bookingIds = bookings.map((booking) => booking.id);
   const waiverSessionIds = bookings
-    .map((booking: { waiver_session_id?: string | null }) => booking.waiver_session_id ?? null)
-    .filter((value: string | null): value is string => Boolean(value));
+    .map((b) => b.waiver_session_id ?? null)
+    .filter((v): v is string => Boolean(v));
 
   if (bookingIds.length > 0 || waiverSessionIds.length > 0) {
     // Remove related waiver rows first so there is no orphaned dashboard data.

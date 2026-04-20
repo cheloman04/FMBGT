@@ -35,7 +35,7 @@ async function createSignedWaiverUrl(pathOrUrl: string | null) {
   if (!path) return null;
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.storage.from('waivers').createSignedUrl(path, 60 * 60);
+  const { data, error } = await supabase.storage.from('waivers').createSignedUrl(path, 60 * 60 * 24);
   if (error) {
     console.error('[admin] Failed to create signed waiver URL:', error.message);
     return null;
@@ -93,7 +93,7 @@ async function getBookings(status?: string) {
       zip_code, marketing_source, attribution_snapshot,
       deposit_amount, remaining_balance_amount, remaining_balance_due_at,
       deposit_payment_status, remaining_balance_status,
-      stripe_payment_method_id
+      stripe_payment_method_id, cal_booking_status, webhook_sent
     `)
     .order('date', { ascending: false })
     .limit(100);
@@ -134,6 +134,8 @@ async function getBookings(status?: string) {
     deposit_payment_status: string | null;
     remaining_balance_status: string | null;
     stripe_payment_method_id: string | null;
+    cal_booking_status: string | null;
+    webhook_sent: boolean | null;
   }>;
 
   const locationIds = [...new Set(typedBookings.map((b) => b.location_id).filter(Boolean))];
@@ -240,6 +242,8 @@ async function getBookings(status?: string) {
     customer_phone: b.customer_id ? customerMap[b.customer_id]?.phone ?? null : null,
     waiver_records: waiverMap[b.id] ?? waiverMap[b.waiver_session_id ?? ''] ?? [],
     review_request_enrollment: latestReviewEnrollmentByBooking.get(b.id) ?? null,
+    cal_booking_status: b.cal_booking_status,
+    webhook_sent: b.webhook_sent,
   }));
 }
 

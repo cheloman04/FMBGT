@@ -8,7 +8,7 @@ import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 
 const Schema = z.object({
   booking_id: z.string().uuid(),
-  status: z.enum(['pending', 'confirmed', 'completed', 'cancelled', 'refunded']),
+  status: z.enum(['confirmed', 'completed', 'cancelled', 'refunded']),
 });
 
 export async function POST(req: NextRequest) {

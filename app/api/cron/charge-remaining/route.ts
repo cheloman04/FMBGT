@@ -48,6 +48,23 @@ async function runChargeJob(): Promise<NextResponse> {
 
   console.log(`[cron/charge-remaining] Starting run at ${now}`);
 
+  // Recover any bookings stuck in 'processing' from a prior crashed run.
+  // If the sentinel was set more than 30 minutes ago and the run never wrote a result,
+  // clear it so this run (or the admin retry button) can re-attempt the charge.
+  const stuckCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: stuckRows, error: stuckErr } = await supabase
+    .from('bookings')
+    .update({ remaining_balance_payment_intent_id: null })
+    .eq('remaining_balance_payment_intent_id', 'processing')
+    .eq('remaining_balance_status', 'pending')
+    .lte('updated_at', stuckCutoff)
+    .select('id');
+  if (stuckErr) {
+    console.error('[cron/charge-remaining] Stuck-processing cleanup error:', stuckErr);
+  } else if (stuckRows && stuckRows.length > 0) {
+    console.warn(`[cron/charge-remaining] Cleared ${stuckRows.length} stuck-processing booking(s):`, stuckRows.map((r) => r.id));
+  }
+
   // Fetch all bookings due for the remaining balance charge.
   // Conditions:
   //   - remaining_balance_due_at is in the past (due now)
@@ -108,6 +125,22 @@ async function runChargeJob(): Promise<NextResponse> {
       continue;
     }
 
+    // Atomic claim: only one cron run can proceed for this booking even under concurrent execution.
+    // Sets a sentinel value so a second concurrent read finds it non-null and skips.
+    const { data: claimed } = await supabase
+      .from('bookings')
+      .update({ remaining_balance_payment_intent_id: 'processing' })
+      .eq('id', bookingId)
+      .is('remaining_balance_payment_intent_id', null)
+      .select('id')
+      .maybeSingle();
+
+    if (!claimed) {
+      console.log(`[cron/charge-remaining] Booking ${bookingId} already claimed by another run — skipping`);
+      results.skipped++;
+      continue;
+    }
+
     const locationName = location_id ? locationMap[location_id] ?? 'Florida MTB Tour' : 'Florida MTB Tour';
 
     const result = await chargeRemainingBalance({
@@ -134,12 +167,12 @@ async function runChargeJob(): Promise<NextResponse> {
         results.charged++;
       }
     } else {
-      // Mark failed with the PI ID if available (for retry or investigation)
+      // Mark failed; if no PI was created, clear the sentinel so the cron can retry next run.
       await supabase
         .from('bookings')
         .update({
           remaining_balance_status: 'failed',
-          ...(result.paymentIntentId ? { remaining_balance_payment_intent_id: result.paymentIntentId } : {}),
+          remaining_balance_payment_intent_id: result.paymentIntentId ?? null,
         })
         .eq('id', bookingId);
 

@@ -85,11 +85,23 @@ export async function POST(req: NextRequest) {
     if (loc) locationName = (loc as { name: string }).name;
   }
 
-  // Reset to pending before retry so cron doesn't race
-  await supabase
+  // Atomically claim the booking for this retry run.
+  // Sets PI to a sentinel so a concurrent cron run or second admin retry is blocked.
+  const { data: claimed } = await supabase
     .from('bookings')
-    .update({ remaining_balance_status: 'pending', remaining_balance_payment_intent_id: null })
-    .eq('id', booking_id);
+    .update({ remaining_balance_payment_intent_id: 'processing', remaining_balance_status: 'pending' })
+    .eq('id', booking_id)
+    .eq('remaining_balance_status', 'failed')
+    .select('id')
+    .maybeSingle();
+
+  if (!claimed) {
+    // Another retry or cron run is already in flight for this booking
+    return NextResponse.json(
+      { error: 'A retry is already in progress for this booking — try again in a moment.' },
+      { status: 409 }
+    );
+  }
 
   const result = await chargeRemainingBalance({
     bookingId: booking_id,
@@ -97,6 +109,7 @@ export async function POST(req: NextRequest) {
     stripePaymentMethodId: b.stripe_payment_method_id,
     amount: b.remaining_balance_amount,
     description: `Remaining balance (retry) — ${locationName} on ${b.date}`,
+    idempotencySuffix: `retry-${Date.now()}`,
   });
 
   if (result.success) {
@@ -111,11 +124,12 @@ export async function POST(req: NextRequest) {
     console.log(`[admin/retry-charge] SUCCESS booking ${booking_id} — PI ${result.paymentIntentId}`);
     return NextResponse.json({ ok: true, paymentIntentId: result.paymentIntentId });
   } else {
+    // Clear sentinel so the button re-appears and the next retry can claim the booking
     await supabase
       .from('bookings')
       .update({
         remaining_balance_status: 'failed',
-        ...(result.paymentIntentId ? { remaining_balance_payment_intent_id: result.paymentIntentId } : {}),
+        remaining_balance_payment_intent_id: result.paymentIntentId ?? null,
       })
       .eq('id', booking_id);
 

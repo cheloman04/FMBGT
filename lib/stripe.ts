@@ -134,6 +134,7 @@ export interface ChargeRemainingBalanceParams {
   stripePaymentMethodId: string;
   amount: number;       // remaining balance in cents
   description: string;
+  idempotencySuffix?: string; // appended to booking ID to namespace cron vs retry calls
 }
 
 export interface ChargeResult {
@@ -146,19 +147,23 @@ export async function chargeRemainingBalance(
   params: ChargeRemainingBalanceParams
 ): Promise<ChargeResult> {
   try {
-    const pi = await stripe.paymentIntents.create({
-      amount: params.amount,
-      currency: 'usd',
-      customer: params.stripeCustomerId,
-      payment_method: params.stripePaymentMethodId,
-      confirm: true,
-      off_session: true,
-      description: params.description,
-      metadata: {
-        booking_id: params.bookingId,
-        charge_type: 'remaining_balance',
+    const idempotencyKey = `remaining-balance-${params.bookingId}${params.idempotencySuffix ? `-${params.idempotencySuffix}` : ''}`;
+    const pi = await stripe.paymentIntents.create(
+      {
+        amount: params.amount,
+        currency: 'usd',
+        customer: params.stripeCustomerId,
+        payment_method: params.stripePaymentMethodId,
+        confirm: true,
+        off_session: true,
+        description: params.description,
+        metadata: {
+          booking_id: params.bookingId,
+          charge_type: 'remaining_balance',
+        },
       },
-    });
+      { idempotencyKey }
+    );
 
     if (pi.status === 'succeeded') {
       return { success: true, paymentIntentId: pi.id };
@@ -169,9 +174,16 @@ export async function chargeRemainingBalance(
       errorMessage: `Payment intent ended with status: ${pi.status}`,
     };
   } catch (err) {
-    const stripeErr = err as Stripe.StripeRawError;
+    const stripeErr = err as Stripe.StripeRawError & {
+      payment_intent?: string | { id?: string };
+    };
+    const paymentIntentId =
+      typeof stripeErr.payment_intent === 'string'
+        ? stripeErr.payment_intent
+        : stripeErr.payment_intent?.id;
     return {
       success: false,
+      paymentIntentId,
       errorMessage: stripeErr.message ?? 'Unknown Stripe error',
     };
   }

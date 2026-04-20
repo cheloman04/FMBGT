@@ -262,6 +262,7 @@ export async function createCalBooking(
     const response = await fetch(url.toString(), {
       method: 'POST',
       headers: calHeaders(),
+      signal: AbortSignal.timeout(8000),
       body: JSON.stringify(body),
     });
 

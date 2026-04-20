@@ -7,6 +7,7 @@ import { formatSkillLevel } from '@/lib/booking-email';
 import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { confirmLeadSessionAbandoned, markLeadSessionConverted } from '@/lib/lead-sessions';
+import { getAppUrl } from '@/lib/app-url';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -177,11 +178,16 @@ export async function POST(req: NextRequest) {
             notes: `Florida MTB Tour — ${session.metadata?.location ?? ''} — ${session.metadata?.date ?? ''}`,
           });
 
-          if (calUid) {
-            await supabase
-              .from('bookings')
-              .update({ cal_booking_uid: calUid })
-              .eq('id', bookingId);
+          await supabase
+            .from('bookings')
+            .update(calUid
+              ? { cal_booking_uid: calUid, cal_booking_status: 'created' }
+              : { cal_booking_status: 'failed' }
+            )
+            .eq('id', bookingId);
+
+          if (!calUid) {
+            console.error(`[stripe-webhook] Cal.com booking FAILED for booking ${bookingId} — guide has no calendar event`);
           }
         }
 
@@ -222,7 +228,7 @@ export async function POST(req: NextRequest) {
         const bookingEndIso = bookingStartIso && confirmedBooking?.duration_hours
           ? addHoursToIso(bookingStartIso, confirmedBooking.duration_hours)
           : null;
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+        const appUrl = getAppUrl();
         const calendarUrl = `${appUrl}/api/calendar/${bookingId}`;
 
         const n8nSent = await triggerN8nWebhook('booking_confirmed', {
@@ -366,6 +372,21 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        // Update lead funnel stage so abandoned-at-payment is visible in admin
+        if (expiredLeadId) {
+          const now = new Date().toISOString();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any)
+            .from('leads')
+            .update({
+              last_step_completed: 'checkout_abandoned',
+              last_activity_at: now,
+              updated_at: now,
+            })
+            .eq('id', expiredLeadId)
+            .in('status', ['lead', 'lost']);
+        }
+
         console.log(`[stripe-webhook] Booking ${bookingId} cancelled (session expired)`);
         break;
       }
@@ -380,7 +401,7 @@ export async function POST(req: NextRequest) {
         const { error: depositRefundErr } = await supabase
           .from('bookings')
           .update({ status: 'refunded' })
-          .eq('stripe_payment_intent_id', paymentIntentId);
+          .or(`stripe_payment_intent_id.eq.${paymentIntentId},remaining_balance_payment_intent_id.eq.${paymentIntentId}`);
 
         if (depositRefundErr) {
           console.error(`[stripe-webhook] Failed to mark refund for PI ${paymentIntentId}:`, depositRefundErr);
@@ -413,6 +434,7 @@ async function triggerN8nWebhook(event: string, data: Record<string, unknown>): 
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(8000),
       body: JSON.stringify({ event, data, timestamp: new Date().toISOString() }),
     });
 

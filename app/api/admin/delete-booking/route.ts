@@ -26,12 +26,19 @@ export async function POST(req: NextRequest) {
 
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
-    .select('id, waiver_session_id')
+    .select('id, waiver_session_id, status')
     .eq('id', booking_id)
     .single();
 
   if (bookingError || !booking) {
     return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+  }
+
+  if (booking.status === 'confirmed' || booking.status === 'completed') {
+    return NextResponse.json(
+      { error: `Cannot delete a ${booking.status} booking. Cancel or refund it first.` },
+      { status: 409 }
+    );
   }
 
   // Remove related waiver rows first so the dashboard stays clean even if files remain in storage.

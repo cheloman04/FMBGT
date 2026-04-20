@@ -5,6 +5,23 @@ import { cookies } from 'next/headers';
 import { createLeadBookingSession } from '@/lib/lead-sessions';
 import type { TrailType } from '@/types/booking';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+// Rate limiter — 20 lead submissions per IP per hour
+let leadsRatelimit: Ratelimit | null = null;
+function getLeadsRatelimit(): Ratelimit | null {
+  if (leadsRatelimit) return leadsRatelimit;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  leadsRatelimit = new Ratelimit({
+    redis: new Redis({ url, token }),
+    limiter: Ratelimit.slidingWindow(20, '1 h'),
+    prefix: 'fmtg:leads',
+  });
+  return leadsRatelimit;
+}
 
 // ── POST /api/leads — create a new lead ──────────────────────────────────────
 
@@ -24,6 +41,9 @@ const AttributionPayloadSchema = z.object({
   captured_at: z.string().datetime().optional(),
 });
 
+const COMMUNICATION_CONSENT_TEXT =
+  'I consent to receive informational and marketing communications from Florida Mountain Bike Trail Guided Tours via email and SMS.';
+
 const CreateLeadSchema = z.object({
   full_name: z.string().min(1),
   email: z.string().email(),
@@ -38,6 +58,7 @@ const CreateLeadSchema = z.object({
   utm_term: z.string().max(200).optional(),
   attribution_first_touch: AttributionPayloadSchema.optional(),
   attribution_last_touch: AttributionPayloadSchema.optional(),
+  communication_consent: z.boolean().optional().default(false),
 });
 
 type ExistingLeadRecord = {
@@ -90,6 +111,22 @@ async function resolveOpenLeadByEmail(
 }
 
 export async function POST(req: NextRequest) {
+  const limiter = getLeadsRatelimit();
+  if (limiter) {
+    try {
+      const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1';
+      const { success } = await limiter.limit(ip);
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Too many requests. Please try again later.' },
+          { status: 429 }
+        );
+      }
+    } catch {
+      // Upstash unavailable — fail open, don't block the booking flow
+    }
+  }
+
   try {
     const body = await req.json();
     const parsed = CreateLeadSchema.safeParse(body);
@@ -116,6 +153,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (existingLead) {
+      const consentNow = parsed.data.communication_consent === true;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: updatedLead, error: updateError } = await (supabase as any)
         .from('leads')
@@ -133,6 +171,12 @@ export async function POST(req: NextRequest) {
           first_touch_attribution: existingLead.first_touch_attribution ?? firstTouch,
           last_touch_attribution: lastTouch ?? existingLead.last_touch_attribution,
           ...(lastTouch ? { attribution_updated_at: now } : {}),
+          // Upgrade consent if the user checks the box; never downgrade a prior consent
+          ...(consentNow ? {
+            communication_consent: true,
+            communication_consent_at: now,
+            communication_consent_text: COMMUNICATION_CONSENT_TEXT,
+          } : {}),
           last_activity_at: now,
           source: 'booking_platform',
           status: existingLead.status === 'lost' ? 'lead' : existingLead.status,
@@ -170,6 +214,9 @@ export async function POST(req: NextRequest) {
         first_touch_attribution: firstTouch,
         last_touch_attribution: lastTouch,
         attribution_updated_at: lastTouch ? now : null,
+        communication_consent: parsed.data.communication_consent === true,
+        communication_consent_at: parsed.data.communication_consent === true ? now : null,
+        communication_consent_text: parsed.data.communication_consent === true ? COMMUNICATION_CONSENT_TEXT : null,
         last_step_completed: 'lead_captured',
         last_activity_at: now,
         source: 'booking_platform',

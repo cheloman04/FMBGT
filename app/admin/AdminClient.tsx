@@ -1,6 +1,7 @@
 ﻿'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
@@ -50,6 +51,8 @@ interface Booking {
   deposit_payment_status: string | null;
   remaining_balance_status: string | null;
   stripe_payment_method_id: string | null;
+  cal_booking_status?: string | null;
+  webhook_sent?: boolean | null;
   review_request_enrollment?: BookingReviewRequestEnrollment | null;
 }
 
@@ -698,6 +701,11 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
 }
 
 export function AdminClient({ bookings, leads, stats, currentStatus, initialLeadId = null }: Props) {
+  const router = useRouter();
+  const handleUnauthorized = useCallback(() => {
+    router.push('/admin/login?expired=1');
+  }, [router]);
+
   const [updating, setUpdating] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -711,6 +719,8 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
   const [localLeads, setLocalLeads] = useState(leads);
   const [expandedWaivers, setExpandedWaivers] = useState<Set<string>>(new Set());
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
+  const [retriggeringWebhook, setRetriggeringWebhook] = useState<string | null>(null);
+  const [webhookRetriggerStatus, setWebhookRetriggerStatus] = useState<Record<string, string>>({});
   const [expandedLeads, setExpandedLeads] = useState<Set<string>>(new Set());
   const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
   const [leadFollowUpStatus, setLeadFollowUpStatus] = useState<Record<string, string>>({});
@@ -798,6 +808,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: leadId }),
       });
+      if (res.status === 401) { handleUnauthorized(); return; }
       const data = await res.json();
       if (res.ok) {
         const nowIso = new Date().toISOString();
@@ -908,6 +919,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_id: bookingId, status: newStatus }),
       });
+      if (res.status === 401) { handleUnauthorized(); return; }
       if (res.ok) {
         setLocalBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b)));
       }
@@ -925,6 +937,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_id: bookingId }),
       });
+      if (res.status === 401) { handleUnauthorized(); return; }
       const data = await res.json();
       if (res.ok) {
         setLocalBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, remaining_balance_status: 'paid' } : b)));
@@ -933,6 +946,24 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
       }
     } finally {
       setRetrying(null);
+    }
+  };
+
+  const handleRetriggerWebhook = async (bookingId: string) => {
+    setRetriggeringWebhook(bookingId);
+    setWebhookRetriggerStatus((prev) => ({ ...prev, [bookingId]: '' }));
+    try {
+      const res = await fetch(`/api/admin/retrigger-webhook/${bookingId}`, { method: 'POST' });
+      if (res.status === 401) { handleUnauthorized(); return; }
+      const data = await res.json();
+      if (res.ok) {
+        setLocalBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, webhook_sent: true } : b)));
+        setWebhookRetriggerStatus((prev) => ({ ...prev, [bookingId]: 'Sent' }));
+      } else {
+        setWebhookRetriggerStatus((prev) => ({ ...prev, [bookingId]: data.error ?? 'Failed' }));
+      }
+    } finally {
+      setRetriggeringWebhook(null);
     }
   };
 
@@ -945,6 +976,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         body: JSON.stringify({ booking_id: bookingId }),
       });
 
+      if (res.status === 401) { handleUnauthorized(); return; }
       if (res.ok) {
         setLocalBookings((prev) => prev.filter((b) => b.id !== bookingId));
         setExpandedWaivers((prev) => {
@@ -972,6 +1004,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         body: JSON.stringify({ lead_id: leadId }),
       });
 
+      if (res.status === 401) { handleUnauthorized(); return; }
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setLocalLeads((prev) => prev.filter((lead) => lead.id !== leadId));
@@ -1006,6 +1039,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         body: JSON.stringify({ enrollment_id: enrollmentId }),
       });
 
+      if (res.status === 401) { handleUnauthorized(); return; }
       if (res.ok) {
         const nowIso = new Date().toISOString();
         setLocalBookings((prev) =>
@@ -1833,7 +1867,15 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
+                            <div className="space-y-1">
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
+                              {booking.cal_booking_status === 'failed' && (
+                                <div className="rounded bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">No Cal event</div>
+                              )}
+                              {booking.webhook_sent === false && (
+                                <div className="rounded bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">Email not sent</div>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3 align-middle">
                             <div className="flex flex-col items-center gap-2 text-center">
@@ -1864,6 +1906,20 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                                     {markingReviewBookingId === booking.id ? 'Saving...' : 'Mark Review Received'}
                                   </button>
                                 )}
+                              {booking.webhook_sent === false && (
+                                <div className="w-32 space-y-0.5">
+                                  <button
+                                    onClick={() => handleRetriggerWebhook(booking.id)}
+                                    disabled={retriggeringWebhook === booking.id}
+                                    className="inline-flex w-full items-center justify-center rounded-md border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-300 transition-colors hover:bg-orange-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {retriggeringWebhook === booking.id ? 'Sending...' : 'Re-trigger n8n'}
+                                  </button>
+                                  {webhookRetriggerStatus[booking.id] && (
+                                    <p className="text-center text-[11px] text-muted-foreground">{webhookRetriggerStatus[booking.id]}</p>
+                                  )}
+                                </div>
+                              )}
                               <button
                                 onClick={() => setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date })}
                                 disabled={deleting === booking.id}

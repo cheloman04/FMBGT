@@ -97,6 +97,7 @@ export function StepLeadCapture() {
           utm_term: state.utm_term,
           attribution_first_touch: state.first_touch_attribution,
           attribution_last_touch: state.last_touch_attribution,
+          communication_consent: form.communication_consent,
         }),
       });
 
