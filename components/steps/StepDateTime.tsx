@@ -105,7 +105,12 @@ export function StepDateTime() {
     if (missingBookingContext) return;
 
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}&trailType=${encodeURIComponent(state.trail_type)}&locationName=${encodeURIComponent(state.location_name)}`;
+    const trailType = state.trail_type;
+    const locationName = state.location_name;
+
+    if (!trailType || !locationName) return;
+
+    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}`;
 
     fetch(url)
       .then((r) => r.json())
