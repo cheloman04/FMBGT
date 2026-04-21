@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyCompletedService } from '@/lib/completed-service-alert';
 import { enrollBookingInReviewRequest } from '@/lib/review-requests';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 
 const Schema = z.object({
   booking_id: z.string().uuid(),
@@ -47,6 +48,8 @@ export async function POST(req: NextRequest) {
 
   const shouldNotifyCompletedService =
     status === 'completed' && existingBooking.status !== 'completed';
+  const shouldEmitBookingCancelled =
+    status === 'cancelled' && existingBooking.status !== 'cancelled';
 
   const { error } = await supabase
     .from('bookings')
@@ -120,6 +123,65 @@ export async function POST(req: NextRequest) {
         reviewRequestError
       );
     }
+  }
+
+  const occurredAt = new Date().toISOString();
+  if (shouldNotifyCompletedService) {
+    await sendSenzaiEvent({
+      event_name: 'service.completed',
+      occurred_at: occurredAt,
+      source_event_id: booking_id,
+      idempotency_key: `booking:${booking_id}:service.completed`,
+      source_route: '/api/admin/update-booking',
+      authoritative_source: 'supabase.bookings.status_transition',
+      entity_type: 'booking',
+      entity_id: booking_id,
+      refs: {
+        booking_id,
+        customer_id: existingBooking.customer_id,
+      },
+      data: {
+        booking_id,
+        previous_status: existingBooking.status,
+        status,
+        customer_id: existingBooking.customer_id,
+        location_id: existingBooking.location_id,
+        trail_type: existingBooking.trail_type,
+        skill_level: existingBooking.skill_level,
+        date: existingBooking.date,
+        time_slot: existingBooking.time_slot,
+        duration_hours: existingBooking.duration_hours,
+        participant_count: existingBooking.participant_count,
+        total_price: existingBooking.total_price,
+      },
+    });
+  }
+
+  if (shouldEmitBookingCancelled) {
+    await sendSenzaiEvent({
+      event_name: 'booking.cancelled',
+      occurred_at: occurredAt,
+      source_event_id: booking_id,
+      idempotency_key: `booking:${booking_id}:booking.cancelled`,
+      source_route: '/api/admin/update-booking',
+      authoritative_source: 'supabase.bookings.status_transition',
+      entity_type: 'booking',
+      entity_id: booking_id,
+      refs: {
+        booking_id,
+        customer_id: existingBooking.customer_id,
+      },
+      data: {
+        booking_id,
+        previous_status: existingBooking.status,
+        status,
+        customer_id: existingBooking.customer_id,
+        location_id: existingBooking.location_id,
+        trail_type: existingBooking.trail_type,
+        date: existingBooking.date,
+        time_slot: existingBooking.time_slot,
+      },
+    });
   }
 
   return NextResponse.json({

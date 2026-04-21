@@ -7,6 +7,7 @@ import type { TrailType } from '@/types/booking';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 
 // Rate limiter — 20 lead submissions per IP per hour
 let leadsRatelimit: Ratelimit | null = null;
@@ -242,6 +243,32 @@ export async function POST(req: NextRequest) {
     }
 
     const sessionId = await createLeadBookingSession(data.id);
+
+    await sendSenzaiEvent({
+      event_name: 'lead.created',
+      occurred_at: data.created_at,
+      source_event_id: data.id,
+      idempotency_key: `lead:${data.id}:created`,
+      source_route: '/api/leads',
+      authoritative_source: 'supabase.leads.insert',
+      entity_type: 'lead',
+      entity_id: data.id,
+      refs: {
+        lead_id: data.id,
+      },
+      data: {
+        lead_id: data.id,
+        session_id: sessionId,
+        full_name: data.full_name,
+        email: data.email,
+        phone: data.phone ?? null,
+        selected_trail_type: data.selected_trail_type ?? null,
+        selected_skill_level: data.selected_skill_level ?? null,
+        selected_location_name: data.selected_location_name ?? null,
+        selected_date: data.selected_date ?? null,
+        last_step_completed: data.last_step_completed ?? null,
+      },
+    });
 
     console.log(`[leads] Created lead ${data.id} for ${normalizedEmail}`);
     return NextResponse.json({ id: data.id, session_id: sessionId }, { status: 201 });

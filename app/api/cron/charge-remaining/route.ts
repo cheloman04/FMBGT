@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { chargeRemainingBalance } from '@/lib/stripe';
+import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 
 function isAuthorized(req: NextRequest): boolean {
   // Vercel Cron
@@ -142,6 +143,34 @@ async function runChargeJob(): Promise<NextResponse> {
     }
 
     const locationName = location_id ? locationMap[location_id] ?? 'Florida MTB Tour' : 'Florida MTB Tour';
+    const attemptedAt = new Date().toISOString();
+
+    await sendSenzaiEvent({
+      event_name: 'payment.requested',
+      occurred_at: attemptedAt,
+      source_event_id: `${bookingId}:remaining_balance:${attemptedAt}`,
+      idempotency_key: `booking:${bookingId}:remaining_balance:payment.requested:${attemptedAt}`,
+      source_route: '/api/cron/charge-remaining',
+      authoritative_source: 'cron.remaining_balance_charge_attempt',
+      entity_type: 'payment_request',
+      entity_id: `${bookingId}:remaining_balance:${attemptedAt}`,
+      refs: {
+        booking_id: bookingId,
+        stripe_session_id: null,
+      },
+      data: {
+        booking_id: bookingId,
+        charge_type: 'remaining_balance',
+        payment_provider: 'stripe',
+        off_session: true,
+        amount: remaining_balance_amount,
+        stripe_customer_id,
+        stripe_payment_method_id,
+        location_id: location_id,
+        location_name: locationName,
+        date,
+      },
+    });
 
     const result = await chargeRemainingBalance({
       bookingId,

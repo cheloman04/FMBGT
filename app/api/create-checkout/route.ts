@@ -9,6 +9,7 @@ import type { BookingState, TrailType } from '@/types/booking';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { getAppUrl, isLocalOrigin } from '@/lib/app-url';
+import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 
 const AdditionalParticipantSchema = z.object({
   name: z.string().min(1),
@@ -447,7 +448,7 @@ export async function POST(req: NextRequest) {
           ...(liveTestMode ? { live_test_mode: true, live_test_total: PRICING.LIVE_TEST_TOTAL } : {}),
         },
       })
-      .select('id')
+      .select('id, created_at')
       .single();
 
     if (bookingError) {
@@ -462,7 +463,7 @@ export async function POST(req: NextRequest) {
       throw bookingError;
     }
 
-    const booking = bookingData as { id: string };
+    const booking = bookingData as { id: string; created_at: string };
     const appUrl = getAppUrl();
 
     // ── Create Stripe Checkout Session ────────────────────────────────────────
@@ -487,6 +488,94 @@ export async function POST(req: NextRequest) {
     if (effectiveLeadId && state.lead_session_id) {
       await markLeadSessionCheckoutStarted(effectiveLeadId, state.lead_session_id);
     }
+
+    const checkoutAttributes = {
+      booking_id: booking.id,
+      lead_id: effectiveLeadId,
+      booking_session_id: state.lead_session_id ?? null,
+      stripe_session_id: session.id,
+      stripe_customer_id: stripeCustomerId,
+      customer_id: customerRecord.id,
+      customer_email: state.customer.email,
+      customer_name: state.customer.name,
+      customer_phone: state.customer.phone ?? null,
+      trail_type: state.trail_type,
+      skill_level: state.skill_level ?? null,
+      location_id: state.location_id,
+      location_name: state.location_name,
+      date: state.date,
+      time_slot: state.time_slot,
+      duration_hours: effectiveDuration,
+      participant_count: state.participant_count,
+      bike_rental: state.bike_rental,
+      total_amount: priceBreakdown.total,
+      deposit_amount: depositAmount,
+      remaining_balance_amount: remainingBalanceAmount,
+      remaining_balance_due_at: remainingBalanceDueAt,
+      live_test_mode: liveTestMode,
+    };
+
+    await sendSenzaiEvent({
+      event_name: 'booking.started',
+      occurred_at: booking.created_at,
+      source_event_id: booking.id,
+      idempotency_key: `booking:${booking.id}:started`,
+      source_route: '/api/create-checkout',
+      authoritative_source: 'supabase.bookings.insert_and_stripe.checkout_session.create',
+      entity_type: 'booking',
+      entity_id: booking.id,
+      refs: {
+        booking_id: booking.id,
+        lead_id: effectiveLeadId,
+        customer_id: customerRecord.id,
+        waiver_session_id: state.waiver_session_id,
+        stripe_session_id: session.id,
+      },
+      data: checkoutAttributes,
+    });
+
+    await sendSenzaiEvent({
+      event_name: 'booking.created',
+      occurred_at: booking.created_at,
+      source_event_id: booking.id,
+      idempotency_key: `booking:${booking.id}:created`,
+      source_route: '/api/create-checkout',
+      authoritative_source: 'supabase.bookings.insert',
+      entity_type: 'booking',
+      entity_id: booking.id,
+      refs: {
+        booking_id: booking.id,
+        lead_id: effectiveLeadId,
+        customer_id: customerRecord.id,
+        waiver_session_id: state.waiver_session_id,
+        stripe_session_id: session.id,
+      },
+      data: checkoutAttributes,
+    });
+
+    await sendSenzaiEvent({
+      event_name: 'payment.requested',
+      occurred_at: new Date().toISOString(),
+      source_event_id: session.id,
+      idempotency_key: `stripe_session:${session.id}:payment.requested`,
+      source_route: '/api/create-checkout',
+      authoritative_source: 'stripe.checkout_session.create',
+      entity_type: 'payment_request',
+      entity_id: session.id,
+      refs: {
+        booking_id: booking.id,
+        lead_id: effectiveLeadId,
+        customer_id: customerRecord.id,
+        waiver_session_id: state.waiver_session_id,
+        stripe_session_id: session.id,
+      },
+      data: {
+        ...checkoutAttributes,
+        charge_type: 'deposit',
+        payment_provider: 'stripe',
+        checkout_url_present: Boolean(session.url),
+      },
+    });
 
     return NextResponse.json({
       checkout_url: session.url,

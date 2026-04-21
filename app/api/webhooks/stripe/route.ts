@@ -8,6 +8,7 @@ import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { confirmLeadSessionAbandoned, markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
+import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 
 type WebhookAttemptResult = {
   ok: boolean;
@@ -270,6 +271,78 @@ export async function POST(req: NextRequest) {
 
         await recordBookingWebhookAttempt(supabase, bookingId, n8nResult);
 
+        const occurredAt = new Date(event.created * 1000).toISOString();
+
+        await sendSenzaiEvent({
+          event_name: 'payment.succeeded',
+          occurred_at: occurredAt,
+          source_event_id: paymentIntentId ?? event.id,
+          idempotency_key: `stripe_event:${event.id}:payment.succeeded`,
+          source_route: '/api/webhooks/stripe',
+          authoritative_source: 'stripe.checkout.session.completed',
+          entity_type: 'payment',
+          entity_id: paymentIntentId ?? event.id,
+          refs: {
+            booking_id: bookingId,
+            lead_id: leadId ?? null,
+            stripe_event_id: event.id,
+            stripe_session_id: session.id,
+            payment_intent_id: paymentIntentId,
+          },
+          data: {
+            booking_id: bookingId,
+            stripe_event_id: event.id,
+            stripe_session_id: session.id,
+            payment_intent_id: paymentIntentId,
+            charge_type: 'deposit',
+            amount: depositCents,
+            customer_email: customerEmail,
+            customer_name: session.metadata?.customer_name ?? null,
+            location_name: locationName,
+            date: session.metadata?.date ?? null,
+            time: session.metadata?.time ?? null,
+          },
+        });
+
+        await sendSenzaiEvent({
+          event_name: 'booking.confirmed',
+          occurred_at: occurredAt,
+          source_event_id: bookingId,
+          idempotency_key: `booking:${bookingId}:confirmed`,
+          source_route: '/api/webhooks/stripe',
+          authoritative_source: 'stripe.checkout.session.completed',
+          entity_type: 'booking',
+          entity_id: bookingId,
+          refs: {
+            booking_id: bookingId,
+            lead_id: leadId ?? null,
+            waiver_session_id: bookingWaiver?.waiver_session_id ?? null,
+            stripe_event_id: event.id,
+            stripe_session_id: session.id,
+            payment_intent_id: paymentIntentId,
+          },
+          data: {
+            booking_id: bookingId,
+            stripe_event_id: event.id,
+            stripe_session_id: session.id,
+            payment_intent_id: paymentIntentId,
+            deposit_amount: depositCents,
+            remaining_balance_amount: remainingCents,
+            remaining_balance_due_at: dueDateIso,
+            customer_email: customerEmail,
+            customer_name: session.metadata?.customer_name ?? null,
+            customer_phone: session.metadata?.customer_phone ?? null,
+            zip_code: stripePostalCode || session.metadata?.zip_code || null,
+            location_name: locationName,
+            date: session.metadata?.date ?? null,
+            time: session.metadata?.time ?? null,
+            duration_hours: confirmedBooking?.duration_hours ?? null,
+            participant_count: confirmedBooking?.participant_count ?? null,
+            trail_type: confirmedBooking?.trail_type ?? null,
+            skill_level: confirmedBooking?.skill_level ?? null,
+          },
+        });
+
         console.log(`[stripe-webhook] Booking ${bookingId} confirmed — deposit paid, PM saved: ${stripePaymentMethodId ?? 'none'}`);
         break;
       }
@@ -306,6 +379,30 @@ export async function POST(req: NextRequest) {
           amount: pi.amount,
         });
 
+        await sendSenzaiEvent({
+          event_name: 'payment.succeeded',
+          occurred_at: new Date(event.created * 1000).toISOString(),
+          source_event_id: pi.id,
+          idempotency_key: `stripe_event:${event.id}:payment.succeeded`,
+          source_route: '/api/webhooks/stripe',
+          authoritative_source: 'stripe.payment_intent.succeeded',
+          entity_type: 'payment',
+          entity_id: pi.id,
+          refs: {
+            booking_id: bookingId,
+            stripe_event_id: event.id,
+            payment_intent_id: pi.id,
+          },
+          data: {
+            booking_id: bookingId,
+            stripe_event_id: event.id,
+            payment_intent_id: pi.id,
+            charge_type: 'remaining_balance',
+            amount: pi.amount,
+            currency: pi.currency,
+          },
+        });
+
         console.log(`[stripe-webhook] Remaining balance paid for booking ${bookingId} — PI ${pi.id}`);
         break;
       }
@@ -337,6 +434,31 @@ export async function POST(req: NextRequest) {
           error_message: pi.last_payment_error?.message ?? 'Unknown error',
         });
 
+        await sendSenzaiEvent({
+          event_name: 'payment.failed',
+          occurred_at: new Date(event.created * 1000).toISOString(),
+          source_event_id: pi.id,
+          idempotency_key: `stripe_event:${event.id}:payment.failed`,
+          source_route: '/api/webhooks/stripe',
+          authoritative_source: 'stripe.payment_intent.payment_failed',
+          entity_type: 'payment',
+          entity_id: pi.id,
+          refs: {
+            booking_id: bookingId,
+            stripe_event_id: event.id,
+            payment_intent_id: pi.id,
+          },
+          data: {
+            booking_id: bookingId,
+            stripe_event_id: event.id,
+            payment_intent_id: pi.id,
+            charge_type: 'remaining_balance',
+            amount: pi.amount,
+            currency: pi.currency,
+            error_message: pi.last_payment_error?.message ?? 'Unknown error',
+          },
+        });
+
         console.log(`[stripe-webhook] Remaining balance FAILED for booking ${bookingId} — PI ${pi.id}`);
         break;
       }
@@ -347,6 +469,7 @@ export async function POST(req: NextRequest) {
         const bookingId = session.metadata?.booking_id;
         if (!bookingId) break;
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: bookingLeadRow } = await (supabase as any)
           .from('bookings')
           .select('lead_id, booking_session_id')
@@ -401,6 +524,18 @@ export async function POST(req: NextRequest) {
         const paymentIntentId = charge.payment_intent;
         if (!paymentIntentId) break;
 
+        const { data: matchingRefundBookings, error: refundLookupErr } = await supabase
+          .from('bookings')
+          .select('id')
+          .or(`stripe_payment_intent_id.eq.${paymentIntentId},remaining_balance_payment_intent_id.eq.${paymentIntentId}`);
+
+        if (refundLookupErr) {
+          console.error(`[stripe-webhook] Failed to look up refunded booking for PI ${paymentIntentId}:`, refundLookupErr);
+        }
+
+        const refundedBookingIds = (matchingRefundBookings ?? []).map((row) => row.id);
+        const refundedBookingId = refundedBookingIds.length === 1 ? refundedBookingIds[0] : null;
+
         // Match on either deposit or remaining balance PI
         const { error: depositRefundErr } = await supabase
           .from('bookings')
@@ -411,6 +546,30 @@ export async function POST(req: NextRequest) {
           console.error(`[stripe-webhook] Failed to mark refund for PI ${paymentIntentId}:`, depositRefundErr);
           throw depositRefundErr;
         }
+
+        await sendSenzaiEvent({
+          event_name: 'refund.processed',
+          occurred_at: new Date(event.created * 1000).toISOString(),
+          source_event_id: paymentIntentId,
+          idempotency_key: `stripe_event:${event.id}:refund.processed`,
+          source_route: '/api/webhooks/stripe',
+          authoritative_source: 'stripe.charge.refunded',
+          entity_type: 'refund',
+          entity_id: paymentIntentId,
+          refs: {
+            booking_id: refundedBookingId,
+            stripe_event_id: event.id,
+            payment_intent_id: paymentIntentId,
+          },
+          data: {
+            booking_id: refundedBookingId,
+            booking_ids: refundedBookingIds,
+            booking_match_count: refundedBookingIds.length,
+            stripe_event_id: event.id,
+            payment_intent_id: paymentIntentId,
+            charge_type: 'refund',
+          },
+        });
 
         console.log(`[stripe-webhook] Booking refunded — PI ${paymentIntentId}`);
         break;

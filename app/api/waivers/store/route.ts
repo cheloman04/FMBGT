@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 import { WAIVER_VERSION } from '@/lib/waiver-text';
 import { randomUUID } from 'crypto';
 
@@ -142,6 +143,36 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[waivers/store] Session ${sessionId}: ${signers.length} waiver(s) stored`);
+
+    const occurredAt = signers.reduce((latest, signer) => {
+      const agreedAt = signer.agreed_at || latest;
+      return agreedAt > latest ? agreedAt : latest;
+    }, new Date().toISOString());
+
+    await sendSenzaiEvent({
+      event_name: 'waiver.signed',
+      occurred_at: occurredAt,
+      source_event_id: sessionId,
+      idempotency_key: `waiver_session:${sessionId}:signed`,
+      source_route: '/api/waivers/store',
+      authoritative_source: 'supabase.waiver_records.insert',
+      entity_type: 'waiver_session',
+      entity_id: sessionId,
+      refs: {
+        waiver_session_id: sessionId,
+      },
+      data: {
+        waiver_session_id: sessionId,
+        waiver_version: WAIVER_VERSION,
+        signer_count: signers.length,
+        signer_roles: signers.map((signer) => signer.role),
+        participant_names: signers.flatMap((signer) => signer.participants_covered),
+        customer_email: context.customer_email ?? null,
+        tour_type: context.tour_type ?? null,
+        location_name: context.location_name ?? null,
+        tour_date: context.tour_date ?? null,
+      },
+    });
 
     return NextResponse.json({ waiver_session_id: sessionId });
   } catch (err) {
