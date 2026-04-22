@@ -9,13 +9,10 @@ import { getBookingLocationMeta } from '@/lib/location-meta';
 import { confirmLeadSessionAbandoned, markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { recordFinancialEvent } from '@/lib/financial-log';
+import { notifySupportAlert, triggerN8nEvent, type N8nWebhookResult } from '@/lib/n8n';
 
-type WebhookAttemptResult = {
-  ok: boolean;
-  attemptedAt: string;
-  statusCode: number | null;
-  error: string | null;
-};
+type WebhookAttemptResult = N8nWebhookResult;
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -61,6 +58,44 @@ export async function POST(req: NextRequest) {
           .select('status, deposit_payment_status')
           .eq('id', bookingId)
           .single();
+
+        if (!existing) {
+          await recordFinancialEvent({
+            event_name: 'reconciliation.booking_missing_for_deposit',
+            event_category: 'reconciliation',
+            severity: 'critical',
+            entity_type: 'booking',
+            entity_id: bookingId,
+            booking_id: bookingId,
+            stripe_session_id: session.id,
+            payment_intent_id: (session.payment_intent as string | null) ?? null,
+            requires_attention: true,
+            status: 'missing',
+            message: 'Stripe deposit completed but booking row was missing in Supabase',
+            metadata: {
+              stripe_event_id: event.id,
+              customer_email: session.customer_email ?? session.metadata?.customer_email ?? null,
+              date: session.metadata?.date ?? null,
+              live_test_mode: session.metadata?.live_test_mode ?? null,
+            },
+            occurred_at: new Date(event.created * 1000).toISOString(),
+          });
+
+          await notifySupportAlert({
+            source: '/api/webhooks/stripe',
+            severity: 'critical',
+            summary: `Stripe deposit completed for missing booking ${bookingId}`,
+            bookingId,
+            stripeSessionId: session.id,
+            paymentIntentId: (session.payment_intent as string | null) ?? null,
+            details: {
+              stripe_event_id: event.id,
+              customer_email: session.customer_email ?? session.metadata?.customer_email ?? null,
+              date: session.metadata?.date ?? null,
+            },
+          });
+          break;
+        }
 
         if ((existing as { deposit_payment_status?: string } | null)?.deposit_payment_status === 'paid') {
           console.log(`[stripe-webhook] Booking ${bookingId} deposit already recorded — skipping`);
@@ -270,6 +305,20 @@ export async function POST(req: NextRequest) {
         });
 
         await recordBookingWebhookAttempt(supabase, bookingId, n8nResult);
+        if (!n8nResult.ok) {
+          await notifySupportAlert({
+            source: '/api/webhooks/stripe',
+            severity: 'error',
+            summary: `booking_confirmed webhook failed for booking ${bookingId}`,
+            bookingId,
+            stripeSessionId: session.id,
+            paymentIntentId: paymentIntentId ?? null,
+            details: {
+              webhook_status_code: n8nResult.statusCode,
+              webhook_error: n8nResult.error,
+            },
+          });
+        }
 
         const occurredAt = new Date(event.created * 1000).toISOString();
 
@@ -359,6 +408,47 @@ export async function POST(req: NextRequest) {
           break;
         }
 
+        const { data: existingBooking } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('id', bookingId)
+          .maybeSingle();
+
+        if (!existingBooking) {
+          await recordFinancialEvent({
+            event_name: 'reconciliation.booking_missing_for_remaining_balance_success',
+            event_category: 'reconciliation',
+            severity: 'critical',
+            entity_type: 'booking',
+            entity_id: bookingId,
+            booking_id: bookingId,
+            payment_intent_id: pi.id,
+            amount: pi.amount,
+            currency: pi.currency,
+            status: 'missing',
+            requires_attention: true,
+            message: 'Remaining balance payment succeeded in Stripe but booking row was missing in Supabase',
+            metadata: {
+              stripe_event_id: event.id,
+            },
+            occurred_at: new Date(event.created * 1000).toISOString(),
+          });
+
+          await notifySupportAlert({
+            source: '/api/webhooks/stripe',
+            severity: 'critical',
+            summary: `Remaining balance payment succeeded for missing booking ${bookingId}`,
+            bookingId,
+            paymentIntentId: pi.id,
+            details: {
+              stripe_event_id: event.id,
+              amount: pi.amount,
+              currency: pi.currency,
+            },
+          });
+          break;
+        }
+
         const { error: updateError } = await supabase
           .from('bookings')
           .update({
@@ -403,6 +493,24 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        await recordFinancialEvent({
+          event_name: 'payment.remaining_balance_succeeded',
+          event_category: 'payment',
+          severity: 'info',
+          entity_type: 'payment_intent',
+          entity_id: pi.id,
+          booking_id: bookingId,
+          payment_intent_id: pi.id,
+          amount: pi.amount,
+          currency: pi.currency,
+          status: 'paid',
+          message: 'Remaining balance payment succeeded',
+          metadata: {
+            stripe_event_id: event.id,
+          },
+          occurred_at: new Date(event.created * 1000).toISOString(),
+        });
+
         console.log(`[stripe-webhook] Remaining balance paid for booking ${bookingId} — PI ${pi.id}`);
         break;
       }
@@ -414,6 +522,49 @@ export async function POST(req: NextRequest) {
 
         const bookingId = pi.metadata?.booking_id;
         if (!bookingId) break;
+
+        const { data: existingBooking } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('id', bookingId)
+          .maybeSingle();
+
+        if (!existingBooking) {
+          await recordFinancialEvent({
+            event_name: 'reconciliation.booking_missing_for_remaining_balance_failure',
+            event_category: 'reconciliation',
+            severity: 'critical',
+            entity_type: 'booking',
+            entity_id: bookingId,
+            booking_id: bookingId,
+            payment_intent_id: pi.id,
+            amount: pi.amount,
+            currency: pi.currency,
+            status: 'missing',
+            requires_attention: true,
+            message: 'Remaining balance payment failed in Stripe but booking row was missing in Supabase',
+            metadata: {
+              stripe_event_id: event.id,
+              error_message: pi.last_payment_error?.message ?? 'Unknown error',
+            },
+            occurred_at: new Date(event.created * 1000).toISOString(),
+          });
+
+          await notifySupportAlert({
+            source: '/api/webhooks/stripe',
+            severity: 'critical',
+            summary: `Remaining balance failure reported for missing booking ${bookingId}`,
+            bookingId,
+            paymentIntentId: pi.id,
+            details: {
+              stripe_event_id: event.id,
+              amount: pi.amount,
+              currency: pi.currency,
+              error_message: pi.last_payment_error?.message ?? 'Unknown error',
+            },
+          });
+          break;
+        }
 
         const { error: updateError } = await supabase
           .from('bookings')
@@ -453,6 +604,39 @@ export async function POST(req: NextRequest) {
             stripe_event_id: event.id,
             payment_intent_id: pi.id,
             charge_type: 'remaining_balance',
+            amount: pi.amount,
+            currency: pi.currency,
+            error_message: pi.last_payment_error?.message ?? 'Unknown error',
+          },
+        });
+
+        await recordFinancialEvent({
+          event_name: 'payment.remaining_balance_failed',
+          event_category: 'payment',
+          severity: 'error',
+          entity_type: 'payment_intent',
+          entity_id: pi.id,
+          booking_id: bookingId,
+          payment_intent_id: pi.id,
+          amount: pi.amount,
+          currency: pi.currency,
+          status: 'failed',
+          requires_attention: true,
+          message: pi.last_payment_error?.message ?? 'Unknown error',
+          metadata: {
+            stripe_event_id: event.id,
+          },
+          occurred_at: new Date(event.created * 1000).toISOString(),
+        });
+
+        await notifySupportAlert({
+          source: '/api/webhooks/stripe',
+          severity: 'error',
+          summary: `Remaining balance failed for booking ${bookingId}`,
+          bookingId,
+          paymentIntentId: pi.id,
+          details: {
+            stripe_event_id: event.id,
             amount: pi.amount,
             currency: pi.currency,
             error_message: pi.last_payment_error?.message ?? 'Unknown error',
@@ -611,55 +795,21 @@ async function recordBookingWebhookAttempt(
 }
 
 async function triggerN8nWebhook(event: string, data: Record<string, unknown>): Promise<WebhookAttemptResult> {
-  const attemptedAt = new Date().toISOString();
-  const webhookUrl = process.env.N8N_WEBHOOK_URL;
-  if (!webhookUrl || webhookUrl === 'your_n8n_webhook_url_here') {
-    console.warn('[stripe-webhook] N8N_WEBHOOK_URL not configured, skipping');
-    return {
-      ok: false,
-      attemptedAt,
-      statusCode: null,
-      error: 'N8N_WEBHOOK_URL not configured',
-    };
-  }
+  const result = await triggerN8nEvent({
+    event,
+    data,
+    source: '/api/webhooks/stripe',
+    envKeys: ['N8N_WEBHOOK_URL'],
+  });
 
-  try {
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(8000),
-      body: JSON.stringify({ event, data, timestamp: new Date().toISOString() }),
-    });
-
-    if (!response.ok) {
-      const responseText = trimWebhookError(await response.text());
-      const errorMessage = responseText
-        ? `n8n returned ${response.status}: ${responseText}`
-        : `n8n returned ${response.status}`;
-      console.error(`[stripe-webhook] ${errorMessage}`);
-      return {
-        ok: false,
-        attemptedAt,
-        statusCode: response.status,
-        error: errorMessage,
-      };
-    }
-
+  if (!result.ok) {
+    console.error(`[stripe-webhook] ${result.error}`);
+  } else {
     console.log(`[stripe-webhook] n8n notified: ${event}`);
-    return {
-      ok: true,
-      attemptedAt,
-      statusCode: response.status,
-      error: null,
-    };
-  } catch (error) {
-    console.error('[stripe-webhook] n8n webhook failed:', error);
-    const message = error instanceof Error ? error.message : 'Unknown network error';
-    return {
-      ok: false,
-      attemptedAt,
-      statusCode: null,
-      error: trimWebhookError(message),
-    };
   }
+
+  return {
+    ...result,
+    error: result.error ? trimWebhookError(result.error) : null,
+  };
 }

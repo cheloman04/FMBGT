@@ -2,13 +2,12 @@
 
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   getBookingProgressMeta,
   PERSISTED_STEP_LABELS,
 } from '@/lib/booking-flow-progress';
 import type { SkillLevel, TrailType } from '@/types/booking';
+import { AdminTopBar } from './AdminTopBar';
 
 interface WaiverRecord {
   id: string;
@@ -1103,11 +1102,6 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
     }
   };
 
-  const handleLogout = async () => {
-    await fetch('/api/admin/login', { method: 'DELETE' });
-    window.location.href = '/admin/login';
-  };
-
   const filterUrl = (status: string) => `/admin?status=${status}`;
 
   const statCards = [
@@ -1391,26 +1385,11 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
           </div>
         )}
 
-        {/* Header */}
-        <div className="mb-5 rounded-2xl border border-border/70 bg-card/88 p-4 shadow-[0_18px_40px_rgba(23,26,20,0.08)] backdrop-blur-sm sm:mb-8 sm:p-5 dark:shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-              <Image src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png" alt="Florida MTB Guided Tours" width={52} height={52} className="h-11 w-11 rounded-xl object-contain shadow-[0_10px_24px_rgba(0,0,0,0.2)] sm:h-[52px] sm:w-[52px]" />
-              <div className="min-w-0">
-                <h1 className="truncate text-xl font-bold text-foreground sm:text-2xl">Admin Dashboard</h1>
-                <p className="mt-0.5 text-sm text-muted-foreground">Florida Mountain Bike Trail Guided Tours</p>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-3 sm:justify-end">
-              <div className="text-xs uppercase tracking-[0.24em] text-green-400 sm:hidden">Operations</div>
-              <div className="flex items-center gap-2">
-                <ThemeToggle />
-                <a href="/admin/forgot-password" className="rounded-xl border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Change Password</a>
-                <button onClick={handleLogout} className="rounded-xl border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">Sign Out</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AdminTopBar
+          activePage="dashboard"
+          title="Admin Dashboard"
+          subtitle="Florida Mountain Bike Trail Guided Tours"
+        />
 
         {/* Next booking banner */}
         {nearestBooking && currentStatus !== 'completed' && (

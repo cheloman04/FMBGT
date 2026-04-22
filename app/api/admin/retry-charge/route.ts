@@ -10,6 +10,8 @@ import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { chargeRemainingBalance } from '@/lib/stripe';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { recordFinancialEvent } from '@/lib/financial-log';
+import { notifySupportAlert } from '@/lib/n8n';
 
 const Schema = z.object({
   booking_id: z.string().uuid(),
@@ -31,10 +33,11 @@ export async function POST(req: NextRequest) {
   const { booking_id } = parsed.data;
   const supabase = getSupabaseAdmin();
 
-  // Fetch the booking — only allow retry for failed charges
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, remaining_balance_amount, remaining_balance_status, stripe_customer_id, stripe_payment_method_id, date, location_id, status')
+    .select(
+      'id, remaining_balance_amount, remaining_balance_status, stripe_customer_id, stripe_payment_method_id, date, location_id, status'
+    )
     .eq('id', booking_id)
     .single();
 
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   if (b.remaining_balance_status !== 'failed') {
     return NextResponse.json(
-      { error: `Cannot retry — current status is "${b.remaining_balance_status}"` },
+      { error: `Cannot retry - current status is "${b.remaining_balance_status}"` },
       { status: 400 }
     );
   }
@@ -69,36 +72,37 @@ export async function POST(req: NextRequest) {
 
   if (!b.remaining_balance_amount || !b.stripe_customer_id || !b.stripe_payment_method_id) {
     return NextResponse.json(
-      { error: 'Missing payment data on booking — cannot retry' },
+      { error: 'Missing payment data on booking - cannot retry' },
       { status: 400 }
     );
   }
 
-  // Fetch location name for description
   let locationName = 'Florida MTB Tour';
   if (b.location_id) {
-    const { data: loc } = await supabase
+    const { data: location } = await supabase
       .from('locations')
       .select('name')
       .eq('id', b.location_id)
       .single();
-    if (loc) locationName = (loc as { name: string }).name;
+    if (location) {
+      locationName = (location as { name: string }).name;
+    }
   }
 
-  // Atomically claim the booking for this retry run.
-  // Sets PI to a sentinel so a concurrent cron run or second admin retry is blocked.
   const { data: claimed } = await supabase
     .from('bookings')
-    .update({ remaining_balance_payment_intent_id: 'processing', remaining_balance_status: 'pending' })
+    .update({
+      remaining_balance_payment_intent_id: 'processing',
+      remaining_balance_status: 'pending',
+    })
     .eq('id', booking_id)
     .eq('remaining_balance_status', 'failed')
     .select('id')
     .maybeSingle();
 
   if (!claimed) {
-    // Another retry or cron run is already in flight for this booking
     return NextResponse.json(
-      { error: 'A retry is already in progress for this booking — try again in a moment.' },
+      { error: 'A retry is already in progress for this booking - try again in a moment.' },
       { status: 409 }
     );
   }
@@ -108,7 +112,7 @@ export async function POST(req: NextRequest) {
     stripeCustomerId: b.stripe_customer_id,
     stripePaymentMethodId: b.stripe_payment_method_id,
     amount: b.remaining_balance_amount,
-    description: `Remaining balance (retry) — ${locationName} on ${b.date}`,
+    description: `Remaining balance (retry) - ${locationName} on ${b.date}`,
     idempotencySuffix: `retry-${Date.now()}`,
   });
 
@@ -121,22 +125,77 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', booking_id);
 
-    console.log(`[admin/retry-charge] SUCCESS booking ${booking_id} — PI ${result.paymentIntentId}`);
-    return NextResponse.json({ ok: true, paymentIntentId: result.paymentIntentId });
-  } else {
-    // Clear sentinel so the button re-appears and the next retry can claim the booking
-    await supabase
-      .from('bookings')
-      .update({
-        remaining_balance_status: 'failed',
-        remaining_balance_payment_intent_id: result.paymentIntentId ?? null,
-      })
-      .eq('id', booking_id);
+    await recordFinancialEvent({
+      event_name: 'payment.remaining_balance_retry_succeeded',
+      event_category: 'payment',
+      severity: 'info',
+      entity_type: 'payment_intent',
+      entity_id: result.paymentIntentId as string,
+      booking_id,
+      payment_intent_id: result.paymentIntentId ?? null,
+      amount: b.remaining_balance_amount,
+      currency: 'usd',
+      status: 'paid',
+      message: 'Remaining balance charge succeeded via admin retry',
+      metadata: {
+        booking_id,
+        location_name: locationName,
+        date: b.date,
+        admin_email: adminUser.email ?? null,
+      },
+    });
 
-    console.error(`[admin/retry-charge] FAILED booking ${booking_id}: ${result.errorMessage}`);
-    return NextResponse.json(
-      { error: result.errorMessage ?? 'Charge failed' },
-      { status: 402 }
-    );
+    console.log(`[admin/retry-charge] SUCCESS booking ${booking_id} - PI ${result.paymentIntentId}`);
+    return NextResponse.json({ ok: true, paymentIntentId: result.paymentIntentId });
   }
+
+  await supabase
+    .from('bookings')
+    .update({
+      remaining_balance_status: 'failed',
+      remaining_balance_payment_intent_id: result.paymentIntentId ?? null,
+    })
+    .eq('id', booking_id);
+
+  await recordFinancialEvent({
+    event_name: 'payment.remaining_balance_retry_failed',
+    event_category: 'payment',
+    severity: 'error',
+    entity_type: 'booking',
+    entity_id: booking_id,
+    booking_id,
+    payment_intent_id: result.paymentIntentId ?? null,
+    amount: b.remaining_balance_amount,
+    currency: 'usd',
+    status: 'failed',
+    requires_attention: true,
+    message: result.errorMessage ?? 'Remaining balance retry failed',
+    metadata: {
+      booking_id,
+      location_name: locationName,
+      date: b.date,
+      admin_email: adminUser.email ?? null,
+    },
+  });
+
+  await notifySupportAlert({
+    source: '/api/admin/retry-charge',
+    severity: 'error',
+    summary: `Admin retry failed for booking ${booking_id}`,
+    bookingId: booking_id,
+    paymentIntentId: result.paymentIntentId ?? null,
+    details: {
+      error_message: result.errorMessage ?? null,
+      amount: b.remaining_balance_amount,
+      date: b.date,
+      location_name: locationName,
+      admin_email: adminUser.email ?? null,
+    },
+  });
+
+  console.error(`[admin/retry-charge] FAILED booking ${booking_id}: ${result.errorMessage}`);
+  return NextResponse.json(
+    { error: result.errorMessage ?? 'Charge failed' },
+    { status: 402 }
+  );
 }

@@ -10,6 +10,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { getAppUrl, isLocalOrigin } from '@/lib/app-url';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { recordFinancialEvent } from '@/lib/financial-log';
 
 const AdditionalParticipantSchema = z.object({
   name: z.string().min(1),
@@ -553,6 +554,23 @@ export async function POST(req: NextRequest) {
       data: checkoutAttributes,
     });
 
+    await recordFinancialEvent({
+      event_name: 'booking.created',
+      event_category: 'booking',
+      severity: 'info',
+      entity_type: 'booking',
+      entity_id: booking.id,
+      booking_id: booking.id,
+      lead_id: effectiveLeadId,
+      stripe_session_id: session.id,
+      amount: priceBreakdown.total,
+      currency: 'usd',
+      status: 'pending',
+      message: `Booking created for ${state.customer.email}`,
+      metadata: checkoutAttributes,
+      occurred_at: booking.created_at,
+    });
+
     await sendSenzaiEvent({
       event_name: 'payment.requested',
       occurred_at: new Date().toISOString(),
@@ -574,6 +592,30 @@ export async function POST(req: NextRequest) {
         charge_type: 'deposit',
         payment_provider: 'stripe',
         checkout_url_present: Boolean(session.url),
+      },
+    });
+
+    await recordFinancialEvent({
+      event_name: 'payment.deposit_requested',
+      event_category: 'payment',
+      severity: 'info',
+      entity_type: 'stripe_checkout_session',
+      entity_id: session.id,
+      booking_id: booking.id,
+      lead_id: effectiveLeadId,
+      stripe_session_id: session.id,
+      amount: depositAmount,
+      currency: 'usd',
+      status: 'requested',
+      message: 'Deposit checkout session created',
+      metadata: {
+        booking_id: booking.id,
+        customer_email: state.customer.email,
+        total_amount: priceBreakdown.total,
+        deposit_amount: depositAmount,
+        remaining_balance_amount: remainingBalanceAmount,
+        remaining_balance_due_at: remainingBalanceDueAt,
+        live_test_mode: liveTestMode,
       },
     });
 

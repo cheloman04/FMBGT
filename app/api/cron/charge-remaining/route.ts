@@ -2,25 +2,25 @@
  * /api/cron/charge-remaining
  *
  * Called daily by Vercel Cron (vercel.json) and/or n8n.
- * Charges the remaining 50% balance for all bookings whose
- * remaining_balance_due_at is in the past and status is 'pending'.
+ * Charges the remaining balance for all confirmed bookings whose
+ * remaining_balance_due_at is in the past.
  *
  * Authorization:
- *   Vercel Cron sends:  Authorization: Bearer <CRON_SECRET>
- *   n8n / manual:       x-admin-secret: <ADMIN_SECRET>
+ *   Vercel Cron sends: Authorization: Bearer <CRON_SECRET>
+ *   Admin / n8n:       x-admin-secret: <ADMIN_SECRET>
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { chargeRemainingBalance } from '@/lib/stripe';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { recordFinancialEvent } from '@/lib/financial-log';
+import { notifySupportAlert } from '@/lib/n8n';
 
 function isAuthorized(req: NextRequest): boolean {
-  // Vercel Cron
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get('authorization');
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
 
-  // Admin / n8n
   const adminSecret = process.env.ADMIN_SECRET;
   const adminHeader = req.headers.get('x-admin-secret');
   if (adminSecret && adminHeader === adminSecret) return true;
@@ -32,14 +32,15 @@ export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
   return runChargeJob();
 }
 
-// Vercel Cron uses GET
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
   return runChargeJob();
 }
 
@@ -49,9 +50,6 @@ async function runChargeJob(): Promise<NextResponse> {
 
   console.log(`[cron/charge-remaining] Starting run at ${now}`);
 
-  // Recover any bookings stuck in 'processing' from a prior crashed run.
-  // If the sentinel was set more than 30 minutes ago and the run never wrote a result,
-  // clear it so this run (or the admin retry button) can re-attempt the charge.
   const stuckCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   const { data: stuckRows, error: stuckErr } = await supabase
     .from('bookings')
@@ -60,20 +58,17 @@ async function runChargeJob(): Promise<NextResponse> {
     .eq('remaining_balance_status', 'pending')
     .lte('updated_at', stuckCutoff)
     .select('id');
+
   if (stuckErr) {
     console.error('[cron/charge-remaining] Stuck-processing cleanup error:', stuckErr);
   } else if (stuckRows && stuckRows.length > 0) {
-    console.warn(`[cron/charge-remaining] Cleared ${stuckRows.length} stuck-processing booking(s):`, stuckRows.map((r) => r.id));
+    console.warn(
+      `[cron/charge-remaining] Cleared ${stuckRows.length} stuck-processing booking(s):`,
+      stuckRows.map((row) => row.id)
+    );
   }
 
-  // Fetch all bookings due for the remaining balance charge.
-  // Conditions:
-  //   - remaining_balance_due_at is in the past (due now)
-  //   - remaining_balance_status = 'pending' (not yet paid or failed)
-  //   - remaining_balance_payment_intent_id IS NULL (idempotency: not already attempted)
-  //   - stripe_payment_method_id IS NOT NULL (card on file)
-  //   - status = 'confirmed' (don't charge cancelled/refunded bookings)
-  const { data: duebookings, error: fetchError } = await supabase
+  const { data: dueBookings, error: fetchError } = await supabase
     .from('bookings')
     .select('id, remaining_balance_amount, stripe_customer_id, stripe_payment_method_id, date, location_id')
     .lte('remaining_balance_due_at', now)
@@ -87,19 +82,18 @@ async function runChargeJob(): Promise<NextResponse> {
     return NextResponse.json({ error: 'DB error', details: fetchError.message }, { status: 500 });
   }
 
-  const bookings = duebookings ?? [];
+  const bookings = dueBookings ?? [];
   console.log(`[cron/charge-remaining] Found ${bookings.length} booking(s) due for charge`);
 
   if (bookings.length === 0) {
     return NextResponse.json({ charged: 0, failed: 0, skipped: 0 });
   }
 
-  // Fetch location names for descriptions
-  const locationIds = [...new Set(bookings.map((b) => b.location_id).filter(Boolean))];
+  const locationIds = [...new Set(bookings.map((booking) => booking.location_id).filter(Boolean))];
   const { data: locations } = locationIds.length
     ? await supabase.from('locations').select('id, name').in('id', locationIds as string[])
     : { data: [] };
-  const locationMap = Object.fromEntries((locations ?? []).map((l) => [l.id, l.name]));
+  const locationMap = Object.fromEntries((locations ?? []).map((location) => [location.id, location.name]));
 
   const results = { charged: 0, failed: 0, skipped: 0 };
 
@@ -121,13 +115,11 @@ async function runChargeJob(): Promise<NextResponse> {
     };
 
     if (!remaining_balance_amount || !stripe_customer_id || !stripe_payment_method_id) {
-      console.warn(`[cron/charge-remaining] Booking ${bookingId} missing required fields — skipping`);
+      console.warn(`[cron/charge-remaining] Booking ${bookingId} missing required fields - skipping`);
       results.skipped++;
       continue;
     }
 
-    // Atomic claim: only one cron run can proceed for this booking even under concurrent execution.
-    // Sets a sentinel value so a second concurrent read finds it non-null and skips.
     const { data: claimed } = await supabase
       .from('bookings')
       .update({ remaining_balance_payment_intent_id: 'processing' })
@@ -137,7 +129,7 @@ async function runChargeJob(): Promise<NextResponse> {
       .maybeSingle();
 
     if (!claimed) {
-      console.log(`[cron/charge-remaining] Booking ${bookingId} already claimed by another run — skipping`);
+      console.log(`[cron/charge-remaining] Booking ${bookingId} already claimed by another run - skipping`);
       results.skipped++;
       continue;
     }
@@ -166,10 +158,31 @@ async function runChargeJob(): Promise<NextResponse> {
         amount: remaining_balance_amount,
         stripe_customer_id,
         stripe_payment_method_id,
-        location_id: location_id,
+        location_id,
         location_name: locationName,
         date,
       },
+    });
+
+    await recordFinancialEvent({
+      event_name: 'payment.remaining_balance_requested',
+      event_category: 'payment',
+      severity: 'info',
+      entity_type: 'booking',
+      entity_id: bookingId,
+      booking_id: bookingId,
+      amount: remaining_balance_amount,
+      currency: 'usd',
+      status: 'requested',
+      message: 'Cron attempted remaining balance charge',
+      metadata: {
+        booking_id: bookingId,
+        location_name: locationName,
+        date,
+        stripe_customer_id,
+        stripe_payment_method_id,
+      },
+      occurred_at: attemptedAt,
     });
 
     const result = await chargeRemainingBalance({
@@ -177,7 +190,7 @@ async function runChargeJob(): Promise<NextResponse> {
       stripeCustomerId: stripe_customer_id,
       stripePaymentMethodId: stripe_payment_method_id,
       amount: remaining_balance_amount,
-      description: `Remaining balance — ${locationName} on ${date}`,
+      description: `Remaining balance - ${locationName} on ${date}`,
     });
 
     if (result.success) {
@@ -190,13 +203,33 @@ async function runChargeJob(): Promise<NextResponse> {
         .eq('id', bookingId);
 
       if (updateError) {
-        console.error(`[cron/charge-remaining] Failed to update booking ${bookingId} after charge:`, updateError);
+        console.error(
+          `[cron/charge-remaining] Failed to update booking ${bookingId} after charge:`,
+          updateError
+        );
       } else {
-        console.log(`[cron/charge-remaining] Charged booking ${bookingId} — PI ${result.paymentIntentId}`);
+        await recordFinancialEvent({
+          event_name: 'payment.remaining_balance_succeeded',
+          event_category: 'payment',
+          severity: 'info',
+          entity_type: 'payment_intent',
+          entity_id: result.paymentIntentId as string,
+          booking_id: bookingId,
+          payment_intent_id: result.paymentIntentId ?? null,
+          amount: remaining_balance_amount,
+          currency: 'usd',
+          status: 'paid',
+          message: 'Remaining balance charged successfully by cron',
+          metadata: {
+            booking_id: bookingId,
+            location_name: locationName,
+            date,
+          },
+        });
+        console.log(`[cron/charge-remaining] Charged booking ${bookingId} - PI ${result.paymentIntentId}`);
         results.charged++;
       }
     } else {
-      // Mark failed; if no PI was created, clear the sentinel so the cron can retry next run.
       await supabase
         .from('bookings')
         .update({
@@ -205,11 +238,48 @@ async function runChargeJob(): Promise<NextResponse> {
         })
         .eq('id', bookingId);
 
+      await recordFinancialEvent({
+        event_name: 'payment.remaining_balance_failed',
+        event_category: 'payment',
+        severity: 'error',
+        entity_type: 'booking',
+        entity_id: bookingId,
+        booking_id: bookingId,
+        payment_intent_id: result.paymentIntentId ?? null,
+        amount: remaining_balance_amount,
+        currency: 'usd',
+        status: 'failed',
+        requires_attention: true,
+        message: result.errorMessage ?? 'Remaining balance charge failed',
+        metadata: {
+          booking_id: bookingId,
+          location_name: locationName,
+          date,
+          stripe_customer_id,
+        },
+      });
+
+      await notifySupportAlert({
+        source: '/api/cron/charge-remaining',
+        severity: 'error',
+        summary: `Remaining balance charge failed for booking ${bookingId}`,
+        bookingId,
+        paymentIntentId: result.paymentIntentId ?? null,
+        details: {
+          error_message: result.errorMessage ?? null,
+          amount: remaining_balance_amount,
+          date,
+          location_name: locationName,
+        },
+      });
+
       console.error(`[cron/charge-remaining] FAILED booking ${bookingId}: ${result.errorMessage}`);
       results.failed++;
     }
   }
 
-  console.log(`[cron/charge-remaining] Done — charged: ${results.charged}, failed: ${results.failed}, skipped: ${results.skipped}`);
+  console.log(
+    `[cron/charge-remaining] Done - charged: ${results.charged}, failed: ${results.failed}, skipped: ${results.skipped}`
+  );
   return NextResponse.json(results);
 }

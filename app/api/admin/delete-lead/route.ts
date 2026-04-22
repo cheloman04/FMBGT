@@ -1,12 +1,41 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { recordFinancialEvent } from '@/lib/financial-log';
 
 const Schema = z.object({
   lead_id: z.string().uuid(),
 });
+
+function bookingHasFinancialHistory(booking: {
+  status: string;
+  deposit_payment_status?: string | null;
+  remaining_balance_status?: string | null;
+  stripe_session_id?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_payment_method_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+  deposit_payment_intent_id?: string | null;
+  remaining_balance_payment_intent_id?: string | null;
+}) {
+  return (
+    booking.status === 'confirmed' ||
+    booking.status === 'completed' ||
+    booking.status === 'refunded' ||
+    booking.deposit_payment_status === 'paid' ||
+    booking.remaining_balance_status === 'pending' ||
+    booking.remaining_balance_status === 'paid' ||
+    booking.remaining_balance_status === 'failed' ||
+    Boolean(booking.stripe_session_id) ||
+    Boolean(booking.stripe_customer_id) ||
+    Boolean(booking.stripe_payment_method_id) ||
+    Boolean(booking.stripe_payment_intent_id) ||
+    Boolean(booking.deposit_payment_intent_id) ||
+    Boolean(booking.remaining_balance_payment_intent_id)
+  );
+}
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
@@ -37,7 +66,9 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: bookingRows, error: bookingLookupError } = await (supabase as any)
     .from('bookings')
-    .select('id, status, waiver_session_id')
+    .select(
+      'id, status, waiver_session_id, deposit_payment_status, remaining_balance_status, stripe_session_id, stripe_customer_id, stripe_payment_method_id, stripe_payment_intent_id, deposit_payment_intent_id, remaining_balance_payment_intent_id'
+    )
     .eq('lead_id', lead_id);
 
   if (bookingLookupError) {
@@ -45,15 +76,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to inspect related bookings' }, { status: 500 });
   }
 
-  const bookings = (bookingRows ?? []) as Array<{ id: string; status: string; waiver_session_id?: string | null }>;
-  const blockingBookings = bookings.filter((b) =>
-    b.status === 'confirmed' || b.status === 'completed'
-  );
+  const bookings = (bookingRows ?? []) as Array<{
+    id: string;
+    status: string;
+    waiver_session_id?: string | null;
+    deposit_payment_status?: string | null;
+    remaining_balance_status?: string | null;
+    stripe_session_id?: string | null;
+    stripe_customer_id?: string | null;
+    stripe_payment_method_id?: string | null;
+    stripe_payment_intent_id?: string | null;
+    deposit_payment_intent_id?: string | null;
+    remaining_balance_payment_intent_id?: string | null;
+  }>;
 
+  const blockingBookings = bookings.filter(bookingHasFinancialHistory);
   if (blockingBookings.length > 0) {
+    await recordFinancialEvent({
+      event_name: 'admin.lead_delete_blocked',
+      event_category: 'ops',
+      severity: 'warning',
+      entity_type: 'lead',
+      entity_id: lead_id,
+      lead_id,
+      requires_attention: false,
+      message: 'Admin lead deletion blocked because linked booking has financial history',
+      metadata: {
+        admin_email: adminUser.email ?? null,
+        blocking_booking_ids: blockingBookings.map((booking) => booking.id),
+      },
+    });
+
     return NextResponse.json(
       {
-        error: `Cannot delete this lead — it has ${blockingBookings.length} confirmed or completed booking(s). Cancel or refund the booking(s) first.`,
+        error:
+          'Cannot delete this lead because it is linked to booking data with payment or fulfillment history.',
       },
       { status: 409 }
     );
@@ -61,18 +118,17 @@ export async function POST(req: NextRequest) {
 
   const bookingIds = bookings.map((booking) => booking.id);
   const waiverSessionIds = bookings
-    .map((b) => b.waiver_session_id ?? null)
-    .filter((v): v is string => Boolean(v));
+    .map((booking) => booking.waiver_session_id ?? null)
+    .filter((value): value is string => Boolean(value));
 
   if (bookingIds.length > 0 || waiverSessionIds.length > 0) {
-    // Remove related waiver rows first so there is no orphaned dashboard data.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let waiverDeleteQuery = (supabase as any)
-      .from('waiver_records')
-      .delete();
+    let waiverDeleteQuery = (supabase as any).from('waiver_records').delete();
 
     if (bookingIds.length > 0 && waiverSessionIds.length > 0) {
-      waiverDeleteQuery = waiverDeleteQuery.or(`booking_id.in.(${bookingIds.join(',')}),session_id.in.(${waiverSessionIds.join(',')})`);
+      waiverDeleteQuery = waiverDeleteQuery.or(
+        `booking_id.in.(${bookingIds.join(',')}),session_id.in.(${waiverSessionIds.join(',')})`
+      );
     } else if (bookingIds.length > 0) {
       waiverDeleteQuery = waiverDeleteQuery.in('booking_id', bookingIds);
     } else {

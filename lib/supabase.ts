@@ -151,6 +151,67 @@ export type Database = {
         };
         Relationships: [];
       };
+      financial_event_logs: {
+        Row: {
+          id: string;
+          event_name: string;
+          event_category: string;
+          severity: 'info' | 'warning' | 'error' | 'critical';
+          entity_type: string;
+          entity_id: string;
+          booking_id: string | null;
+          lead_id: string | null;
+          stripe_session_id: string | null;
+          payment_intent_id: string | null;
+          amount: number | null;
+          currency: string | null;
+          status: string | null;
+          requires_attention: boolean;
+          message: string | null;
+          metadata: unknown;
+          occurred_at: string;
+          created_at: string;
+        };
+        Insert: {
+          event_name: string;
+          event_category?: string;
+          severity?: 'info' | 'warning' | 'error' | 'critical';
+          entity_type: string;
+          entity_id: string;
+          booking_id?: string | null;
+          lead_id?: string | null;
+          stripe_session_id?: string | null;
+          payment_intent_id?: string | null;
+          amount?: number | null;
+          currency?: string | null;
+          status?: string | null;
+          requires_attention?: boolean;
+          message?: string | null;
+          metadata?: unknown;
+          occurred_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          event_name?: string;
+          event_category?: string;
+          severity?: 'info' | 'warning' | 'error' | 'critical';
+          entity_type?: string;
+          entity_id?: string;
+          booking_id?: string | null;
+          lead_id?: string | null;
+          stripe_session_id?: string | null;
+          payment_intent_id?: string | null;
+          amount?: number | null;
+          currency?: string | null;
+          status?: string | null;
+          requires_attention?: boolean;
+          message?: string | null;
+          metadata?: unknown;
+          occurred_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       leads: {
         Row: {
           id: string;
