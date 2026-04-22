@@ -493,6 +493,8 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        const remainingBalanceSuccessDedupeKey = `remaining_balance_succeeded:${bookingId}:${pi.id}`;
+
         await recordFinancialEvent({
           event_name: 'payment.remaining_balance_succeeded',
           event_category: 'payment',
@@ -505,6 +507,7 @@ export async function POST(req: NextRequest) {
           currency: pi.currency,
           status: 'paid',
           message: 'Remaining balance payment succeeded',
+          dedupe_key: remainingBalanceSuccessDedupeKey,
           metadata: {
             stripe_event_id: event.id,
           },

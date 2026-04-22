@@ -208,6 +208,8 @@ async function runChargeJob(): Promise<NextResponse> {
           updateError
         );
       } else {
+        const remainingBalanceSuccessDedupeKey = `remaining_balance_succeeded:${bookingId}:${result.paymentIntentId}`;
+
         await recordFinancialEvent({
           event_name: 'payment.remaining_balance_succeeded',
           event_category: 'payment',
@@ -220,6 +222,7 @@ async function runChargeJob(): Promise<NextResponse> {
           currency: 'usd',
           status: 'paid',
           message: 'Remaining balance charged successfully by cron',
+          dedupe_key: remainingBalanceSuccessDedupeKey,
           metadata: {
             booking_id: bookingId,
             location_name: locationName,

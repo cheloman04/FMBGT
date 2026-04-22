@@ -24,6 +24,7 @@ export type FinancialEventInput = {
   message?: string | null;
   metadata?: FinancialEventMetadata;
   occurred_at?: string;
+  dedupe_key?: string | null;
 };
 
 function trimMessage(message: string | null | undefined) {
@@ -33,6 +34,29 @@ function trimMessage(message: string | null | undefined) {
 
 export async function recordFinancialEvent(input: FinancialEventInput) {
   const supabase = getSupabaseAdmin();
+  const dedupeKey = input.dedupe_key?.trim() || null;
+
+  if (dedupeKey) {
+    const { data: existingEvent, error: existingError } = await supabase
+      .from('financial_event_logs')
+      .select('id')
+      .eq('event_name', input.event_name)
+      .contains('metadata', { dedupe_key: dedupeKey })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError && existingError.code !== 'PGRST116') {
+      console.error('[financial-log] Failed to check dedupe key:', {
+        event_name: input.event_name,
+        dedupe_key: dedupeKey,
+        error: existingError,
+      });
+    }
+
+    if (existingEvent) {
+      return;
+    }
+  }
 
   const { error } = await supabase
     .from('financial_event_logs')
@@ -51,7 +75,10 @@ export async function recordFinancialEvent(input: FinancialEventInput) {
       status: input.status ?? null,
       requires_attention: input.requires_attention ?? false,
       message: trimMessage(input.message),
-      metadata: input.metadata ?? {},
+      metadata: {
+        ...(input.metadata ?? {}),
+        ...(dedupeKey ? { dedupe_key: dedupeKey } : {}),
+      },
       occurred_at: input.occurred_at ?? new Date().toISOString(),
     });
 
