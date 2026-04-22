@@ -383,7 +383,7 @@ async function getStats() {
   const supabase = getSupabaseAdmin();
 
   const [bookingsResult, leadsResult] = await Promise.all([
-    supabase.from('bookings').select('status, total_price, remaining_balance_amount, remaining_balance_status, deposit_payment_status'),
+    supabase.from('bookings').select('status, total_price, deposit_amount, remaining_balance_amount, remaining_balance_status, deposit_payment_status'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from('leads').select('id, status, booking_id, converted_at'),
   ]);
@@ -426,9 +426,23 @@ async function getStats() {
     );
   }).length;
 
-  const revenue = realBookings
-    .filter((b) => b.status === 'confirmed' || b.status === 'completed')
-    .reduce((sum, b) => sum + (b.total_price ?? 0), 0);
+  const revenue = realBookings.reduce((sum, booking) => {
+    if (booking.status === 'refunded') {
+      return sum;
+    }
+
+    const depositPaid =
+      booking.deposit_payment_status === 'paid'
+        ? booking.deposit_amount ?? 0
+        : 0;
+
+    const remainingPaid =
+      booking.remaining_balance_status === 'paid'
+        ? booking.remaining_balance_amount ?? 0
+        : 0;
+
+    return sum + depositPaid + remainingPaid;
+  }, 0);
 
   // Projected = remaining balance still owed on confirmed bookings
   const projectedRevenue = confirmedBookings
