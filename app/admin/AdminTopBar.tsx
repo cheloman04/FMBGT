@@ -38,13 +38,15 @@ export function AdminTopBar({ activePage, title, subtitle }: AdminTopBarProps) {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <Image
-              src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
-              alt="Florida MTB Guided Tours"
-              width={52}
-              height={52}
-              className="h-11 w-11 rounded-xl object-contain shadow-[0_10px_24px_rgba(0,0,0,0.2)] sm:h-[52px] sm:w-[52px]"
-            />
+            <Link href="/" aria-label="Go to landing page" className="shrink-0">
+              <Image
+                src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
+                alt="Florida MTB Guided Tours"
+                width={52}
+                height={52}
+                className="h-11 w-11 rounded-xl object-contain shadow-[0_10px_24px_rgba(0,0,0,0.2)] transition-opacity hover:opacity-90 sm:h-[52px] sm:w-[52px]"
+              />
+            </Link>
             <div className="min-w-0">
               <h1 className="truncate text-xl font-bold text-foreground sm:text-2xl">{title}</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>

@@ -75,16 +75,15 @@ export default async function AdminFinLogPage() {
   const reconciliationCount = events.filter((event) => event.event_category === 'reconciliation').length;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.06),transparent_28%),linear-gradient(to_bottom,#f4efe4_0%,#efe9dd_100%)] text-foreground dark:bg-[#0b0c0b]">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="relative mx-auto max-w-7xl px-4 py-6 sm:py-8">
         <AdminTopBar
           activePage="fin-log"
           title="Financial Log"
           subtitle="Append-only payment, reconciliation, and support event ledger"
         />
 
-        <div className="mb-4 rounded-2xl border border-border/70 bg-card/65 p-3 shadow-[0_0_0_1px_rgba(34,197,94,0.05),0_12px_30px_rgba(51,44,30,0.12)] sm:mb-5 sm:p-4 dark:shadow-[0_0_0_1px_rgba(34,197,94,0.05),0_12px_30px_rgba(0,0,0,0.16)]">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:mb-5 sm:grid-cols-4 sm:gap-4">
           {[
             { label: 'Total Events', value: events.length },
             { label: 'Needs Attention', value: attentionCount },
@@ -93,9 +92,9 @@ export default async function AdminFinLogPage() {
           ].map((stat) => (
             <div
               key={stat.label}
-              className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 p-4 shadow-[0_10px_28px_rgba(51,44,30,0.10)] dark:shadow-[0_10px_28px_rgba(0,0,0,0.12)]"
+              className="group relative min-h-[104px] overflow-hidden rounded-2xl border border-border/70 bg-card/90 p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] sm:min-h-[118px]"
             >
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_40%)] opacity-80 dark:opacity-80" />
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_42%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_40%)]" />
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 {stat.label}
               </p>
@@ -103,10 +102,9 @@ export default async function AdminFinLogPage() {
             </div>
           ))}
         </div>
-        </div>
 
-        <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/92 shadow-[0_16px_36px_rgba(51,44,30,0.12)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.14)]">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_32%),radial-gradient(circle_at_top_left,rgba(59,130,246,0.06),transparent_26%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.10),transparent_32%),radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_26%)]" />
+        <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/88 shadow-[0_18px_40px_rgba(23,26,20,0.08)] backdrop-blur-sm dark:shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.05),transparent_36%),radial-gradient(circle_at_top_left,rgba(59,130,246,0.04),transparent_28%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.10),transparent_32%),radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_26%)]" />
           <div className="relative border-b border-border/70 px-4 py-4 sm:px-5">
             <h2 className="text-lg font-semibold text-foreground">Event Stream</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -116,7 +114,7 @@ export default async function AdminFinLogPage() {
 
           <div className="relative hidden overflow-x-auto lg:block">
             <table className="min-w-full divide-y divide-border/70 text-sm">
-              <thead className="bg-background/40 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              <thead className="bg-background/30 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">When</th>
                   <th className="px-4 py-3">Event</th>
@@ -166,7 +164,7 @@ export default async function AdminFinLogPage() {
                 key={event.id}
                 className="relative overflow-hidden rounded-2xl border border-border/70 bg-background/55 p-4 shadow-[0_10px_22px_rgba(0,0,0,0.12)]"
               >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_40%)]" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.05),transparent_42%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_40%)]" />
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-foreground">{event.event_name}</p>
