@@ -246,6 +246,14 @@ function formatDateTime(iso: string) {
   });
 }
 
+function formatIsoCalendarDate(iso: string) {
+  const calendarDate = iso.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(calendarDate)) {
+    return formatDate(calendarDate);
+  }
+  return formatDateTime(iso);
+}
+
 function formatWebhookAttempt(booking: Booking) {
   if (!booking.webhook_last_attempt_at) return null;
 
@@ -439,7 +447,7 @@ function BalanceBadge({
   if (!status || status === 'pending') {
     return (
       <span className="text-xs text-muted-foreground">
-        Balance {amount ? formatPrice(amount) : ''} due {dueAt ? formatDateTime(dueAt) : '-'}
+        Balance {amount ? formatPrice(amount) : ''} due {dueAt ? formatIsoCalendarDate(dueAt) : '-'}
       </span>
     );
   }
