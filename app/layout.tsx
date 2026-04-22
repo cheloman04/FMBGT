@@ -9,6 +9,7 @@ const inter = Inter({ subsets: ['latin'] });
 // GTM_ID is read at build/request time from env.
 // Set NEXT_PUBLIC_GTM_ID=GTM-XXXXXXX in .env.local (or Vercel env vars).
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID;
+const GA_ID = 'G-CFPS9G0HHJ';
 
 export const metadata: Metadata = {
   title: 'Florida Mountain Bike Trail Guided Tours',
@@ -23,6 +24,24 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* ── Google Analytics 4 ── */}
+        <Script
+          id="ga-script"
+          strategy="afterInteractive"
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+        />
+        <Script
+          id="ga-config"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GA_ID}');
+            `,
+          }}
+        />
         {/* ── Google Tag Manager ── */}
         {GTM_ID && (
           <Script
