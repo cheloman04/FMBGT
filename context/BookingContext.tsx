@@ -4,11 +4,13 @@ import React, {
   createContext,
   useContext,
   useReducer,
+  useRef,
   useState,
   useCallback,
   useEffect,
   useMemo,
 } from 'react';
+import { track } from '@/lib/analytics';
 import type {
   BookingState,
   TrailType,
@@ -25,6 +27,7 @@ import type {
 } from '@/types/booking';
 import {
   DEFAULT_STEP_ID,
+  getActiveSteps,
   getNextStepId,
   getPrevStepId,
   isStepActive,
@@ -233,6 +236,15 @@ function fireLeadProgress(
   }).catch(() => {}); // fail silently — never block the booking flow
 }
 
+// ─── Analytics Helpers ────────────────────────────────────────────────────────
+
+function getFlowVariant(state: BookingState): string {
+  if (state.trail_type === 'paved') return 'paved_7step';
+  if (state.trail_type === 'mtb' && state.skill_level === 'first_time') return 'mtb_8step';
+  if (state.trail_type === 'mtb') return 'mtb_9step';
+  return 'unknown';
+}
+
 // ─── Context Interface ────────────────────────────────────────────────────────
 
 interface BookingContextValue {
@@ -298,6 +310,59 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentStepId, state]);
 
+  // ─── Step Transition Tracking ───────────────────────────────────────────────
+  // Fires booking_step_completed (forward) and booking_step_view (every step).
+  // isInitialMountRef prevents spurious events on /booking/confirmation mount
+  // after the Stripe redirect (shared layout keeps BookingProvider alive).
+
+  const navigationDirectionRef = useRef<'forward' | 'back' | 'initial'>('initial');
+  const prevStepIdRef = useRef<StepId>(currentStepId);
+  const isInitialMountRef = useRef(true);
+
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      prevStepIdRef.current = currentStepId;
+      return;
+    }
+
+    const prevStep = prevStepIdRef.current;
+    const direction = navigationDirectionRef.current;
+    prevStepIdRef.current = currentStepId;
+
+    if (prevStep === currentStepId) return;
+
+    const activeSteps = getActiveSteps(state);
+    const nextIndex = activeSteps.findIndex((s) => s.id === currentStepId);
+    track('booking_step_view', {
+      booking_step_name: currentStepId,
+      booking_step_number: nextIndex + 1,
+      booking_flow_variant: getFlowVariant(state),
+      trail_type: state.trail_type,
+    });
+
+    if (direction === 'forward') {
+      const prevIndex = activeSteps.findIndex((s) => s.id === prevStep);
+      track('booking_step_completed', {
+        booking_step_name: prevStep,
+        booking_step_number: prevIndex + 1,
+        booking_flow_variant: getFlowVariant(state),
+        trail_type: state.trail_type,
+        location_name: state.location_name,
+        participant_count: state.participant_count,
+        bike_rental: state.bike_rental,
+        date_selected: state.date,
+        duration_hours: state.duration_hours,
+        addons_gopro: state.addons?.gopro ?? false,
+        addons_pickup: state.addons?.pickup_dropoff ?? false,
+        addons_electric_upgrade: state.addons?.electric_upgrade ?? false,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStepId]);
+  // NOTE: `state` intentionally excluded — React batches all dispatches with
+  // setCurrentStepId into one render, so the closure captures the latest state.
+
   // ─── Navigation ────────────────────────────────────────────────────────────
 
   const goNext = useCallback((stateOverride?: BookingState) => {
@@ -309,6 +374,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       fireLeadProgress(leadId, progressLabel, effectiveState);
     }
 
+    navigationDirectionRef.current = 'forward';
     setCurrentStepId((prev) => {
       const next = getNextStepId(prev, effectiveState);
       return next ?? prev;
@@ -316,6 +382,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   }, [state, currentStepId]);
 
   const goPrev = useCallback(() => {
+    navigationDirectionRef.current = 'back';
     setCurrentStepId((prev) => {
       const previous = getPrevStepId(prev, state);
       return previous ?? prev;

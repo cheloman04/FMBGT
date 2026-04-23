@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { PriceSummary } from '@/components/PriceSummary';
 import { formatPrice } from '@/lib/pricing';
 import { BookingStepActions } from '@/components/BookingStepActions';
+import { track, getAcquisitionContext } from '@/lib/analytics';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -64,6 +65,25 @@ export function StepPayment() {
 
     setApiError(null);
     setLoading(true);
+
+    // checkout_started — Blueprint §12.3 canonical tracking event
+    const acq = getAcquisitionContext();
+    track('checkout_started', {
+      trail_type: state.trail_type,
+      location_name: state.location_name,
+      participant_count: state.participant_count,
+      duration_hours: state.duration_hours,
+      bike_rental: state.bike_rental,
+      value: (state.price_breakdown?.total ?? 0) / 100,
+      currency: 'USD',
+      addons_gopro: state.addons?.gopro ?? false,
+      addons_pickup: state.addons?.pickup_dropoff ?? false,
+      addons_electric_upgrade: state.addons?.electric_upgrade ?? false,
+      marketing_source: form.marketing_source || undefined,
+      traffic_source: acq.traffic_source,
+      traffic_medium: acq.traffic_medium,
+      utm_campaign: acq.utm_campaign,
+    });
 
     const customer = {
       name: form.name.trim(),

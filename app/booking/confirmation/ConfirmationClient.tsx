@@ -6,6 +6,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { useBooking } from '@/context/BookingContext';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/pricing';
+import { track, trackPurchase } from '@/lib/analytics';
 
 interface BookingDetails {
   id: string;
@@ -62,6 +63,35 @@ export function ConfirmationClient({ booking, bookingId }: Props) {
   useEffect(() => {
     return () => { reset(); };
   }, [reset]);
+
+  // Fire purchase + booking_completed tracking events on confirmation page load.
+  // DEDUPLICATION: trackPurchase() is session-scoped by booking_id via sessionStorage.
+  useEffect(() => {
+    if (!booking || !bookingId) return;
+
+    const trailLabel = booking.trail_type === 'mtb' ? 'MTB Trail Guided Tour' : 'Paved Trail Guided Tour';
+    const itemName = booking.location_name
+      ? `${trailLabel} — ${booking.location_name}`
+      : trailLabel;
+
+    trackPurchase({
+      transaction_id: bookingId,
+      booking_id: bookingId,
+      value: booking.total_price / 100,
+      currency: 'USD',
+      trail_type: booking.trail_type,
+      location_name: booking.location_name ?? undefined,
+      items: [
+        {
+          item_id: bookingId,
+          item_name: itemName,
+          item_category: booking.trail_type === 'mtb' ? 'MTB Tour' : 'Paved Trail Tour',
+          price: booking.total_price / 100,
+          quantity: booking.participant_count,
+        },
+      ],
+    });
+  }, [booking, bookingId]);
 
   const activeAddons = booking
     ? Object.entries(booking.addons)
@@ -202,11 +232,26 @@ export function ConfirmationClient({ booking, bookingId }: Props) {
       </div>
 
       <div className="flex gap-3 justify-center flex-wrap">
-        <Link href="/booking" className={cn(buttonVariants({ variant: 'outline' }))}>
+        <Link
+          href="/booking"
+          onClick={() => track('cta_clicked', {
+            cta_text: 'Book Another Tour',
+            cta_location: 'confirmation_page',
+            destination: '/booking',
+            booking_id: bookingId ?? undefined,
+          })}
+          className={cn(buttonVariants({ variant: 'outline' }))}
+        >
           Book Another Tour
         </Link>
         <Link
           href="/"
+          onClick={() => track('cta_clicked', {
+            cta_text: 'Return to Website',
+            cta_location: 'confirmation_page',
+            destination: '/',
+            booking_id: bookingId ?? undefined,
+          })}
           className={cn(buttonVariants({ variant: 'default' }), 'bg-green-600 hover:bg-green-700 text-white')}
         >
           Return to Website

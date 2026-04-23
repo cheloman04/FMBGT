@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useBooking } from '@/context/BookingContext';
 import type { Addons, InventoryStatus } from '@/types/booking';
+import { track } from '@/lib/analytics';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -74,7 +75,22 @@ export function StepAddons() {
 
   const toggle = (key: keyof Addons, soldOut: boolean) => {
     if (soldOut) return;
-    setSelected((prev) => ({ ...prev, [key]: !prev[key] }));
+    setSelected((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      // Track electric_upgrade selection — revenue-relevant add-on (Blueprint §12.3 cta_clicked)
+      // Only fires when toggling ON (not off) to avoid counting deselections as conversions.
+      if (key === 'electric_upgrade' && next[key]) {
+        track('cta_clicked', {
+          cta_text: 'Electric Bike Upgrade',
+          cta_location: 'booking_step_addons',
+          cta_type: 'addon_toggle',
+          trail_type: state.trail_type,
+          location_name: state.location_name,
+          participant_count: state.participant_count,
+        });
+      }
+      return next;
+    });
   };
 
   const handleContinue = () => {

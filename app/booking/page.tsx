@@ -12,6 +12,8 @@ import { StepDuration } from '@/components/steps/StepDuration';
 import { StepAddons } from '@/components/steps/StepAddons';
 import { StepWaiver } from '@/components/steps/StepWaiver';
 import { StepPayment } from '@/components/steps/StepPayment';
+import { track, captureAcquisitionContext } from '@/lib/analytics';
+import { getActiveSteps } from '@/lib/steps';
 import type { StepId } from '@/lib/steps';
 import type { ComponentType } from 'react';
 import { extractAttributionFromSearchParams, pickUtmFromAttribution } from '@/lib/attribution';
@@ -50,6 +52,31 @@ export default function BookingPage() {
       setUtm(pickUtmFromAttribution(attribution));
     }
   }, [captureAttribution, setLiveTestMode, setUtm]);
+
+  // Fire booking_started + initial booking_step_view once on mount (Blueprint §12.3).
+  // captureAcquisitionContext() is idempotent — safe to call alongside captureAttribution().
+  useEffect(() => {
+    if (!mounted) return;
+    const acq = captureAcquisitionContext();
+    track('booking_started', {
+      booking_step_name: currentStepId,
+      trail_type: state.trail_type,
+      traffic_source: acq.traffic_source,
+      traffic_medium: acq.traffic_medium,
+      utm_campaign: acq.utm_campaign,
+      referrer: acq.referrer,
+    });
+    const activeSteps = getActiveSteps(state);
+    const stepIndex = activeSteps.findIndex((s) => s.id === currentStepId);
+    track('booking_step_view', {
+      booking_step_name: currentStepId,
+      booking_step_number: stepIndex + 1,
+      trail_type: state.trail_type,
+      traffic_source: acq.traffic_source,
+      traffic_medium: acq.traffic_medium,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   useEffect(() => {
     if (!mounted || !state.lead_id) return;
