@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requireAdminUser } from '@/lib/admin-auth';
+import { formatFloridaDateTime } from '@/lib/display-time';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { AdminTopBar } from '../AdminTopBar';
 
@@ -30,16 +31,6 @@ function formatMoney(amount: number | null, currency: string | null) {
     style: 'currency',
     currency: currency?.toUpperCase() || 'USD',
   }).format(amount / 100);
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }
 
 function severityBadgeClassName(severity: FinancialEventRow['severity']) {
@@ -128,7 +119,7 @@ export default async function AdminFinLogPage() {
               <tbody className="divide-y divide-border/60">
                 {events.map((event) => (
                   <tr key={event.id} className="align-top transition-colors hover:bg-background/35">
-                    <td className="px-4 py-4 text-muted-foreground">{formatTime(event.occurred_at)}</td>
+                    <td className="px-4 py-4 text-muted-foreground">{formatFloridaDateTime(event.occurred_at)}</td>
                     <td className="px-4 py-4">
                       <p className="font-medium text-foreground">{event.event_name}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{event.event_category}</p>
@@ -168,7 +159,7 @@ export default async function AdminFinLogPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-foreground">{event.event_name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{formatTime(event.occurred_at)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatFloridaDateTime(event.occurred_at)}</p>
                   </div>
                   <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityBadgeClassName(event.severity)}`}>
                     {event.severity}

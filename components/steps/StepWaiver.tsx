@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { SignatureCanvas } from '@/components/waiver/SignatureCanvas';
 import type { WaiverParticipant, WaiverSigner } from '@/types/booking';
+import { formatFloridaTime } from '@/lib/display-time';
 import { WAIVER_TEXT } from '@/lib/waiver-text';
 import { generateWaiverPdf } from '@/lib/waiver-pdf';
 
@@ -570,7 +571,7 @@ export function StepWaiver() {
                     {cs.role === 'participant'
                       ? 'Participant waiver'
                       : `Guardian waiver — covering ${cs.participants_covered.join(', ')}`}
-                    {' · '}Signed {new Date(cs.agreed_at).toLocaleTimeString()}
+                    {' · '}Signed {formatFloridaTime(cs.agreed_at)}
                   </p>
                 </div>
               </div>

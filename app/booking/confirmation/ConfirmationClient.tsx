@@ -6,6 +6,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { useBooking } from '@/context/BookingContext';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/pricing';
+import { formatFloridaCalendarDate } from '@/lib/display-time';
 import { track, trackPurchase } from '@/lib/analytics';
 
 interface BookingDetails {
@@ -31,7 +32,7 @@ interface Props {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+  return formatFloridaCalendarDate(dateStr, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',

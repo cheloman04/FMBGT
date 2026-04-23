@@ -6,6 +6,10 @@ import {
   getBookingProgressMeta,
   PERSISTED_STEP_LABELS,
 } from '@/lib/booking-flow-progress';
+import {
+  formatFloridaCalendarDate,
+  formatFloridaDateTime,
+} from '@/lib/display-time';
 import type { SkillLevel, TrailType } from '@/types/booking';
 import { AdminTopBar } from './AdminTopBar';
 
@@ -231,19 +235,11 @@ function formatPrice(cents: number) {
 }
 
 function formatDate(d: string) {
-  return new Date(`${d}T00:00:00`).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatFloridaCalendarDate(d);
 }
 
 function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatFloridaDateTime(iso);
 }
 
 function formatIsoCalendarDate(iso: string) {
@@ -591,7 +587,7 @@ function WaiverPanel({ records }: { records: WaiverRecord[] }) {
                   : `Guardian (${w.guardian_relationship ?? 'guardian'}) signed for: ${w.participants_covered.join(', ')}`}
               </p>
               <p className="text-xs text-muted-foreground">
-                Signed: {new Date(w.agreed_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                Signed: {formatFloridaDateTime(w.agreed_at)}
               </p>
             </div>
             <div className="flex shrink-0 gap-1.5">

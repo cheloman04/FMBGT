@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PriceSummary } from '@/components/PriceSummary';
 import { formatPrice } from '@/lib/pricing';
+import { formatFloridaCalendarDate } from '@/lib/display-time';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { track, getAcquisitionContext } from '@/lib/analytics';
 
@@ -17,7 +18,13 @@ const HEARD_OPTIONS = ['Facebook', 'Instagram', 'YouTube', 'Google', 'ChatGPT'] 
 function formatDueDate(tourDateStr: string): string {
   const [y, m, d] = tourDateStr.split('-').map(Number) as [number, number, number];
   const dueDate = new Date(y, m - 1, d - 1);
-  return dueDate.toLocaleDateString('en-US', {
+  const dueDateStr = [
+    dueDate.getFullYear(),
+    String(dueDate.getMonth() + 1).padStart(2, '0'),
+    String(dueDate.getDate()).padStart(2, '0'),
+  ].join('-');
+
+  return formatFloridaCalendarDate(dueDateStr, {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -312,7 +319,7 @@ export function StepPayment() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Date</span>
                 <span className="text-foreground">
-                  {new Date(state.date + 'T00:00:00').toLocaleDateString('en-US', {
+                  {formatFloridaCalendarDate(state.date, {
                     month: 'long',
                     day: 'numeric',
                     year: 'numeric',

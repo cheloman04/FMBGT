@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/pricing';
+import { formatFloridaCalendarDate } from '@/lib/display-time';
 
 interface BookingResult {
   id: string;
@@ -20,7 +21,7 @@ interface BookingResult {
 }
 
 function formatDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+  return formatFloridaCalendarDate(d, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',

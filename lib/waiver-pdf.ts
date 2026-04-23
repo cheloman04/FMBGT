@@ -1,6 +1,7 @@
 'use client';
 
 import { WAIVER_VERSION as _WAIVER_VERSION, WAIVER_TEXT as _WAIVER_TEXT } from '@/lib/waiver-text';
+import { formatFloridaDateOnly, formatFloridaDateTime } from '@/lib/display-time';
 export { WAIVER_VERSION, WAIVER_TEXT } from '@/lib/waiver-text';
 
 export interface PdfContext {
@@ -94,7 +95,7 @@ export async function generateWaiverPdf(ctx: PdfContext): Promise<string> {
   // ── Signed at ───────────────────────────────────────────────────────────────
   addText('SIGNATURE METADATA', 9, 'bold', '#444444');
   const signedDate = new Date(ctx.agreedAt);
-  addText(`Date Signed: ${signedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 9);
+  addText(`Date Signed: ${formatFloridaDateTime(ctx.agreedAt)}`, 9);
   addText(`Time Signed (UTC): ${signedDate.toUTCString()}`, 9);
   if (ctx.ipAddress) addText(`IP Address: ${ctx.ipAddress}`, 9);
   if (ctx.userAgent) {
@@ -141,7 +142,7 @@ export async function generateWaiverPdf(ctx: PdfContext): Promise<string> {
   y += 4;
   addText(ctx.signerName, 8);
   y += 2;
-  addText(`Signed digitally on ${signedDate.toLocaleDateString('en-US')}`, 8, 'normal', '#666666');
+  addText(`Signed digitally on ${formatFloridaDateOnly(ctx.agreedAt)}`, 8, 'normal', '#666666');
 
   // ── Footer ──────────────────────────────────────────────────────────────────
   const pageCount = doc.getNumberOfPages();

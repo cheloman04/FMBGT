@@ -6,11 +6,12 @@ import { useBooking } from '@/context/BookingContext';
 import type { AvailabilitySlot } from '@/types/booking';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { Button } from '@/components/ui/button';
+import { formatFloridaCalendarDate } from '@/lib/display-time';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatDate(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', {
+  return formatFloridaCalendarDate(dateStr, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
