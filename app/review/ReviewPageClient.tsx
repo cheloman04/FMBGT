@@ -94,8 +94,6 @@ export function ReviewPageClient({ params }: ReviewPageProps) {
 
   const detailChips = [
     derived.locationName ? `Location: ${derived.locationName}` : null,
-    derived.templateKey ? `Template: ${derived.templateKey}` : null,
-    derived.stepKey ? `Step: ${derived.stepKey}` : null,
   ].filter(Boolean) as string[];
 
   return (
