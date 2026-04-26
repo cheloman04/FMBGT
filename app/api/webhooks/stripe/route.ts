@@ -11,8 +11,35 @@ import { getAppUrl } from '@/lib/app-url';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { notifySupportAlert, triggerN8nEvent, type N8nWebhookResult } from '@/lib/n8n';
+import { buildMetaUserData, sendMetaEvent } from '@/lib/meta-capi';
 
 type WebhookAttemptResult = N8nWebhookResult;
+
+const REMAINING_BALANCE_WEBHOOK_URL =
+  'https://fmbgt-n8n.yvjziu.easypanel.host/webhook/remaining-balance';
+
+type RemainingBalanceBookingDetails = {
+  id: string;
+  lead_id: string | null;
+  date: string | null;
+  time_slot: string | null;
+  duration_hours: number | null;
+  participant_count: number | null;
+  participant_info: unknown;
+  trail_type: string | null;
+  skill_level: string | null;
+  remaining_balance_amount: number | null;
+  remaining_balance_due_at: string | null;
+  attribution_snapshot: Record<string, unknown> | null;
+  customers?: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null;
+  locations?: {
+    name: string | null;
+  } | null;
+};
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -110,7 +137,7 @@ export async function POST(req: NextRequest) {
         if (paymentIntentId) {
           try {
             const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
-              expand: ['payment_method'],
+              expand: ['payment_method', 'latest_charge'],
             });
             const pm = pi.payment_method;
             stripePaymentMethodId = pm
@@ -157,12 +184,15 @@ export async function POST(req: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: bookingLeadRow } = await (supabase as any)
           .from('bookings')
-          .select('lead_id, booking_session_id')
+          .select('lead_id, booking_session_id, attribution_snapshot')
           .eq('id', bookingId)
           .single();
 
         const leadId = (bookingLeadRow as { lead_id?: string } | null)?.lead_id;
         const bookingSessionId = (bookingLeadRow as { booking_session_id?: string } | null)?.booking_session_id;
+        const attributionSnapshot =
+          ((bookingLeadRow as { attribution_snapshot?: Record<string, unknown> | null } | null)
+            ?.attribution_snapshot) ?? null;
         if (leadId) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error: leadConvertErr } = await (supabase as any)
@@ -321,6 +351,52 @@ export async function POST(req: NextRequest) {
         }
 
         const occurredAt = new Date(event.created * 1000).toISOString();
+        const metaEventSourceUrl = getStringAttributionValue(
+          attributionSnapshot,
+          'meta_event_source_url'
+        );
+        const metaUserData = buildMetaUserData({
+          email: customerEmail,
+          phone: session.metadata?.customer_phone ?? null,
+          fullName: session.metadata?.customer_name ?? null,
+          clientIpAddress: getStringAttributionValue(
+            attributionSnapshot,
+            'meta_client_ip_address'
+          ),
+          clientUserAgent: getStringAttributionValue(
+            attributionSnapshot,
+            'meta_client_user_agent'
+          ),
+          fbc: getStringAttributionValue(attributionSnapshot, 'meta_fbc'),
+          fbp: getStringAttributionValue(attributionSnapshot, 'meta_fbp'),
+          externalId: leadId ?? bookingId,
+        });
+        const purchaseAmountDollars = Number(
+          (((session.amount_total ?? depositCents) || 0) / 100).toFixed(2)
+        );
+
+        // Use Stripe's payment identifier as event_id so webhook retries and any
+        // browser/server Purchase dedupe converge on the same completed payment.
+        const metaEventId = paymentIntentId ?? event.id;
+
+        await sendMetaEvent({
+          data: [
+            {
+              event_name: 'Purchase',
+              event_time: Math.floor(new Date(occurredAt).getTime() / 1000),
+              event_id: metaEventId,
+              action_source: 'website',
+              ...(metaEventSourceUrl ? { event_source_url: metaEventSourceUrl } : {}),
+              ...(Object.keys(metaUserData).length > 0 ? { user_data: metaUserData } : {}),
+              custom_data: {
+                currency: 'USD',
+                value: purchaseAmountDollars,
+                booking_id: bookingId,
+                stripe_session_id: session.id,
+              },
+            },
+          ],
+        });
 
         await sendSenzaiEvent({
           event_name: 'payment.succeeded',
@@ -410,9 +486,24 @@ export async function POST(req: NextRequest) {
 
         const { data: existingBooking } = await supabase
           .from('bookings')
-          .select('id')
+          .select(`
+            id,
+            lead_id,
+            date,
+            time_slot,
+            duration_hours,
+            participant_count,
+            participant_info,
+            trail_type,
+            skill_level,
+            remaining_balance_amount,
+            remaining_balance_due_at,
+            attribution_snapshot,
+            customers(name, email, phone),
+            locations(name)
+          `)
           .eq('id', bookingId)
-          .maybeSingle();
+          .maybeSingle<RemainingBalanceBookingDetails>();
 
         if (!existingBooking) {
           await recordFinancialEvent({
@@ -463,11 +554,47 @@ export async function POST(req: NextRequest) {
         }
 
         // n8n webhook — final balance charged
-        await triggerN8nWebhook('remaining_balance_paid', {
-          booking_id: bookingId,
-          payment_intent_id: pi.id,
-          amount: pi.amount,
-        });
+        const remainingBalanceLocationName = existingBooking.locations?.name ?? 'Florida Mountain Bike Guides';
+        const remainingBalanceLocationMeta = getBookingLocationMeta(remainingBalanceLocationName);
+        const remainingBalanceStartIso = existingBooking.date && existingBooking.time_slot
+          ? easternLocalToUtcIso(existingBooking.date, existingBooking.time_slot)
+          : null;
+        const remainingBalanceEndIso = remainingBalanceStartIso && existingBooking.duration_hours
+          ? addHoursToIso(remainingBalanceStartIso, existingBooking.duration_hours)
+          : null;
+        const remainingBalanceCalendarUrl = `${getAppUrl()}/api/calendar/${bookingId}`;
+
+        await triggerN8nWebhook(
+          'remaining_balance_paid',
+          {
+            booking_id: bookingId,
+            payment_intent_id: pi.id,
+            amount: pi.amount,
+            currency: pi.currency,
+            customer_email: existingBooking.customers?.email ?? null,
+            customer_name: existingBooking.customers?.name ?? null,
+            customer_phone: existingBooking.customers?.phone ?? null,
+            remaining_balance_amount: existingBooking.remaining_balance_amount ?? pi.amount,
+            remaining_balance_due_at: existingBooking.remaining_balance_due_at,
+            location: remainingBalanceLocationName,
+            date: existingBooking.date,
+            time: existingBooking.time_slot,
+            duration_hours: existingBooking.duration_hours,
+            participant_count: existingBooking.participant_count,
+            participant_info: existingBooking.participant_info,
+            trail_type: existingBooking.trail_type,
+            skill_level: formatSkillLevel(existingBooking.skill_level),
+            meeting_location_name: remainingBalanceLocationMeta.meetingPointName,
+            meeting_location_address: remainingBalanceLocationMeta.meetingPointAddress,
+            meeting_location_url: remainingBalanceLocationMeta.meetingPointUrl,
+            booking_start_iso: remainingBalanceStartIso,
+            booking_end_iso: remainingBalanceEndIso,
+            calendar_url: remainingBalanceCalendarUrl,
+          },
+          {
+            webhookUrl: process.env.N8N_REMAINING_BALANCE_WEBHOOK_URL || REMAINING_BALANCE_WEBHOOK_URL,
+          }
+        );
 
         await sendSenzaiEvent({
           event_name: 'payment.succeeded',
@@ -494,6 +621,56 @@ export async function POST(req: NextRequest) {
         });
 
         const remainingBalanceSuccessDedupeKey = `remaining_balance_succeeded:${bookingId}:${pi.id}`;
+        const remainingMetaEventSourceUrl = getStringAttributionValue(
+          existingBooking.attribution_snapshot,
+          'meta_event_source_url'
+        );
+        const remainingMetaUserData = buildMetaUserData({
+          email: existingBooking.customers?.email ?? null,
+          phone: existingBooking.customers?.phone ?? null,
+          fullName: existingBooking.customers?.name ?? null,
+          clientIpAddress: getStringAttributionValue(
+            existingBooking.attribution_snapshot,
+            'meta_client_ip_address'
+          ),
+          clientUserAgent: getStringAttributionValue(
+            existingBooking.attribution_snapshot,
+            'meta_client_user_agent'
+          ),
+          fbc: getStringAttributionValue(existingBooking.attribution_snapshot, 'meta_fbc'),
+          fbp: getStringAttributionValue(existingBooking.attribution_snapshot, 'meta_fbp'),
+          externalId: existingBooking.lead_id ?? bookingId,
+        });
+        const remainingPurchaseAmountDollars = Number(
+          (((pi.amount_received || pi.amount) || 0) / 100).toFixed(2)
+        );
+
+        // Use the succeeded PaymentIntent ID as event_id so each collected payment
+        // has one stable Meta dedupe key even if Stripe replays the webhook.
+        const metaEventId = pi.id;
+
+        await sendMetaEvent({
+          data: [
+            {
+              event_name: 'Purchase',
+              event_time: Math.floor(new Date(event.created * 1000).getTime() / 1000),
+              event_id: metaEventId,
+              action_source: 'website',
+              ...(remainingMetaEventSourceUrl
+                ? { event_source_url: remainingMetaEventSourceUrl }
+                : {}),
+              ...(Object.keys(remainingMetaUserData).length > 0
+                ? { user_data: remainingMetaUserData }
+                : {}),
+              custom_data: {
+                currency: 'USD',
+                value: remainingPurchaseAmountDollars,
+                booking_id: bookingId,
+                payment_intent_id: pi.id,
+              },
+            },
+          ],
+        });
 
         await recordFinancialEvent({
           event_name: 'payment.remaining_balance_succeeded',
@@ -777,6 +954,14 @@ function trimWebhookError(message: string): string {
   return message.replace(/\s+/g, ' ').trim().slice(0, 300);
 }
 
+function getStringAttributionValue(
+  snapshot: Record<string, unknown> | null | undefined,
+  key: string
+): string | null {
+  const value = snapshot?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 async function recordBookingWebhookAttempt(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   bookingId: string,
@@ -797,12 +982,20 @@ async function recordBookingWebhookAttempt(
   }
 }
 
-async function triggerN8nWebhook(event: string, data: Record<string, unknown>): Promise<WebhookAttemptResult> {
+async function triggerN8nWebhook(
+  event: string,
+  data: Record<string, unknown>,
+  options?: {
+    envKeys?: string[];
+    webhookUrl?: string | null;
+  }
+): Promise<WebhookAttemptResult> {
   const result = await triggerN8nEvent({
     event,
     data,
     source: '/api/webhooks/stripe',
-    envKeys: ['N8N_WEBHOOK_URL'],
+    envKeys: options?.envKeys ?? ['N8N_WEBHOOK_URL'],
+    webhookUrl: options?.webhookUrl,
   });
 
   if (!result.ok) {

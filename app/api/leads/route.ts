@@ -8,6 +8,12 @@ import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import {
+  buildMetaUserData,
+  getClientIpFromHeaders,
+  getEventSourceUrlFromHeaders,
+  sendMetaEvent,
+} from '@/lib/meta-capi';
 
 // Rate limiter — 20 lead submissions per IP per hour
 let leadsRatelimit: Ratelimit | null = null;
@@ -243,6 +249,38 @@ export async function POST(req: NextRequest) {
     }
 
     const sessionId = await createLeadBookingSession(data.id);
+    const metaUserData = buildMetaUserData({
+      email: data.email,
+      phone: data.phone ?? null,
+      fullName: data.full_name,
+      clientIpAddress: getClientIpFromHeaders(req.headers),
+      clientUserAgent: req.headers.get('user-agent'),
+      fbc: req.cookies.get('_fbc')?.value ?? req.cookies.get('fbc')?.value ?? null,
+      fbp: req.cookies.get('_fbp')?.value ?? req.cookies.get('fbp')?.value ?? null,
+      externalId: data.id,
+    });
+    const eventSourceUrl = getEventSourceUrlFromHeaders(req.headers);
+
+    // Use the persisted lead ID as event_id so Meta can dedupe retries and line up
+    // any browser-side Lead signal with the same stable business identifier.
+    const metaEventId = data.id;
+
+    await sendMetaEvent({
+      data: [
+        {
+          event_name: 'Lead',
+          event_time: Math.floor(new Date(data.created_at).getTime() / 1000),
+          event_id: metaEventId,
+          action_source: 'website',
+          ...(eventSourceUrl ? { event_source_url: eventSourceUrl } : {}),
+          ...(Object.keys(metaUserData).length > 0 ? { user_data: metaUserData } : {}),
+          custom_data: {
+            lead_id: data.id,
+            selected_trail_type: data.selected_trail_type ?? null,
+          },
+        },
+      ],
+    });
 
     await sendSenzaiEvent({
       event_name: 'lead.created',

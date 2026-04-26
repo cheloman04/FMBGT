@@ -11,6 +11,12 @@ import { Redis } from '@upstash/redis';
 import { getAppUrl, isLocalOrigin } from '@/lib/app-url';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 import { recordFinancialEvent } from '@/lib/financial-log';
+import {
+  buildMetaUserData,
+  getClientIpFromHeaders,
+  getEventSourceUrlFromHeaders,
+  sendMetaEvent,
+} from '@/lib/meta-capi';
 
 const AdditionalParticipantSchema = z.object({
   name: z.string().min(1),
@@ -237,6 +243,11 @@ export async function POST(req: NextRequest) {
 
     const raw = parsed.data;
     const state = { ...raw, customer: { ...raw.customer, email: raw.customer.email.toLowerCase().trim() } };
+    const clientIpAddress = getClientIpFromHeaders(req.headers);
+    const clientUserAgent = req.headers.get('user-agent');
+    const eventSourceUrl = getEventSourceUrlFromHeaders(req.headers);
+    const fbc = req.cookies.get('_fbc')?.value ?? req.cookies.get('fbc')?.value ?? null;
+    const fbp = req.cookies.get('_fbp')?.value ?? req.cookies.get('fbp')?.value ?? null;
 
     // Validate participant count
     const maxParticipants = state.trail_type === 'paved'
@@ -446,6 +457,11 @@ export async function POST(req: NextRequest) {
         booking_session_id: state.lead_session_id ?? null,
         attribution_snapshot: {
           ...(state.last_touch_attribution ?? state.first_touch_attribution ?? {}),
+          ...(eventSourceUrl ? { meta_event_source_url: eventSourceUrl } : {}),
+          ...(clientIpAddress ? { meta_client_ip_address: clientIpAddress } : {}),
+          ...(clientUserAgent ? { meta_client_user_agent: clientUserAgent } : {}),
+          ...(fbc ? { meta_fbc: fbc } : {}),
+          ...(fbp ? { meta_fbp: fbp } : {}),
           ...(liveTestMode ? { live_test_mode: true, live_test_total: PRICING.LIVE_TEST_TOTAL } : {}),
         },
       })
@@ -489,6 +505,40 @@ export async function POST(req: NextRequest) {
     if (effectiveLeadId && state.lead_session_id) {
       await markLeadSessionCheckoutStarted(effectiveLeadId, state.lead_session_id);
     }
+
+    const metaUserData = buildMetaUserData({
+      email: state.customer.email,
+      phone: state.customer.phone ?? null,
+      fullName: state.customer.name,
+      clientIpAddress,
+      clientUserAgent,
+      fbc,
+      fbp,
+      externalId: effectiveLeadId ?? customerRecord.id ?? booking.id,
+    });
+
+    // Use Stripe's checkout session ID as event_id so retries stay deduped and the
+    // server-side InitiateCheckout event is anchored to the real payment session.
+    const metaEventId = session.id;
+
+    await sendMetaEvent({
+      data: [
+        {
+          event_name: 'InitiateCheckout',
+          event_time: Math.floor(Date.now() / 1000),
+          event_id: metaEventId,
+          action_source: 'website',
+          ...(eventSourceUrl ? { event_source_url: eventSourceUrl } : {}),
+          ...(Object.keys(metaUserData).length > 0 ? { user_data: metaUserData } : {}),
+          custom_data: {
+            currency: 'USD',
+            value: Number((priceBreakdown.total / 100).toFixed(2)),
+            booking_id: booking.id,
+            stripe_session_id: session.id,
+          },
+        },
+      ],
+    });
 
     const checkoutAttributes = {
       booking_id: booking.id,
