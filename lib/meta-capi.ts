@@ -14,22 +14,40 @@ export type MetaUserDataInput = {
   externalId?: string | null;
 };
 
-function logDevError(message: string, error?: unknown) {
-  if (process.env.NODE_ENV === 'production') {
-    return;
-  }
+export type MetaSendResult = {
+  ok: boolean;
+  eventName: string;
+  eventId: string;
+  statusCode: number | null;
+  responseBody: string | null;
+  error: string | null;
+};
 
-  console.error(message, error);
+function getMetaConfig() {
+  const pixelId = process.env.META_PIXEL_ID?.trim();
+  const accessToken = process.env.META_ACCESS_TOKEN?.trim();
+  const apiVersion = process.env.META_API_VERSION?.trim();
+  const testEventCode = process.env.META_TEST_EVENT_CODE?.trim() || null;
+
+  return {
+    pixelId: pixelId || null,
+    accessToken: accessToken || null,
+    apiVersion: apiVersion || null,
+    testEventCode,
+  };
 }
 
-function logDevAttempt(payload: MetaEventPayload) {
-  if (process.env.NODE_ENV === 'production') {
-    return;
+function getFirstEvent(payload: MetaEventPayload): Record<string, unknown> | null {
+  if (!Array.isArray(payload.data) || payload.data.length === 0) {
+    return null;
   }
 
-  const firstEvent = Array.isArray(payload.data)
-    ? (payload.data[0] as Record<string, unknown> | undefined)
-    : undefined;
+  const first = payload.data[0];
+  return first && typeof first === 'object' ? (first as Record<string, unknown>) : null;
+}
+
+function getEventIdentity(payload: MetaEventPayload) {
+  const firstEvent = getFirstEvent(payload);
   const eventName =
     firstEvent && typeof firstEvent.event_name === 'string'
       ? firstEvent.event_name
@@ -39,20 +57,42 @@ function logDevAttempt(payload: MetaEventPayload) {
       ? firstEvent.event_id
       : 'unknown';
 
-  console.log('[meta-capi] Attempting event', { event_name: eventName, event_id: eventId });
+  return { eventName, eventId, firstEvent };
 }
 
-function getMetaConfig() {
-  const pixelId = process.env.META_PIXEL_ID?.trim();
-  const accessToken = process.env.META_ACCESS_TOKEN?.trim();
-  const apiVersion = process.env.META_API_VERSION?.trim();
-  const testEventCode = process.env.META_TEST_EVENT_CODE?.trim() || null;
+function sanitizePayloadForLogs(payload: MetaEventPayload) {
+  const firstEvent = getFirstEvent(payload);
+  const userData =
+    firstEvent && firstEvent.user_data && typeof firstEvent.user_data === 'object'
+      ? (firstEvent.user_data as Record<string, unknown>)
+      : null;
+  const customData =
+    firstEvent && firstEvent.custom_data && typeof firstEvent.custom_data === 'object'
+      ? (firstEvent.custom_data as Record<string, unknown>)
+      : null;
 
-  if (!pixelId || !accessToken || !apiVersion) {
-    return null;
-  }
-
-  return { pixelId, accessToken, apiVersion, testEventCode };
+  return {
+    test_event_code_present: typeof payload.test_event_code === 'string',
+    data_count: Array.isArray(payload.data) ? payload.data.length : 0,
+    event: firstEvent
+      ? {
+          event_name:
+            typeof firstEvent.event_name === 'string' ? firstEvent.event_name : 'unknown',
+          event_time:
+            typeof firstEvent.event_time === 'number' ? firstEvent.event_time : null,
+          event_id:
+            typeof firstEvent.event_id === 'string' ? firstEvent.event_id : 'unknown',
+          action_source:
+            typeof firstEvent.action_source === 'string' ? firstEvent.action_source : null,
+          event_source_url:
+            typeof firstEvent.event_source_url === 'string'
+              ? firstEvent.event_source_url
+              : null,
+          user_data_keys: userData ? Object.keys(userData) : [],
+          custom_data: customData ?? null,
+        }
+      : null,
+  };
 }
 
 function normalizeEmail(email?: string | null) {
@@ -121,12 +161,33 @@ export function buildMetaUserData(input: MetaUserDataInput): Record<string, stri
   return userData;
 }
 
-export async function sendMetaEvent(payload: MetaEventPayload): Promise<void> {
+export async function sendMetaEvent(payload: MetaEventPayload): Promise<MetaSendResult> {
+  const { eventName, eventId } = getEventIdentity(payload);
   const config = getMetaConfig();
 
-  if (!config) {
-    logDevError('[meta-capi] Missing META_* configuration.');
-    return;
+  console.log(`[meta-capi] attempting ${eventName}`, {
+    event_id: eventId,
+    has_pixel_id: Boolean(config.pixelId),
+    has_access_token: Boolean(config.accessToken),
+    api_version: config.apiVersion,
+    has_test_event_code: Boolean(config.testEventCode),
+  });
+
+  if (!config.pixelId || !config.accessToken || !config.apiVersion) {
+    const error = 'Missing META_PIXEL_ID, META_ACCESS_TOKEN, or META_API_VERSION';
+    console.error(`[meta-capi] failed ${eventName}`, {
+      event_id: eventId,
+      error,
+    });
+
+    return {
+      ok: false,
+      eventName,
+      eventId,
+      statusCode: null,
+      responseBody: null,
+      error,
+    };
   }
 
   const controller = new AbortController();
@@ -137,7 +198,11 @@ export async function sendMetaEvent(payload: MetaEventPayload): Promise<void> {
     const requestPayload = config.testEventCode
       ? { ...payload, test_event_code: config.testEventCode }
       : payload;
-    logDevAttempt(payload);
+
+    console.log(`[meta-capi] payload ${eventName}`, {
+      event_id: eventId,
+      payload: sanitizePayloadForLogs(requestPayload),
+    });
 
     const response = await fetch(url, {
       method: 'POST',
@@ -149,12 +214,54 @@ export async function sendMetaEvent(payload: MetaEventPayload): Promise<void> {
       cache: 'no-store',
     });
 
+    const responseBody = await response.text().catch(() => '');
+
     if (!response.ok) {
-      const responseText = await response.text().catch(() => '');
-      logDevError(`[meta-capi] Request failed with status ${response.status}.`, responseText);
+      console.error(`[meta-capi] failed ${eventName}`, {
+        event_id: eventId,
+        status_code: response.status,
+        response_body: responseBody || null,
+      });
+
+      return {
+        ok: false,
+        eventName,
+        eventId,
+        statusCode: response.status,
+        responseBody: responseBody || null,
+        error: `Meta returned ${response.status}`,
+      };
     }
+
+    console.log(`[meta-capi] success ${eventName}`, {
+      event_id: eventId,
+      status_code: response.status,
+      response_body: responseBody || null,
+    });
+
+    return {
+      ok: true,
+      eventName,
+      eventId,
+      statusCode: response.status,
+      responseBody: responseBody || null,
+      error: null,
+    };
   } catch (error) {
-    logDevError('[meta-capi] Failed to send event.', error);
+    const message = error instanceof Error ? error.message : 'Unknown Meta network error';
+    console.error(`[meta-capi] failed ${eventName}`, {
+      event_id: eventId,
+      error: message,
+    });
+
+    return {
+      ok: false,
+      eventName,
+      eventId,
+      statusCode: null,
+      responseBody: null,
+      error: message,
+    };
   } finally {
     clearTimeout(timeout);
   }
