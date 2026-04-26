@@ -177,6 +177,8 @@ export async function sendMetaEvent(payload: MetaEventPayload): Promise<MetaSend
     const error = 'Missing META_PIXEL_ID, META_ACCESS_TOKEN, or META_API_VERSION';
     console.error(`[meta-capi] failed ${eventName}`, {
       event_id: eventId,
+      status_code: null,
+      response_body: null,
       error,
     });
 
@@ -217,11 +219,14 @@ export async function sendMetaEvent(payload: MetaEventPayload): Promise<MetaSend
     const responseBody = await response.text().catch(() => '');
 
     if (!response.ok) {
-      console.error(`[meta-capi] failed ${eventName}`, {
-        event_id: eventId,
-        status_code: response.status,
-        response_body: responseBody || null,
-      });
+      console.error(
+        `[meta-capi] failed ${eventName} ${response.status} ${responseBody || '(empty body)'}`,
+        {
+          event_id: eventId,
+          status_code: response.status,
+          response_body: responseBody || null,
+        }
+      );
 
       return {
         ok: false,
@@ -249,7 +254,23 @@ export async function sendMetaEvent(payload: MetaEventPayload): Promise<MetaSend
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown Meta network error';
-    console.error(`[meta-capi] failed ${eventName}`, {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`[meta-capi] timeout ${eventName}`, {
+        event_id: eventId,
+        error: message,
+      });
+
+      return {
+        ok: false,
+        eventName,
+        eventId,
+        statusCode: null,
+        responseBody: null,
+        error: message,
+      };
+    }
+
+    console.error(`[meta-capi] exception ${eventName} ${message}`, {
       event_id: eventId,
       error: message,
     });
