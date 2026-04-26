@@ -22,6 +22,26 @@ function logDevError(message: string, error?: unknown) {
   console.error(message, error);
 }
 
+function logDevAttempt(payload: MetaEventPayload) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+
+  const firstEvent = Array.isArray(payload.data)
+    ? (payload.data[0] as Record<string, unknown> | undefined)
+    : undefined;
+  const eventName =
+    firstEvent && typeof firstEvent.event_name === 'string'
+      ? firstEvent.event_name
+      : 'unknown';
+  const eventId =
+    firstEvent && typeof firstEvent.event_id === 'string'
+      ? firstEvent.event_id
+      : 'unknown';
+
+  console.log('[meta-capi] Attempting event', { event_name: eventName, event_id: eventId });
+}
+
 function getMetaConfig() {
   const pixelId = process.env.META_PIXEL_ID?.trim();
   const accessToken = process.env.META_ACCESS_TOKEN?.trim();
@@ -117,6 +137,7 @@ export async function sendMetaEvent(payload: MetaEventPayload): Promise<void> {
     const requestPayload = config.testEventCode
       ? { ...payload, test_event_code: config.testEventCode }
       : payload;
+    logDevAttempt(payload);
 
     const response = await fetch(url, {
       method: 'POST',

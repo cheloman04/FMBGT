@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
+import { MetaPixelPageView } from '@/components/MetaPixelPageView';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import './globals.css';
 
@@ -10,6 +11,7 @@ const inter = Inter({ subsets: ['latin'] });
 // Set NEXT_PUBLIC_GTM_ID=GTM-XXXXXXX in .env.local (or Vercel env vars).
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-CFPS9G0HHJ';
+const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? process.env.META_PIXEL_ID;
 
 export const metadata: Metadata = {
   title: 'Florida Mountain Bike Trail Guided Tours',
@@ -24,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* ── Google Analytics 4 ── */}
+        {/* Google Analytics 4 */}
         <Script
           id="ga-script"
           strategy="afterInteractive"
@@ -42,7 +44,27 @@ export default function RootLayout({
             `,
           }}
         />
-        {/* ── Google Tag Manager ── */}
+        {META_PIXEL_ID && (
+          <Script
+            id="meta-pixel"
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+                !function(f,b,e,v,n,t,s)
+                {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                n.queue=[];t=b.createElement(e);t.async=!0;
+                t.src=v;s=b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t,s)}(window, document,'script',
+                'https://connect.facebook.net/en_US/fbevents.js');
+                fbq('init', '${META_PIXEL_ID}');
+                fbq('track', 'PageView');
+              `,
+            }}
+          />
+        )}
+        {/* Google Tag Manager */}
         {GTM_ID && (
           <Script
             id="gtm-script"
@@ -75,7 +97,19 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
-        {/* ── GTM noscript fallback ── */}
+        {META_PIXEL_ID && (
+          <noscript>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt=""
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1`}
+            />
+          </noscript>
+        )}
+        {/* GTM noscript fallback */}
         {GTM_ID && (
           <noscript>
             <iframe
@@ -86,6 +120,7 @@ export default function RootLayout({
             />
           </noscript>
         )}
+        {META_PIXEL_ID && <MetaPixelPageView />}
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
