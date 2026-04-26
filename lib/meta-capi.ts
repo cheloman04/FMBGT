@@ -1,4 +1,5 @@
 import 'server-only';
+import { createHash } from 'crypto';
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -122,6 +123,10 @@ function splitFullName(fullName?: string | null) {
   };
 }
 
+function sha256(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
 export function getClientIpFromHeaders(headers: Headers): string | null {
   const forwardedFor = headers.get('x-forwarded-for')?.split(',')[0]?.trim();
   const realIp = headers.get('x-real-ip')?.trim();
@@ -148,15 +153,15 @@ export function buildMetaUserData(input: MetaUserDataInput): Record<string, stri
   const fbp = input.fbp?.trim();
   const externalId = input.externalId?.trim();
 
-  if (email) userData.em = email;
-  if (phone) userData.ph = phone;
-  if (firstName) userData.fn = firstName;
-  if (lastName) userData.ln = lastName;
+  if (email) userData.em = sha256(email);
+  if (phone) userData.ph = sha256(phone);
+  if (firstName) userData.fn = sha256(firstName);
+  if (lastName) userData.ln = sha256(lastName);
   if (clientIpAddress) userData.client_ip_address = clientIpAddress;
   if (clientUserAgent) userData.client_user_agent = clientUserAgent;
   if (fbc) userData.fbc = fbc;
   if (fbp) userData.fbp = fbp;
-  if (externalId) userData.external_id = externalId;
+  if (externalId) userData.external_id = sha256(externalId);
 
   return userData;
 }
