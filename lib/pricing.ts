@@ -3,7 +3,7 @@ import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParti
 // All prices in cents (USD)
 export const PRICING = {
   FLORIDA_STATE_TAX_RATE: 0.07,
-  LIVE_TEST_TOTAL: 500,      // $5.00 total all-in for internal live payment verification
+  LIVE_TEST_TOTAL: 100,      // $1.00 total all-in for internal live payment verification
   PAVED_FLAT: 11500,         // $115.00 per rider - paved 2hr tour, bike always included
   BASE_NO_BIKE: 8900,        // $89.00 - MTB 2hr tour, BYOB (no bike)
   BASE_WITH_BIKE: 18900,     // $189.00 - MTB 2hr tour, standard bike included
