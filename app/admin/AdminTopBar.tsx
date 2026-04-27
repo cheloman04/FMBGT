@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 type AdminTopBarProps = {
-  activePage: 'dashboard' | 'fin-log';
+  activePage: 'dashboard' | 'fin-log' | 'referrals';
   title: string;
   subtitle: string;
 };
@@ -14,6 +14,7 @@ type AdminTopBarProps = {
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', href: '/admin' },
   { key: 'fin-log', label: 'Fin Log', href: '/admin/fin-log' },
+  { key: 'referrals', label: 'Referrals', href: '/admin/referrals' },
 ] as const;
 
 function navClassName(isActive: boolean) {

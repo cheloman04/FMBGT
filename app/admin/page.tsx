@@ -535,21 +535,6 @@ async function getTrashedBookings() {
   }));
 }
 
-async function getReferralPartners() {
-  const supabase = getSupabaseAdmin();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('referral_partners')
-    .select('id, partner_name, discount_code, discount_percentage, active, uses_count, notes, created_at')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('[admin] getReferralPartners error:', error.message);
-    return [];
-  }
-  return data ?? [];
-}
-
 async function getTrashedLeads() {
   const supabase = getSupabaseAdmin();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -578,15 +563,13 @@ export default async function AdminPage({ searchParams }: PageProps) {
   const { status, leadId } = await searchParams;
   const isLeadsView = status === 'leads' || !!leadId;
   const isTrashView = status === 'trash';
-  const isReferralsView = status === 'referrals';
 
-  const [bookings, leads, stats, trashedBookings, trashedLeads, referralPartners] = await Promise.all([
-    isLeadsView || isTrashView || isReferralsView ? Promise.resolve([]) : getBookings(status),
+  const [bookings, leads, stats, trashedBookings, trashedLeads] = await Promise.all([
+    isLeadsView || isTrashView ? Promise.resolve([]) : getBookings(status),
     isLeadsView ? getLeads() : Promise.resolve([]),
     getStats(),
     isTrashView ? getTrashedBookings() : Promise.resolve([]),
     isTrashView ? getTrashedLeads() : Promise.resolve([]),
-    isReferralsView ? getReferralPartners() : Promise.resolve([]),
   ]);
 
   return (
@@ -598,7 +581,6 @@ export default async function AdminPage({ searchParams }: PageProps) {
       initialLeadId={leadId ?? null}
       trashedBookings={trashedBookings}
       trashedLeads={trashedLeads}
-      referralPartners={referralPartners}
     />
   );
 }
