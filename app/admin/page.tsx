@@ -120,6 +120,9 @@ async function getBookings(status?: string) {
     .order('date', { ascending: false })
     .limit(100);
 
+  // Never show admin-archived (soft-deleted) rows
+  query = query.is('deleted_at', null);
+
   if (status && status !== 'all') {
     query = query.eq('status', status as 'confirmed' | 'completed' | 'cancelled' | 'refunded');
   } else {
