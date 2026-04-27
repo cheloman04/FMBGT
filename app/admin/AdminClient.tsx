@@ -224,6 +224,17 @@ interface TrashedLead {
   created_at: string;
 }
 
+interface ReferralPartner {
+  id: string;
+  partner_name: string;
+  discount_code: string;
+  discount_percentage: number;
+  active: boolean;
+  uses_count: number;
+  notes: string | null;
+  created_at: string;
+}
+
 interface Props {
   bookings: Booking[];
   leads: Lead[];
@@ -232,6 +243,7 @@ interface Props {
   initialLeadId?: string | null;
   trashedBookings?: TrashedBooking[];
   trashedLeads?: TrashedLead[];
+  referralPartners?: ReferralPartner[];
 }
 
 interface DeleteDialogState {
@@ -248,7 +260,7 @@ interface DeleteLeadDialogState {
   lastActivityAt: string;
 }
 
-const STATUS_OPTIONS = ['all', 'leads', 'confirmed', 'completed', 'cancelled', 'refunded', 'trash'];
+const STATUS_OPTIONS = ['all', 'leads', 'confirmed', 'completed', 'cancelled', 'refunded', 'trash', 'referrals'];
 
 const STATUS_COLORS: Record<string, string> = {
   confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
@@ -749,7 +761,7 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
   );
 }
 
-export function AdminClient({ bookings, leads, stats, currentStatus, initialLeadId = null, trashedBookings = [], trashedLeads = [] }: Props) {
+export function AdminClient({ bookings, leads, stats, currentStatus, initialLeadId = null, trashedBookings = [], trashedLeads = [], referralPartners = [] }: Props) {
   const router = useRouter();
   const handleUnauthorized = useCallback(() => {
     router.push('/admin/login?expired=1');
@@ -780,8 +792,16 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
   const [leadFollowUpStatus, setLeadFollowUpStatus] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Referrals tab state
+  const [localPartners, setLocalPartners] = useState<ReferralPartner[]>(referralPartners);
+  const [partnerForm, setPartnerForm] = useState({ partner_name: '', discount_code: '', discount_percentage: '15', notes: '' });
+  const [partnerFormError, setPartnerFormError] = useState<string | null>(null);
+  const [partnerFormSaving, setPartnerFormSaving] = useState(false);
+  const [partnerToggling, setPartnerToggling] = useState<string | null>(null);
+
   const isLeadsView = currentStatus === 'leads';
   const isTrashView = currentStatus === 'trash';
+  const isReferralsView = currentStatus === 'referrals';
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredLeads = normalizedSearch
     ? localLeads.filter((lead) =>
@@ -837,6 +857,68 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
       return next;
     });
   }, [initialLeadId, localLeads]);
+
+  // ── Referral partner handlers ──────────────────────────────────────────────
+
+  const handlePartnerNameChange = (name: string) => {
+    const prefix = name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3).padEnd(3, 'X');
+    const suggestedCode = `${prefix}-FMBGT-001`;
+    setPartnerForm((prev) => ({ ...prev, partner_name: name, discount_code: prev.discount_code || suggestedCode }));
+  };
+
+  const handleCreatePartner = async () => {
+    setPartnerFormError(null);
+    if (!partnerForm.partner_name.trim() || !partnerForm.discount_code.trim()) {
+      setPartnerFormError('Partner name and discount code are required.');
+      return;
+    }
+    const pct = Number(partnerForm.discount_percentage);
+    if (!pct || pct < 1 || pct > 100) {
+      setPartnerFormError('Discount percentage must be between 1 and 100.');
+      return;
+    }
+    setPartnerFormSaving(true);
+    try {
+      const res = await fetch('/api/admin/referral-partners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partner_name: partnerForm.partner_name.trim(),
+          discount_code: partnerForm.discount_code.trim().toUpperCase(),
+          discount_percentage: pct,
+          notes: partnerForm.notes.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPartnerFormError(data.error ?? 'Failed to create partner.');
+        return;
+      }
+      setLocalPartners((prev) => [data.partner, ...prev]);
+      setPartnerForm({ partner_name: '', discount_code: '', discount_percentage: '15', notes: '' });
+    } catch {
+      setPartnerFormError('Could not save partner. Please try again.');
+    } finally {
+      setPartnerFormSaving(false);
+    }
+  };
+
+  const handleTogglePartner = async (id: string, active: boolean) => {
+    setPartnerToggling(id);
+    try {
+      const res = await fetch('/api/admin/referral-partners', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, active: !active }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLocalPartners((prev) => prev.map((p) => (p.id === id ? data.partner : p)));
+      }
+    } finally {
+      setPartnerToggling(null);
+    }
+  };
 
   const toggleWaivers = (id: string) => {
     setExpandedWaivers((prev) => {
@@ -1639,11 +1721,11 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         {/* Filter tabs */}
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-foreground">{isLeadsView ? 'Leads' : isTrashView ? 'Trash' : 'Bookings'}</p>
+            <p className="text-sm font-medium text-foreground">{isLeadsView ? 'Leads' : isTrashView ? 'Trash' : isReferralsView ? 'Referrals' : 'Bookings'}</p>
             <p className="text-xs text-muted-foreground sm:hidden">Swipe for more</p>
           </div>
           <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-            <div className="flex min-w-max gap-2 sm:grid sm:min-w-0 sm:grid-cols-4 lg:grid-cols-7">
+            <div className="flex min-w-max gap-2 sm:grid sm:min-w-0 sm:grid-cols-4 lg:grid-cols-8">
               {STATUS_OPTIONS.map((s) => (
                 <a
                   key={s}
@@ -1652,13 +1734,17 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                     currentStatus === s
                       ? s === 'trash'
                         ? 'border-red-600 bg-red-600 text-white'
-                        : 'border-green-600 bg-green-600 text-white'
+                        : s === 'referrals'
+                          ? 'border-blue-600 bg-blue-600 text-white'
+                          : 'border-green-600 bg-green-600 text-white'
                       : s === 'trash'
                         ? 'border-red-500/30 bg-card text-red-400 hover:border-red-500/60'
-                        : 'border-border bg-card text-muted-foreground hover:border-foreground/30'
+                        : s === 'referrals'
+                          ? 'border-blue-500/30 bg-card text-blue-400 hover:border-blue-500/60'
+                          : 'border-border bg-card text-muted-foreground hover:border-foreground/30'
                   }`}
                 >
-                  {s === 'all' ? 'All Bookings' : s === 'trash' ? '🗑 Trash' : s}
+                  {s === 'all' ? 'All Bookings' : s === 'trash' ? 'Trash' : s === 'referrals' ? 'Referrals' : s}
                 </a>
               ))}
             </div>
@@ -1666,7 +1752,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         </div>
 
         {/* â"€â"€ SEARCH BAR â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
-        {!isTrashView && (
+        {!isTrashView && !isReferralsView && (
           <div className="mb-4">
             <div className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.1)]">
               <input
@@ -1807,7 +1893,136 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
           </div>
         )}
 
-        {!isTrashView && isLeadsView && (
+        {/* ── REFERRALS VIEW ─────────────────────────────────────────────────── */}
+        {isReferralsView && (
+          <div className="space-y-6">
+            {/* FAM-FMBGT fixed code info */}
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Friends &amp; Family Code</p>
+                  <p className="mt-0.5 font-mono text-lg font-bold text-blue-400">FAM-FMBGT</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Fixed 20% discount — hardcoded, always active</p>
+                </div>
+                <span className="rounded-full bg-green-500/20 px-3 py-1 text-xs font-semibold text-green-400">Active</span>
+              </div>
+            </div>
+
+            {/* Add new partner form */}
+            <div className="rounded-xl border border-border/70 bg-card/80 p-4">
+              <h3 className="mb-4 font-semibold text-foreground">Add New Partner</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Partner Name *</label>
+                  <input
+                    type="text"
+                    value={partnerForm.partner_name}
+                    onChange={(e) => handlePartnerNameChange(e.target.value)}
+                    placeholder="Biclicketa Bike Store"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Discount Code *</label>
+                  <input
+                    type="text"
+                    value={partnerForm.discount_code}
+                    onChange={(e) => setPartnerForm((p) => ({ ...p, discount_code: e.target.value.toUpperCase() }))}
+                    placeholder="BIC-FMBGT-001"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm text-foreground uppercase focus:outline-none focus:ring-2 focus:ring-ring"
+                    maxLength={30}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Discount % *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={partnerForm.discount_percentage}
+                    onChange={(e) => setPartnerForm((p) => ({ ...p, discount_percentage: e.target.value }))}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes (optional)</label>
+                  <input
+                    type="text"
+                    value={partnerForm.notes}
+                    onChange={(e) => setPartnerForm((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Contact info, agreement details..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
+              {partnerFormError && (
+                <p className="mt-2 text-xs text-red-400">{partnerFormError}</p>
+              )}
+              <button
+                onClick={handleCreatePartner}
+                disabled={partnerFormSaving}
+                className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              >
+                {partnerFormSaving ? 'Saving...' : 'Add Partner'}
+              </button>
+            </div>
+
+            {/* Partners list */}
+            <div className="rounded-xl border border-border/70 bg-card/80 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50 bg-muted/30">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Partner</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Code</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Discount</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Uses</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {localPartners.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No partner referral codes yet. Add one above.
+                      </td>
+                    </tr>
+                  )}
+                  {localPartners.map((partner) => (
+                    <tr key={partner.id} className={`hover:bg-muted/20 ${!partner.active ? 'opacity-50' : ''}`}>
+                      <td className="px-4 py-3 font-medium text-foreground">{partner.partner_name}</td>
+                      <td className="px-4 py-3 font-mono text-blue-400">{partner.discount_code}</td>
+                      <td className="px-4 py-3 text-foreground">{partner.discount_percentage}%</td>
+                      <td className="px-4 py-3">
+                        <span className={`font-semibold ${partner.uses_count > 0 ? 'text-green-400' : 'text-muted-foreground'}`}>
+                          {partner.uses_count}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${partner.active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {partner.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">{partner.notes ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleTogglePartner(partner.id, partner.active)}
+                          disabled={partnerToggling === partner.id}
+                          className={`rounded px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${partner.active ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-green-500/10 text-green-400 hover:bg-green-500/20'}`}
+                        >
+                          {partnerToggling === partner.id ? '...' : partner.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {!isTrashView && !isReferralsView && isLeadsView && (
           <>
             <div className="hidden overflow-hidden rounded-lg border border-border bg-card sm:block">
               {filteredLeads.length === 0 ? (
@@ -2009,7 +2224,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         )}
 
         {/* â"€â"€ BOOKINGS VIEW â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
-        {!isLeadsView && !isTrashView && (
+        {!isLeadsView && !isTrashView && !isReferralsView && (
           <>
             {/* Mobile booking cards */}
             <div className="space-y-3 sm:hidden">

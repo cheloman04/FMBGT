@@ -10,11 +10,17 @@ import { formatPrice } from '@/lib/pricing';
 import { formatFloridaCalendarDate } from '@/lib/display-time';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { track, getAcquisitionContext } from '@/lib/analytics';
-import { DISCOUNT_OPTIONS } from '@/lib/discounts';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const HEARD_OPTIONS = ['Facebook', 'Instagram', 'YouTube', 'Google', 'ChatGPT'] as const;
+
+interface AppliedDiscount {
+  code: string;
+  label: string;
+  percentage: number;
+  partner_id: string | null;
+}
 
 function formatDueDate(tourDateStr: string): string {
   const [y, m, d] = tourDateStr.split('-').map(Number) as [number, number, number];
@@ -35,7 +41,6 @@ function formatDueDate(tourDateStr: string): string {
 export function StepPayment() {
   const { state, setCustomer, setDiscountCode, goPrev } = useBooking();
 
-  // Fields are pre-filled from lead capture — user can still edit before paying
   const [form, setForm] = useState({
     name: state.customer?.name ?? '',
     email: state.customer?.email ?? '',
@@ -44,7 +49,13 @@ export function StepPayment() {
     marketing_source: state.customer?.marketing_source ?? '',
   });
   const [errors, setErrors] = useState<Partial<typeof form>>({});
-  const [discountCode, setDiscountCodeLocal] = useState<string>(state.discount_code ?? '');
+
+  // Discount state
+  const [discountInput, setDiscountInput] = useState<string>(state.discount_code ?? '');
+  const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [discountValidating, setDiscountValidating] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -54,6 +65,40 @@ export function StepPayment() {
     if (errors[name as keyof typeof errors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
+  };
+
+  const handleApplyDiscount = async () => {
+    const code = discountInput.trim().toUpperCase();
+    if (!code) return;
+
+    setDiscountError(null);
+    setAppliedDiscount(null);
+    setDiscountValidating(true);
+
+    try {
+      const res = await fetch('/api/validate-discount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setAppliedDiscount({ code: data.code, label: data.label, percentage: data.percentage, partner_id: data.partner_id ?? null });
+        setDiscountInput(data.code);
+      } else {
+        setDiscountError(data.error ?? 'Invalid discount code.');
+      }
+    } catch {
+      setDiscountError('Could not validate code. Please try again.');
+    } finally {
+      setDiscountValidating(false);
+    }
+  };
+
+  const handleRemoveDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountInput('');
+    setDiscountError(null);
   };
 
   const validate = (): boolean => {
@@ -75,7 +120,6 @@ export function StepPayment() {
     setApiError(null);
     setLoading(true);
 
-    // checkout_started — Blueprint §12.3 canonical tracking event
     const acq = getAcquisitionContext();
     track('checkout_started', {
       trail_type: state.trail_type,
@@ -104,33 +148,26 @@ export function StepPayment() {
     };
     setCustomer(customer);
 
-    // Fire lead progress — payment_started (best-effort)
     if (state.lead_id) {
       fetch(`/api/leads/${state.lead_id}/progress`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: state.lead_session_id,
-          last_step_completed: 'payment_started',
-        }),
+        body: JSON.stringify({ session_id: state.lead_session_id, last_step_completed: 'payment_started' }),
       }).catch(() => {});
     }
 
-    const selectedDiscount = discountCode || null;
-    setDiscountCode(selectedDiscount);
+    const selectedCode = appliedDiscount?.code ?? null;
+    setDiscountCode(selectedCode);
 
     try {
       const response = await fetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_state: { ...state, customer, discount_code: selectedDiscount } }),
+        body: JSON.stringify({ booking_state: { ...state, customer, discount_code: selectedCode } }),
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? 'Failed to create checkout session');
-      }
+      if (!response.ok) throw new Error(data.error ?? 'Failed to create checkout session');
 
       window.location.href = data.checkout_url;
     } catch (err) {
@@ -143,12 +180,10 @@ export function StepPayment() {
   const subtotal = priceBreakdown?.subtotal ?? 0;
   const taxAmount = priceBreakdown?.tax_amount ?? 0;
   const baseTotal = priceBreakdown?.total ?? 0;
-  // If a discount is selected locally, estimate the discounted total for display
-  const selectedDiscountDef = DISCOUNT_OPTIONS.find((d) => d.code === discountCode) ?? null;
-  const estimatedDiscountAmount = selectedDiscountDef
-    ? Math.floor((baseTotal * selectedDiscountDef.percentage) / 100)
+  const estimatedDiscountAmount = appliedDiscount
+    ? Math.floor((baseTotal * appliedDiscount.percentage) / 100)
     : 0;
-  const total = selectedDiscountDef ? baseTotal - estimatedDiscountAmount : baseTotal;
+  const total = appliedDiscount ? baseTotal - estimatedDiscountAmount : baseTotal;
   const depositAmount = Math.round(total / 2);
   const remainingBalance = total - depositAmount;
   const participantCount = state.participant_count ?? 1;
@@ -179,11 +214,11 @@ export function StepPayment() {
           <span className="text-foreground">{formatPrice(remainingBalance)}</span>
           <span className="text-muted-foreground">Balance charged on:</span>
           <span className="text-foreground">{dueDateLabel}</span>
-          {selectedDiscountDef && (
+          {appliedDiscount && (
             <>
               <span className="text-muted-foreground">Original price:</span>
               <span className="line-through text-muted-foreground">{formatPrice(baseTotal)}</span>
-              <span className="text-muted-foreground">{selectedDiscountDef.label}:</span>
+              <span className="text-muted-foreground">{appliedDiscount.label}:</span>
               <span className="font-semibold text-green-700">-{formatPrice(estimatedDiscountAmount)}</span>
             </>
           )}
@@ -207,62 +242,29 @@ export function StepPayment() {
 
           <div>
             <Label htmlFor="name">Full Name *</Label>
-            <Input
-              id="name"
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              placeholder="Jane Smith"
-              className="mt-1"
-            />
+            <Input id="name" name="name" value={form.name} onChange={handleChange} placeholder="Jane Smith" className="mt-1" />
             {errors.name && <p className="mt-1 text-xs text-destructive">{errors.name}</p>}
           </div>
 
           <div>
             <Label htmlFor="email">Email Address *</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-              placeholder="jane@example.com"
-              className="mt-1"
-            />
+            <Input id="email" name="email" type="email" value={form.email} onChange={handleChange} placeholder="jane@example.com" className="mt-1" />
             {errors.email ? (
               <p className="mt-1 text-xs text-destructive">{errors.email}</p>
             ) : (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Deposit receipt and booking confirmation sent here.
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Deposit receipt and booking confirmation sent here.</p>
             )}
           </div>
 
           <div>
             <Label htmlFor="phone">Phone Number</Label>
-            <Input
-              id="phone"
-              name="phone"
-              type="tel"
-              value={form.phone}
-              onChange={handleChange}
-              placeholder="(555) 555-5555"
-              className="mt-1"
-            />
+            <Input id="phone" name="phone" type="tel" value={form.phone} onChange={handleChange} placeholder="(555) 555-5555" className="mt-1" />
             {errors.phone && <p className="mt-1 text-xs text-destructive">{errors.phone}</p>}
           </div>
 
           <div>
             <Label htmlFor="zip_code">ZIP Code</Label>
-            <Input
-              id="zip_code"
-              name="zip_code"
-              value={form.zip_code}
-              onChange={handleChange}
-              placeholder="32789"
-              maxLength={10}
-              className="mt-1"
-            />
+            <Input id="zip_code" name="zip_code" value={form.zip_code} onChange={handleChange} placeholder="32789" maxLength={10} className="mt-1" />
           </div>
 
           <div>
@@ -282,21 +284,37 @@ export function StepPayment() {
           </div>
 
           <div>
-            <Label htmlFor="discount_code">Discount Code</Label>
-            <select
-              id="discount_code"
-              name="discount_code"
-              value={discountCode}
-              onChange={(e) => setDiscountCodeLocal(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">No discount</option>
-              {DISCOUNT_OPTIONS.map((opt) => (
-                <option key={opt.code} value={opt.code}>
-                  {opt.label} ({opt.percentage}% off)
-                </option>
-              ))}
-            </select>
+            <Label htmlFor="discount_input">Discount Code</Label>
+            {appliedDiscount ? (
+              <div className="mt-1 flex items-center justify-between rounded-md border border-green-300 bg-green-50 px-3 py-2 dark:border-green-700 dark:bg-green-950/30">
+                <div>
+                  <p className="text-sm font-semibold text-green-800 dark:text-green-300">{appliedDiscount.code}</p>
+                  <p className="text-xs text-green-700 dark:text-green-400">{appliedDiscount.label} — {appliedDiscount.percentage}% off</p>
+                </div>
+                <button type="button" onClick={handleRemoveDiscount} className="text-xs text-muted-foreground hover:text-destructive">Remove</button>
+              </div>
+            ) : (
+              <div className="mt-1 flex gap-2">
+                <Input
+                  id="discount_input"
+                  value={discountInput}
+                  onChange={(e) => { setDiscountInput(e.target.value.toUpperCase()); setDiscountError(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyDiscount(); } }}
+                  placeholder="e.g. FAM-FMBGT"
+                  className="flex-1 uppercase"
+                  maxLength={30}
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyDiscount}
+                  disabled={!discountInput.trim() || discountValidating}
+                  className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-muted disabled:opacity-50"
+                >
+                  {discountValidating ? '...' : 'Apply'}
+                </button>
+              </div>
+            )}
+            {discountError && <p className="mt-1 text-xs text-destructive">{discountError}</p>}
           </div>
 
           {apiError && (
@@ -307,18 +325,18 @@ export function StepPayment() {
         </form>
 
         <div className="self-start space-y-4">
-          <PriceSummary />
+          <PriceSummary appliedDiscount={appliedDiscount} />
 
           <div className="space-y-2 rounded-lg border border-border bg-card p-4 text-sm">
             <h4 className="font-semibold text-foreground">Payment Schedule</h4>
-            {selectedDiscountDef && (
+            {appliedDiscount && (
               <>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal before discount</span>
                   <span className="text-foreground">{formatPrice(baseTotal)}</span>
                 </div>
-                <div className="flex justify-between text-green-700">
-                  <span>{selectedDiscountDef.label} ({selectedDiscountDef.percentage}%)</span>
+                <div className="flex justify-between text-green-700 dark:text-green-400">
+                  <span>{appliedDiscount.label} ({appliedDiscount.percentage}%)</span>
                   <span>-{formatPrice(estimatedDiscountAmount)}</span>
                 </div>
               </>
@@ -369,11 +387,7 @@ export function StepPayment() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Date</span>
                 <span className="text-foreground">
-                  {formatFloridaCalendarDate(state.date, {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
+                  {formatFloridaCalendarDate(state.date, { month: 'long', day: 'numeric', year: 'numeric' })}
                 </span>
               </div>
             )}
@@ -400,9 +414,7 @@ export function StepPayment() {
             className="w-full bg-green-600 text-white hover:bg-green-700"
             size="lg"
           >
-            {loading
-              ? 'Redirecting to checkout...'
-              : `Pay ${formatPrice(depositAmount)} Deposit Securely ->`}
+            {loading ? 'Redirecting to checkout...' : `Pay ${formatPrice(depositAmount)} Deposit Securely ->`}
           </Button>
 
           <p className="mt-3 text-center text-xs text-muted-foreground">

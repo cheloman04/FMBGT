@@ -11,7 +11,7 @@ import { Redis } from '@upstash/redis';
 import { getAppUrl, isLocalOrigin } from '@/lib/app-url';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 import { recordFinancialEvent } from '@/lib/financial-log';
-import { resolveDiscount, calcDiscountAmount } from '@/lib/discounts';
+import { resolveFamDiscount, calcDiscountAmount, FAM_LABEL, type DiscountDef } from '@/lib/discounts';
 import {
   buildMetaUserData,
   getClientIpFromHeaders,
@@ -355,9 +355,40 @@ export async function POST(req: NextRequest) {
     });
 
     // Validate discount code server-side — never trust client percentage
-    const discountDef = resolveDiscount(state.discount_code);
-    if (state.discount_code && state.discount_code !== 'none' && !discountDef) {
-      return NextResponse.json({ error: 'Invalid discount code.' }, { status: 400 });
+    let discountDef: DiscountDef | null = null;
+    let discountPartnerId: string | null = null;
+
+    if (state.discount_code) {
+      const upper = state.discount_code.trim().toUpperCase();
+
+      // Check FAM code first (no DB hit)
+      const famDef = resolveFamDiscount(upper);
+      if (famDef) {
+        discountDef = famDef;
+      } else {
+        // Look up in referral_partners
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: partner } = await (supabase as any)
+          .from('referral_partners')
+          .select('id, partner_name, discount_code, discount_percentage, active')
+          .eq('discount_code', upper)
+          .maybeSingle();
+
+        if (!partner) {
+          return NextResponse.json({ error: 'Invalid discount code.' }, { status: 400 });
+        }
+        if (!partner.active) {
+          return NextResponse.json({ error: 'This discount code is no longer active.' }, { status: 400 });
+        }
+
+        discountDef = {
+          code: partner.discount_code,
+          label: `${partner.partner_name} Partner Discount`,
+          percentage: Number(partner.discount_percentage),
+          partner_id: partner.id,
+        } as DiscountDef;
+        discountPartnerId = partner.id;
+      }
     }
 
     const priceBreakdown = calculatePriceBreakdown(
@@ -525,6 +556,12 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       .update({ stripe_session_id: session.id })
       .eq('id', booking.id);
+
+    // Increment partner uses_count (fire-and-forget, non-blocking)
+    if (discountPartnerId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc('increment_referral_uses', { partner_id: discountPartnerId }).then(() => {}).catch(() => {});
+    }
 
     if (effectiveLeadId && state.lead_session_id) {
       await markLeadSessionCheckoutStarted(effectiveLeadId, state.lead_session_id);

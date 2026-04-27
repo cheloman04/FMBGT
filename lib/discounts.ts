@@ -1,36 +1,43 @@
-// Controlled discount registry — only these codes are valid.
-// Frontend may send the code string; backend resolves percentage here.
+// Discount resolution logic.
+// FAM-FMBGT is the fixed Friends & Family code (hardcoded, 20%).
+// Partnership codes are stored in the referral_partners table (DB-backed).
 
-export type DiscountCode = 'friends_family_20' | 'partnership_15';
+export const FAM_CODE = 'FAM-FMBGT';
+export const FAM_PERCENTAGE = 20;
+export const FAM_LABEL = 'Friends & Family Discount';
 
 export interface DiscountDef {
-  code: DiscountCode;
+  code: string;
   label: string;
-  percentage: number; // 0–100
+  percentage: number;
+  partner_id?: string; // set for DB-backed partner codes
 }
 
-export const DISCOUNT_REGISTRY: Record<DiscountCode, DiscountDef> = {
-  friends_family_20: {
-    code: 'friends_family_20',
-    label: 'Friends & Family Discount',
-    percentage: 20,
-  },
-  partnership_15: {
-    code: 'partnership_15',
-    label: 'Partnership Discount',
-    percentage: 15,
-  },
-};
-
-export const DISCOUNT_OPTIONS: DiscountDef[] = Object.values(DISCOUNT_REGISTRY);
-
-/** Resolve a raw string to a valid DiscountDef, or null for "none"/invalid. */
-export function resolveDiscount(code: string | null | undefined): DiscountDef | null {
-  if (!code || code === 'none') return null;
-  return DISCOUNT_REGISTRY[code as DiscountCode] ?? null;
+/** Resolve FAM-FMBGT without hitting the DB. Returns null for any other code. */
+export function resolveFamDiscount(code: string | null | undefined): DiscountDef | null {
+  if (!code) return null;
+  if (code.trim().toUpperCase() === FAM_CODE) {
+    return { code: FAM_CODE, label: FAM_LABEL, percentage: FAM_PERCENTAGE };
+  }
+  return null;
 }
 
 /** Calculate discount amount in cents (rounds down). */
-export function calcDiscountAmount(subtotalCents: number, percentage: number): number {
-  return Math.floor((subtotalCents * percentage) / 100);
+export function calcDiscountAmount(totalCents: number, percentage: number): number {
+  return Math.floor((totalCents * percentage) / 100);
+}
+
+/** Generate a suggested discount code from a partner name.
+ *  "Biclicketa Bike Store" -> "BIC-FMBGT-001"
+ *  Sequence suffix must be supplied by caller (e.g. from DB count).
+ */
+export function suggestPartnerCode(partnerName: string, seq: number = 1): string {
+  const prefix = partnerName
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 3)
+    .padEnd(3, 'X');
+  const suffix = String(seq).padStart(3, '0');
+  return `${prefix}-FMBGT-${suffix}`;
 }

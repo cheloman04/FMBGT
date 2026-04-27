@@ -3,8 +3,14 @@
 import { useBooking } from '@/context/BookingContext';
 import type { Addons, BikeRental, DurationHours, TrailType, AdditionalParticipant } from '@/types/booking';
 import { getPriceLineItems, formatPrice, calculatePriceBreakdown } from '@/lib/pricing';
-import { DISCOUNT_OPTIONS } from '@/lib/discounts';
 import { Separator } from '@/components/ui/separator';
+
+interface AppliedDiscount {
+  code: string;
+  label: string;
+  percentage: number;
+  partner_id: string | null;
+}
 
 interface PriceSummaryProps {
   bikeRental?: BikeRental;
@@ -12,6 +18,7 @@ interface PriceSummaryProps {
   addons?: Addons;
   trailType?: TrailType;
   additionalParticipants?: AdditionalParticipant[];
+  appliedDiscount?: AppliedDiscount | null;
 }
 
 export function PriceSummary({
@@ -20,6 +27,7 @@ export function PriceSummary({
   addons,
   trailType,
   additionalParticipants,
+  appliedDiscount,
 }: PriceSummaryProps = {}) {
   const { state } = useBooking();
   const effectiveBikeRental = bikeRental ?? state.bike_rental;
@@ -44,10 +52,12 @@ export function PriceSummary({
     effectiveAddons,
     effectiveTrailType,
     effectiveAdditionalParticipants,
-    { liveTestMode: state.live_test_mode, discountCode: state.discount_code }
+    { liveTestMode: state.live_test_mode }
   );
 
-  const selectedDiscountDef = DISCOUNT_OPTIONS.find((d) => d.code === state.discount_code) ?? null;
+  const discount = appliedDiscount ?? null;
+  const discountAmount = discount ? Math.floor((breakdown.total * discount.percentage) / 100) : 0;
+  const displayTotal = discount ? breakdown.total - discountAmount : breakdown.total;
 
   return (
     <div className="bg-card border border-border rounded-lg p-4">
@@ -64,19 +74,17 @@ export function PriceSummary({
             <span className="text-foreground font-medium">{formatPrice(item.amount)}</span>
           </div>
         ))}
-        {selectedDiscountDef && breakdown.discount_amount != null && (
-          <div className="flex justify-between text-sm text-green-700">
-            <span>{selectedDiscountDef.label} ({selectedDiscountDef.percentage}%)</span>
-            <span>-{formatPrice(breakdown.discount_amount)}</span>
+        {discount && (
+          <div className="flex justify-between text-sm text-green-700 dark:text-green-400">
+            <span>{discount.label} ({discount.percentage}%)</span>
+            <span>-{formatPrice(discountAmount)}</span>
           </div>
         )}
       </div>
       <Separator className="my-3" />
       <div className="flex justify-between font-semibold">
         <span className="text-foreground">Total</span>
-        <span className="text-green-600">
-          {formatPrice(breakdown.total_after_discount ?? breakdown.total)}
-        </span>
+        <span className="text-green-600">{formatPrice(displayTotal)}</span>
       </div>
     </div>
   );

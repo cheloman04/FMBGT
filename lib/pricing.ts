@@ -1,5 +1,5 @@
 import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParticipant } from '@/types/booking';
-import { resolveDiscount, calcDiscountAmount } from '@/lib/discounts';
+import { resolveFamDiscount, calcDiscountAmount } from '@/lib/discounts';
 
 // All prices in cents (USD)
 export const PRICING = {
@@ -87,7 +87,7 @@ export function calculatePriceBreakdown(
     return buildLiveTestBreakdown(participantCount);
   }
 
-  const discount = resolveDiscount(options.discountCode);
+  const discount = resolveFamDiscount(options.discountCode);
 
   // Paved tours: $115 per rider, bike always included, no duration surcharge
   if (trailType === 'paved') {
