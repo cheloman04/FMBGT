@@ -78,6 +78,7 @@ type BookingAction =
   | { type: 'SET_LIVE_TEST_MODE'; payload: { enabled: boolean; token?: string } }
   | { type: 'SET_UTM'; payload: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string } }
   | { type: 'SET_ATTRIBUTION'; payload: { first_touch?: AttributionPayload; last_touch: AttributionPayload } }
+  | { type: 'SET_DISCOUNT_CODE'; payload: string | null }
   | { type: 'RESET' };
 
 function bookingReducer(state: BookingState, action: BookingAction): BookingState {
@@ -192,6 +193,9 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
         last_touch_attribution: action.payload.last_touch,
       };
 
+    case 'SET_DISCOUNT_CODE':
+      return { ...state, discount_code: action.payload };
+
     case 'RESET':
       return {};
 
@@ -278,6 +282,7 @@ interface BookingContextValue {
   setLiveTestMode: (enabled: boolean, token?: string) => void;
   setUtm: (params: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; utm_term?: string }) => void;
   captureAttribution: (attribution: AttributionPayload) => void;
+  setDiscountCode: (code: string | null) => void;
   reset: () => void;
 }
 
@@ -478,6 +483,11 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_UTM', payload: params }),
     []
   );
+  const setDiscountCode = useCallback(
+    (code: string | null) => dispatch({ type: 'SET_DISCOUNT_CODE', payload: code }),
+    []
+  );
+
   const captureAttribution = useCallback(
     (attribution: AttributionPayload) =>
       dispatch({
@@ -529,6 +539,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         setLiveTestMode,
         setUtm,
         captureAttribution,
+        setDiscountCode,
         reset,
       }}
     >

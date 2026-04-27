@@ -115,7 +115,9 @@ async function getBookings(status?: string) {
       deposit_amount, remaining_balance_amount, remaining_balance_due_at,
       deposit_payment_status, remaining_balance_status,
       stripe_payment_method_id, cal_booking_status, webhook_sent,
-      webhook_last_attempt_at, webhook_last_status_code, webhook_last_error
+      webhook_last_attempt_at, webhook_last_status_code, webhook_last_error,
+      discount_code, discount_label, discount_percentage, discount_amount_cents,
+      subtotal_before_discount_cents, total_after_discount_cents
     `)
     .order('date', { ascending: false })
     .limit(100);
@@ -164,6 +166,12 @@ async function getBookings(status?: string) {
     webhook_last_attempt_at: string | null;
     webhook_last_status_code: number | null;
     webhook_last_error: string | null;
+    discount_code: string | null;
+    discount_label: string | null;
+    discount_percentage: number | null;
+    discount_amount_cents: number | null;
+    subtotal_before_discount_cents: number | null;
+    total_after_discount_cents: number | null;
   }>;
 
   const locationIds = [...new Set(typedBookings.map((b) => b.location_id).filter(Boolean))];

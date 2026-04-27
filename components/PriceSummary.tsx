@@ -3,6 +3,7 @@
 import { useBooking } from '@/context/BookingContext';
 import type { Addons, BikeRental, DurationHours, TrailType, AdditionalParticipant } from '@/types/booking';
 import { getPriceLineItems, formatPrice, calculatePriceBreakdown } from '@/lib/pricing';
+import { DISCOUNT_OPTIONS } from '@/lib/discounts';
 import { Separator } from '@/components/ui/separator';
 
 interface PriceSummaryProps {
@@ -43,8 +44,10 @@ export function PriceSummary({
     effectiveAddons,
     effectiveTrailType,
     effectiveAdditionalParticipants,
-    { liveTestMode: state.live_test_mode }
+    { liveTestMode: state.live_test_mode, discountCode: state.discount_code }
   );
+
+  const selectedDiscountDef = DISCOUNT_OPTIONS.find((d) => d.code === state.discount_code) ?? null;
 
   return (
     <div className="bg-card border border-border rounded-lg p-4">
@@ -61,11 +64,19 @@ export function PriceSummary({
             <span className="text-foreground font-medium">{formatPrice(item.amount)}</span>
           </div>
         ))}
+        {selectedDiscountDef && breakdown.discount_amount != null && (
+          <div className="flex justify-between text-sm text-green-700">
+            <span>{selectedDiscountDef.label} ({selectedDiscountDef.percentage}%)</span>
+            <span>-{formatPrice(breakdown.discount_amount)}</span>
+          </div>
+        )}
       </div>
       <Separator className="my-3" />
       <div className="flex justify-between font-semibold">
         <span className="text-foreground">Total</span>
-        <span className="text-green-600">{formatPrice(breakdown.total)}</span>
+        <span className="text-green-600">
+          {formatPrice(breakdown.total_after_discount ?? breakdown.total)}
+        </span>
       </div>
     </div>
   );

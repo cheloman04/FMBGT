@@ -1,4 +1,5 @@
 import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParticipant } from '@/types/booking';
+import { resolveDiscount, calcDiscountAmount } from '@/lib/discounts';
 
 // All prices in cents (USD)
 export const PRICING = {
@@ -25,6 +26,7 @@ export const PRICING = {
 
 interface PricingOptions {
   liveTestMode?: boolean;
+  discountCode?: string | null;
 }
 
 function buildLiveTestBreakdown(participantCount: number): PriceBreakdown {
@@ -85,6 +87,8 @@ export function calculatePriceBreakdown(
     return buildLiveTestBreakdown(participantCount);
   }
 
+  const discount = resolveDiscount(options.discountCode);
+
   // Paved tours: $115 per rider, bike always included, no duration surcharge
   if (trailType === 'paved') {
     const base_price = PRICING.PAVED_FLAT * participantCount;
@@ -98,6 +102,8 @@ export function calculatePriceBreakdown(
     const addons_price = gopro_price + pickup_price + electric_price;
     const subtotal = base_price + addons_price;
     const tax_amount = calculateFloridaStateTax(subtotal);
+    const total = subtotal + tax_amount;
+    const discount_amount = discount ? calcDiscountAmount(total, discount.percentage) : 0;
 
     return {
       base_price,
@@ -105,9 +111,16 @@ export function calculatePriceBreakdown(
       addons_price,
       subtotal,
       tax_amount,
-      total: subtotal + tax_amount,
+      total,
       currency: 'usd',
       participant_count: participantCount,
+      ...(discount ? {
+        discount_code: discount.code,
+        discount_label: discount.label,
+        discount_percentage: discount.percentage,
+        discount_amount,
+        total_after_discount: total - discount_amount,
+      } : {}),
     };
   }
 
@@ -130,6 +143,8 @@ export function calculatePriceBreakdown(
   const addons_price = gopro_price + pickup_price + electric_price;
   const subtotal = base_price + duration_surcharge + addons_price;
   const tax_amount = calculateFloridaStateTax(subtotal);
+  const total = subtotal + tax_amount;
+  const discount_amount = discount ? calcDiscountAmount(total, discount.percentage) : 0;
 
   return {
     base_price,
@@ -137,9 +152,16 @@ export function calculatePriceBreakdown(
     addons_price,
     subtotal,
     tax_amount,
-    total: subtotal + tax_amount,
+    total,
     currency: 'usd',
     participant_count: participantCount,
+    ...(discount ? {
+      discount_code: discount.code,
+      discount_label: discount.label,
+      discount_percentage: discount.percentage,
+      discount_amount,
+      total_after_discount: total - discount_amount,
+    } : {}),
   };
 }
 

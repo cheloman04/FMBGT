@@ -10,6 +10,7 @@ import { formatPrice } from '@/lib/pricing';
 import { formatFloridaCalendarDate } from '@/lib/display-time';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { track, getAcquisitionContext } from '@/lib/analytics';
+import { DISCOUNT_OPTIONS } from '@/lib/discounts';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -32,7 +33,7 @@ function formatDueDate(tourDateStr: string): string {
 }
 
 export function StepPayment() {
-  const { state, setCustomer, goPrev } = useBooking();
+  const { state, setCustomer, setDiscountCode, goPrev } = useBooking();
 
   // Fields are pre-filled from lead capture — user can still edit before paying
   const [form, setForm] = useState({
@@ -43,6 +44,7 @@ export function StepPayment() {
     marketing_source: state.customer?.marketing_source ?? '',
   });
   const [errors, setErrors] = useState<Partial<typeof form>>({});
+  const [discountCode, setDiscountCodeLocal] = useState<string>(state.discount_code ?? '');
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -114,11 +116,14 @@ export function StepPayment() {
       }).catch(() => {});
     }
 
+    const selectedDiscount = discountCode || null;
+    setDiscountCode(selectedDiscount);
+
     try {
       const response = await fetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_state: { ...state, customer } }),
+        body: JSON.stringify({ booking_state: { ...state, customer, discount_code: selectedDiscount } }),
       });
 
       const data = await response.json();
@@ -134,9 +139,16 @@ export function StepPayment() {
     }
   };
 
-  const total = state.price_breakdown?.total ?? 0;
-  const subtotal = state.price_breakdown?.subtotal ?? 0;
-  const taxAmount = state.price_breakdown?.tax_amount ?? 0;
+  const priceBreakdown = state.price_breakdown;
+  const subtotal = priceBreakdown?.subtotal ?? 0;
+  const taxAmount = priceBreakdown?.tax_amount ?? 0;
+  const baseTotal = priceBreakdown?.total ?? 0;
+  // If a discount is selected locally, estimate the discounted total for display
+  const selectedDiscountDef = DISCOUNT_OPTIONS.find((d) => d.code === discountCode) ?? null;
+  const estimatedDiscountAmount = selectedDiscountDef
+    ? Math.floor((baseTotal * selectedDiscountDef.percentage) / 100)
+    : 0;
+  const total = selectedDiscountDef ? baseTotal - estimatedDiscountAmount : baseTotal;
   const depositAmount = Math.round(total / 2);
   const remainingBalance = total - depositAmount;
   const participantCount = state.participant_count ?? 1;
@@ -167,6 +179,14 @@ export function StepPayment() {
           <span className="text-foreground">{formatPrice(remainingBalance)}</span>
           <span className="text-muted-foreground">Balance charged on:</span>
           <span className="text-foreground">{dueDateLabel}</span>
+          {selectedDiscountDef && (
+            <>
+              <span className="text-muted-foreground">Original price:</span>
+              <span className="line-through text-muted-foreground">{formatPrice(baseTotal)}</span>
+              <span className="text-muted-foreground">{selectedDiscountDef.label}:</span>
+              <span className="font-semibold text-green-700">-{formatPrice(estimatedDiscountAmount)}</span>
+            </>
+          )}
           <span className="text-muted-foreground">Total booking value:</span>
           <span className="text-foreground">{formatPrice(total)}</span>
         </div>
@@ -261,6 +281,24 @@ export function StepPayment() {
             </select>
           </div>
 
+          <div>
+            <Label htmlFor="discount_code">Discount Code</Label>
+            <select
+              id="discount_code"
+              name="discount_code"
+              value={discountCode}
+              onChange={(e) => setDiscountCodeLocal(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">No discount</option>
+              {DISCOUNT_OPTIONS.map((opt) => (
+                <option key={opt.code} value={opt.code}>
+                  {opt.label} ({opt.percentage}% off)
+                </option>
+              ))}
+            </select>
+          </div>
+
           {apiError && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">
               {apiError}
@@ -273,6 +311,18 @@ export function StepPayment() {
 
           <div className="space-y-2 rounded-lg border border-border bg-card p-4 text-sm">
             <h4 className="font-semibold text-foreground">Payment Schedule</h4>
+            {selectedDiscountDef && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal before discount</span>
+                  <span className="text-foreground">{formatPrice(baseTotal)}</span>
+                </div>
+                <div className="flex justify-between text-green-700">
+                  <span>{selectedDiscountDef.label} ({selectedDiscountDef.percentage}%)</span>
+                  <span>-{formatPrice(estimatedDiscountAmount)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Deposit (today)</span>
               <span className="font-semibold text-green-600">{formatPrice(depositAmount)}</span>

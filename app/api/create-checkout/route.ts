@@ -11,6 +11,7 @@ import { Redis } from '@upstash/redis';
 import { getAppUrl, isLocalOrigin } from '@/lib/app-url';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 import { recordFinancialEvent } from '@/lib/financial-log';
+import { resolveDiscount, calcDiscountAmount } from '@/lib/discounts';
 import {
   buildMetaUserData,
   getClientIpFromHeaders,
@@ -71,6 +72,7 @@ const BookingStateSchema = z.object({
   lead_session_id: z.string().uuid().optional(),
   live_test_mode: z.boolean().optional(),
   live_test_token: z.string().max(200).optional(),
+  discount_code: z.string().max(100).nullable().optional(),
   first_touch_attribution: AttributionPayloadSchema.optional(),
   last_touch_attribution: AttributionPayloadSchema.optional(),
 });
@@ -352,6 +354,12 @@ export async function POST(req: NextRequest) {
       token: state.live_test_token,
     });
 
+    // Validate discount code server-side — never trust client percentage
+    const discountDef = resolveDiscount(state.discount_code);
+    if (state.discount_code && state.discount_code !== 'none' && !discountDef) {
+      return NextResponse.json({ error: 'Invalid discount code.' }, { status: 400 });
+    }
+
     const priceBreakdown = calculatePriceBreakdown(
       effectiveBike,
       effectiveDuration,
@@ -361,9 +369,15 @@ export async function POST(req: NextRequest) {
       { liveTestMode }
     );
 
-    // Deposit split: 50% now, 50% charged the day before the tour
-    const depositAmount = Math.round(priceBreakdown.total / 2);
-    const remainingBalanceAmount = priceBreakdown.total - depositAmount;
+    // Apply discount server-side (after tax; discount reduces the final total)
+    const discountAmountCents = discountDef
+      ? calcDiscountAmount(priceBreakdown.total, discountDef.percentage)
+      : 0;
+    const totalAfterDiscount = priceBreakdown.total - discountAmountCents;
+
+    // Deposit split: 50% of discounted total
+    const depositAmount = Math.round(totalAfterDiscount / 2);
+    const remainingBalanceAmount = totalAfterDiscount - depositAmount;
     const remainingBalanceDueAt = calcRemainingBalanceDueAt(state.date);
 
     // ── Stripe Customer ───────────────────────────────────────────────────────
@@ -439,6 +453,13 @@ export async function POST(req: NextRequest) {
         base_price: priceBreakdown.base_price,
         addons_price: priceBreakdown.addons_price,
         total_price: priceBreakdown.total,
+        // Discount
+        discount_code: discountDef?.code ?? null,
+        discount_label: discountDef?.label ?? null,
+        discount_percentage: discountDef?.percentage ?? null,
+        discount_amount_cents: discountAmountCents,
+        subtotal_before_discount_cents: discountDef ? priceBreakdown.total : null,
+        total_after_discount_cents: discountDef ? totalAfterDiscount : null,
         // Deposit split
         deposit_amount: depositAmount,
         remaining_balance_amount: remainingBalanceAmount,
@@ -494,6 +515,9 @@ export async function POST(req: NextRequest) {
       bookingId: booking.id,
       stripeCustomerId,
       liveTestMode,
+      discountDef: discountDef ?? null,
+      discountAmountCents,
+      totalAfterDiscount,
     });
 
     // Update booking with Stripe session ID
@@ -560,6 +584,11 @@ export async function POST(req: NextRequest) {
       participant_count: state.participant_count,
       bike_rental: state.bike_rental,
       total_amount: priceBreakdown.total,
+      discount_code: discountDef?.code ?? null,
+      discount_label: discountDef?.label ?? null,
+      discount_percentage: discountDef?.percentage ?? null,
+      discount_amount_cents: discountAmountCents,
+      total_after_discount: totalAfterDiscount,
       deposit_amount: depositAmount,
       remaining_balance_amount: remainingBalanceAmount,
       remaining_balance_due_at: remainingBalanceDueAt,

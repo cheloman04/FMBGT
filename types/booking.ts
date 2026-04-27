@@ -99,10 +99,16 @@ export interface PriceBreakdown {
   addons_price: number;       // in cents - total addons for all participants
   subtotal: number;           // in cents - pre-tax subtotal
   tax_amount: number;         // in cents - Florida state tax
-  total: number;              // in cents
+  total: number;              // in cents - total BEFORE discount (kept for backward compat)
   currency: 'usd';
   participant_count?: number; // for display
   is_live_test_mode?: boolean;
+  // Discount fields (populated when a discount code is applied)
+  discount_code?: string | null;
+  discount_label?: string | null;
+  discount_percentage?: number | null;
+  discount_amount?: number;   // in cents - amount reduced
+  total_after_discount?: number; // in cents - final total after discount
 }
 
 export interface InventoryStatus {
@@ -162,6 +168,9 @@ export interface BookingState {
   last_touch_attribution?: AttributionPayload;
   live_test_mode?: boolean;
   live_test_token?: string;
+
+  // Discount code selected at payment step (resolved server-side)
+  discount_code?: string | null;
 
   // Computed
   price_breakdown?: PriceBreakdown;

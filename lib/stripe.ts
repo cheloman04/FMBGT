@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import type { BookingState, PriceBreakdown } from '@/types/booking';
+import type { DiscountDef } from '@/lib/discounts';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder', {
   apiVersion: '2026-02-25.clover',
@@ -44,6 +45,9 @@ export interface CreateCheckoutSessionParams {
   bookingId: string;
   stripeCustomerId: string;   // must be created before calling this
   liveTestMode?: boolean;
+  discountDef?: DiscountDef | null;
+  discountAmountCents?: number;
+  totalAfterDiscount?: number;
 }
 
 export async function createCheckoutSession({
@@ -56,12 +60,15 @@ export async function createCheckoutSession({
   bookingId,
   stripeCustomerId,
   liveTestMode = false,
+  discountDef = null,
+  discountAmountCents = 0,
+  totalAfterDiscount,
 }: CreateCheckoutSessionParams): Promise<Stripe.Checkout.Session> {
   const { customer, location_name } = bookingState;
 
   if (!customer) throw new Error('Incomplete booking state for checkout');
 
-  const fullTotal = priceBreakdown.total;
+  const fullTotal = totalAfterDiscount ?? priceBreakdown.total;
   const tourLabel = location_name ?? 'Florida MTB Guided Tour';
   const dateLabel = bookingState.date ?? '';
 
@@ -87,7 +94,10 @@ export async function createCheckoutSession({
             name: `50% Deposit — ${tourLabel}`,
             description:
               `Tour on ${dateLabel}. ` +
-              `Full price: ${formatCents(fullTotal)}. ` +
+              (discountDef
+                ? `${discountDef.label} (${discountDef.percentage}% off) applied — saved ${formatCents(discountAmountCents)}. `
+                : '') +
+              `Total: ${formatCents(fullTotal)}. ` +
               `Remaining ${formatCents(remainingBalance)} will be charged automatically the day before your tour.` +
               (liveTestMode ? ' Internal live payment verification booking.' : ''),
           },
@@ -109,6 +119,10 @@ export async function createCheckoutSession({
       total_amount: String(fullTotal),
       deposit_amount: String(depositAmount),
       remaining_balance: String(remainingBalance),
+      discount_code: discountDef?.code ?? '',
+      discount_label: discountDef?.label ?? '',
+      discount_percentage: discountDef ? String(discountDef.percentage) : '',
+      discount_amount: discountAmountCents > 0 ? String(discountAmountCents) : '',
       live_test_mode: liveTestMode ? 'true' : 'false',
     },
     success_url: successUrl,

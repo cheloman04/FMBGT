@@ -60,6 +60,12 @@ interface Booking {
   webhook_last_status_code?: number | null;
   webhook_last_error?: string | null;
   review_request_enrollment?: BookingReviewRequestEnrollment | null;
+  discount_code?: string | null;
+  discount_label?: string | null;
+  discount_percentage?: number | null;
+  discount_amount_cents?: number | null;
+  subtotal_before_discount_cents?: number | null;
+  total_after_discount_cents?: number | null;
 }
 
 function getBookingAttributionMeta(booking: Booking) {
@@ -1447,8 +1453,15 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                   <div className="space-y-2 rounded-2xl border border-border/70 bg-card/70 p-4">
                     <div className="flex items-center justify-between">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Payment</p>
-                      <span className="text-sm font-semibold text-foreground">{formatPrice(selectedMobileBooking.total_price)}</span>
+                      <span className="text-sm font-semibold text-foreground">
+                        {formatPrice(selectedMobileBooking.total_after_discount_cents ?? selectedMobileBooking.total_price)}
+                      </span>
                     </div>
+                    {selectedMobileBooking.discount_code && (
+                      <p className="text-xs text-green-700 dark:text-green-400">
+                        {selectedMobileBooking.discount_label} ({selectedMobileBooking.discount_percentage}%) — saved {formatPrice(selectedMobileBooking.discount_amount_cents ?? 0)}
+                      </p>
+                    )}
                     <BalanceBadge
                       status={selectedMobileBooking.remaining_balance_status}
                       amount={selectedMobileBooking.remaining_balance_amount}
@@ -2148,7 +2161,17 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="font-medium text-foreground">{formatPrice(booking.total_price)}</div>
+                            {booking.discount_code ? (
+                              <div>
+                                <div className="text-xs text-muted-foreground line-through">{formatPrice(booking.subtotal_before_discount_cents ?? booking.total_price)}</div>
+                                <div className="font-medium text-foreground">{formatPrice(booking.total_after_discount_cents ?? booking.total_price)}</div>
+                                <div className="mt-0.5 text-xs text-green-700 dark:text-green-400">
+                                  {booking.discount_label} ({booking.discount_percentage}%) -&nbsp;{formatPrice(booking.discount_amount_cents ?? 0)} off
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="font-medium text-foreground">{formatPrice(booking.total_price)}</div>
+                            )}
                             {booking.deposit_amount && <div className="mt-0.5 text-xs text-muted-foreground">Deposit: {formatPrice(booking.deposit_amount)}</div>}
                             <div className="mt-1 space-y-0.5">
                               <div><BalanceBadge status={booking.remaining_balance_status} amount={booking.remaining_balance_amount} dueAt={booking.remaining_balance_due_at} /></div>
