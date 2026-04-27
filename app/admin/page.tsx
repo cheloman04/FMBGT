@@ -56,7 +56,9 @@ async function getLeadConversionSignalSet(leadIds: string[]) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('bookings')
-    .select('lead_id, status, deposit_payment_status')
+    .select(
+      'lead_id, status, deposit_payment_status, remaining_balance_status, stripe_session_id, stripe_customer_id, stripe_payment_method_id, stripe_payment_intent_id, deposit_payment_intent_id, remaining_balance_payment_intent_id'
+    )
     .in('lead_id', leadIds);
 
   if (error) {
@@ -65,17 +67,36 @@ async function getLeadConversionSignalSet(leadIds: string[]) {
   }
 
   const convertedLeadIds = (data ?? [])
-    .filter((booking: { lead_id?: string | null; status?: string | null; deposit_payment_status?: string | null }) => {
+    .filter((b: {
+      lead_id?: string | null;
+      status?: string | null;
+      deposit_payment_status?: string | null;
+      remaining_balance_status?: string | null;
+      stripe_session_id?: string | null;
+      stripe_customer_id?: string | null;
+      stripe_payment_method_id?: string | null;
+      stripe_payment_intent_id?: string | null;
+      deposit_payment_intent_id?: string | null;
+      remaining_balance_payment_intent_id?: string | null;
+    }) => {
+      if (!b.lead_id) return false;
       return (
-        !!booking.lead_id &&
-        (
-          booking.status === 'confirmed' ||
-          booking.status === 'completed' ||
-          booking.deposit_payment_status === 'paid'
-        )
+        b.status === 'confirmed' ||
+        b.status === 'completed' ||
+        b.status === 'refunded' ||
+        b.deposit_payment_status === 'paid' ||
+        b.remaining_balance_status === 'pending' ||
+        b.remaining_balance_status === 'paid' ||
+        b.remaining_balance_status === 'failed' ||
+        !!b.stripe_session_id ||
+        !!b.stripe_customer_id ||
+        !!b.stripe_payment_method_id ||
+        !!b.stripe_payment_intent_id ||
+        !!b.deposit_payment_intent_id ||
+        !!b.remaining_balance_payment_intent_id
       );
     })
-    .map((booking: { lead_id?: string | null }) => booking.lead_id as string);
+    .map((b: { lead_id?: string | null }) => b.lead_id as string);
 
   return new Set(convertedLeadIds);
 }
