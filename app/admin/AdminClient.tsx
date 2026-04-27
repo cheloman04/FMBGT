@@ -725,6 +725,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
   const [updating, setUpdating] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteBookingMsg, setDeleteBookingMsg] = useState<string>('');
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [leadDeleteDialog, setLeadDeleteDialog] = useState<DeleteLeadDialogState | null>(null);
@@ -1006,6 +1007,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
 
   const handleDeleteBooking = async (bookingId: string) => {
     setDeleting(bookingId);
+    setDeleteBookingMsg('');
     try {
       const res = await fetch('/api/admin/delete-booking', {
         method: 'POST',
@@ -1014,6 +1016,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
       });
 
       if (res.status === 401) { handleUnauthorized(); return; }
+
+      const data = await res.json().catch(() => ({}));
+
       if (res.ok) {
         setLocalBookings((prev) => prev.filter((b) => b.id !== bookingId));
         setExpandedWaivers((prev) => {
@@ -1021,13 +1026,19 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
           next.delete(bookingId);
           return next;
         });
-        if (selectedMobileBookingId === bookingId) {
-          setSelectedMobileBookingId(null);
+        if (selectedMobileBookingId === bookingId) setSelectedMobileBookingId(null);
+
+        if (data.action === 'archived') {
+          setDeleteBookingMsg('Booking archived — it had payment history and cannot be permanently deleted.');
+          setTimeout(() => { setDeleteDialog(null); setDeleteBookingMsg(''); }, 2500);
+        } else {
+          setDeleteDialog(null);
         }
+      } else {
+        setDeleteBookingMsg(data.error ?? 'Failed to delete booking. Please try again.');
       }
     } finally {
       setDeleting(null);
-      setDeleteDialog(null);
     }
   };
 
@@ -1177,9 +1188,14 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                   <p className="font-medium text-foreground">{deleteDialog.locationName}</p>
                   <p className="mt-1 text-muted-foreground">{formatDate(deleteDialog.date)}</p>
                 </div>
+                {deleteBookingMsg && (
+                  <p className={`mt-4 rounded-lg px-3 py-2 text-xs leading-5 ${deleteBookingMsg.startsWith('Booking archived') ? 'bg-yellow-500/10 text-yellow-300' : 'bg-red-500/10 text-red-300'}`}>
+                    {deleteBookingMsg}
+                  </p>
+                )}
                 <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                  <button onClick={() => setDeleteDialog(null)} disabled={!!deleting} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50">Keep Booking</button>
-                  <button onClick={() => handleDeleteBooking(deleteDialog.id)} disabled={!!deleting} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50">
+                  <button onClick={() => { setDeleteDialog(null); setDeleteBookingMsg(''); }} disabled={!!deleting} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50">Keep Booking</button>
+                  <button onClick={() => handleDeleteBooking(deleteDialog.id)} disabled={!!deleting || deleteBookingMsg.startsWith('Booking archived')} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50">
                     {deleting === deleteDialog.id ? 'Deleting...' : 'Delete Permanently'}
                   </button>
                 </div>
@@ -1337,14 +1353,15 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                         <option value="refunded">refunded</option>
                       </select>
                       <button
-                        onClick={() =>
+                        onClick={() => {
+                          setDeleteBookingMsg('');
                           setDeleteDialog({
                             id: selectedMobileBooking.id,
                             customerName: selectedMobileBooking.customer_name,
                             locationName: selectedMobileBooking.location_name,
                             date: selectedMobileBooking.date,
-                          })
-                        }
+                          });
+                        }}
                         disabled={deleting === selectedMobileBooking.id}
                         className="min-h-11 rounded-xl border border-red-500/40 px-3 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
                       >
@@ -1946,7 +1963,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                                 </div>
                               )}
                               <button
-                                onClick={() => setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date })}
+                                onClick={() => { setDeleteBookingMsg(''); setDeleteDialog({ id: booking.id, customerName: booking.customer_name, locationName: booking.location_name, date: booking.date }); }}
                                 disabled={deleting === booking.id}
                                 className="inline-flex w-32 items-center justify-center rounded-md border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                               >
