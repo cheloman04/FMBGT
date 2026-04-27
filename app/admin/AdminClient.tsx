@@ -757,6 +757,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
   const [localTrashedBookings, setLocalTrashedBookings] = useState<TrashedBooking[]>(trashedBookings);
   const [localTrashedLeads, setLocalTrashedLeads] = useState<TrashedLead[]>(trashedLeads);
   const [trashActionId, setTrashActionId] = useState<string | null>(null);
+  const [purgeDialog, setPurgeDialog] = useState<{ type: 'booking' | 'lead'; id: string; label: string; sublabel: string } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [leadDeleteDialog, setLeadDeleteDialog] = useState<DeleteLeadDialogState | null>(null);
   const [isNextBookingExpanded, setIsNextBookingExpanded] = useState(false);
@@ -1325,6 +1326,52 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
           </div>
         )}
 
+        {purgeDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => (trashActionId ? undefined : setPurgeDialog(null))} />
+            <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-red-500/30 bg-zinc-950 shadow-[0_0_0_1px_rgba(239,68,68,0.08),0_20px_80px_rgba(0,0,0,0.55)]">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-400/70 to-transparent" />
+              <div className="p-6">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-300">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-foreground">
+                  Delete {purgeDialog.type === 'booking' ? 'Booking' : 'Lead'} Forever?
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  This will <span className="font-semibold text-red-300">permanently remove</span> this record from the database. This action cannot be undone.
+                </p>
+                <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm">
+                  <p className="font-medium text-foreground">{purgeDialog.label}</p>
+                  <p className="mt-1 text-muted-foreground">{purgeDialog.sublabel}</p>
+                </div>
+                <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    onClick={() => setPurgeDialog(null)}
+                    disabled={!!trashActionId}
+                    className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    Keep
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (purgeDialog.type === 'booking') handlePurgeBooking(purgeDialog.id);
+                      else handlePurgeLead(purgeDialog.id);
+                      setPurgeDialog(null);
+                    }}
+                    disabled={!!trashActionId}
+                    className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    {trashActionId ? 'Deleting...' : 'Delete Forever'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {selectedMobileBooking && (
           <div className="fixed inset-0 z-40 flex sm:hidden">
             <div
@@ -1671,7 +1718,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                                 {trashActionId === b.id ? '...' : 'Restore'}
                               </button>
                               <button
-                                onClick={() => { if (confirm('Permanently delete this booking? This cannot be undone.')) handlePurgeBooking(b.id); }}
+                                onClick={() => setPurgeDialog({ type: 'booking', id: b.id, label: b.location_name, sublabel: formatDate(b.date) })}
                                 disabled={trashActionId === b.id}
                                 className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
                               >
@@ -1729,7 +1776,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                                 {trashActionId === l.id ? '...' : 'Restore'}
                               </button>
                               <button
-                                onClick={() => { if (confirm('Permanently delete this lead? This cannot be undone.')) handlePurgeLead(l.id); }}
+                                onClick={() => setPurgeDialog({ type: 'lead', id: l.id, label: l.full_name, sublabel: l.email })}
                                 disabled={trashActionId === l.id}
                                 className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
                               >
