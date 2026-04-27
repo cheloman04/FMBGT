@@ -499,6 +499,52 @@ async function getStats() {
   };
 }
 
+async function getTrashedBookings() {
+  const supabase = getSupabaseAdmin();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('bookings')
+    .select('id, status, date, location_id, total_price, deposit_amount, deposit_payment_status, deleted_at, deleted_by, created_at')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[admin] getTrashedBookings error:', error.message);
+    return [];
+  }
+
+  const locationIds = [...new Set((data ?? []).map((b: { location_id: string | null }) => b.location_id).filter(Boolean))];
+  const { data: locations } = locationIds.length
+    ? await supabase.from('locations').select('id, name').in('id', locationIds as string[])
+    : { data: [] };
+  const locationMap = Object.fromEntries((locations ?? []).map((l: { id: string; name: string }) => [l.id, l.name]));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((b: any) => ({
+    ...b,
+    location_name: b.location_id ? (locationMap[b.location_id] ?? 'Unknown') : 'Unknown',
+  }));
+}
+
+async function getTrashedLeads() {
+  const supabase = getSupabaseAdmin();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('leads')
+    .select('id, full_name, email, phone, selected_trail_type, selected_location_name, deleted_at, deleted_by, created_at')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('[admin] getTrashedLeads error:', error.message);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 interface PageProps {
   searchParams: Promise<{ status?: string; leadId?: string }>;
 }
@@ -508,11 +554,14 @@ export default async function AdminPage({ searchParams }: PageProps) {
 
   const { status, leadId } = await searchParams;
   const isLeadsView = status === 'leads' || !!leadId;
+  const isTrashView = status === 'trash';
 
-  const [bookings, leads, stats] = await Promise.all([
-    isLeadsView ? Promise.resolve([]) : getBookings(status),
+  const [bookings, leads, stats, trashedBookings, trashedLeads] = await Promise.all([
+    isLeadsView || isTrashView ? Promise.resolve([]) : getBookings(status),
     isLeadsView ? getLeads() : Promise.resolve([]),
     getStats(),
+    isTrashView ? getTrashedBookings() : Promise.resolve([]),
+    isTrashView ? getTrashedLeads() : Promise.resolve([]),
   ]);
 
   return (
@@ -522,6 +571,8 @@ export default async function AdminPage({ searchParams }: PageProps) {
       stats={stats}
       currentStatus={isLeadsView ? 'leads' : status ?? 'all'}
       initialLeadId={leadId ?? null}
+      trashedBookings={trashedBookings}
+      trashedLeads={trashedLeads}
     />
   );
 }

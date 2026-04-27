@@ -92,28 +92,36 @@ export async function POST(req: NextRequest) {
 
   const blockingBookings = bookings.filter(bookingHasFinancialHistory);
   if (blockingBookings.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: archiveError } = await (supabase as any)
+      .from('leads')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: adminUser.email ?? 'admin',
+      })
+      .eq('id', lead_id);
+
+    if (archiveError) {
+      console.error('[admin] delete-lead archive error:', archiveError);
+      return NextResponse.json({ error: 'Archive failed' }, { status: 500 });
+    }
+
     await recordFinancialEvent({
-      event_name: 'admin.lead_delete_blocked',
+      event_name: 'admin.lead_archived',
       event_category: 'ops',
       severity: 'warning',
       entity_type: 'lead',
       entity_id: lead_id,
       lead_id,
       requires_attention: false,
-      message: 'Admin lead deletion blocked because linked booking has financial history',
+      message: 'Admin archived lead with financial history (soft delete)',
       metadata: {
         admin_email: adminUser.email ?? null,
         blocking_booking_ids: blockingBookings.map((booking) => booking.id),
       },
     });
 
-    return NextResponse.json(
-      {
-        error:
-          'Cannot delete this lead because it is linked to booking data with payment or fulfillment history.',
-      },
-      { status: 409 }
-    );
+    return NextResponse.json({ ok: true, action: 'archived', lead_id });
   }
 
   const bookingIds = bookings.map((booking) => booking.id);

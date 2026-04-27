@@ -193,12 +193,39 @@ interface Stats {
   balanceFailed: number;
 }
 
+interface TrashedBooking {
+  id: string;
+  status: string;
+  date: string;
+  location_name: string;
+  total_price: number;
+  deposit_amount: number | null;
+  deposit_payment_status: string | null;
+  deleted_at: string;
+  deleted_by: string | null;
+  created_at: string;
+}
+
+interface TrashedLead {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  selected_trail_type: string | null;
+  selected_location_name: string | null;
+  deleted_at: string;
+  deleted_by: string | null;
+  created_at: string;
+}
+
 interface Props {
   bookings: Booking[];
   leads: Lead[];
   stats: Stats;
   currentStatus: string;
   initialLeadId?: string | null;
+  trashedBookings?: TrashedBooking[];
+  trashedLeads?: TrashedLead[];
 }
 
 interface DeleteDialogState {
@@ -215,7 +242,7 @@ interface DeleteLeadDialogState {
   lastActivityAt: string;
 }
 
-const STATUS_OPTIONS = ['all', 'leads', 'confirmed', 'completed', 'cancelled', 'refunded'];
+const STATUS_OPTIONS = ['all', 'leads', 'confirmed', 'completed', 'cancelled', 'refunded', 'trash'];
 
 const STATUS_COLORS: Record<string, string> = {
   confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
@@ -716,7 +743,7 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
   );
 }
 
-export function AdminClient({ bookings, leads, stats, currentStatus, initialLeadId = null }: Props) {
+export function AdminClient({ bookings, leads, stats, currentStatus, initialLeadId = null, trashedBookings = [], trashedLeads = [] }: Props) {
   const router = useRouter();
   const handleUnauthorized = useCallback(() => {
     router.push('/admin/login?expired=1');
@@ -727,6 +754,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteBookingMsg, setDeleteBookingMsg] = useState<string>('');
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
+  const [localTrashedBookings, setLocalTrashedBookings] = useState<TrashedBooking[]>(trashedBookings);
+  const [localTrashedLeads, setLocalTrashedLeads] = useState<TrashedLead[]>(trashedLeads);
+  const [trashActionId, setTrashActionId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [leadDeleteDialog, setLeadDeleteDialog] = useState<DeleteLeadDialogState | null>(null);
   const [isNextBookingExpanded, setIsNextBookingExpanded] = useState(false);
@@ -744,6 +774,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
   const [searchQuery, setSearchQuery] = useState('');
 
   const isLeadsView = currentStatus === 'leads';
+  const isTrashView = currentStatus === 'trash';
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredLeads = normalizedSearch
     ? localLeads.filter((lead) =>
@@ -1074,6 +1105,66 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
       setLeadDeleteDialog(null);
     }
   };
+  const handleRestoreBooking = async (bookingId: string) => {
+    setTrashActionId(bookingId);
+    try {
+      const res = await fetch('/api/admin/restore-booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId }),
+      });
+      if (res.status === 401) { handleUnauthorized(); return; }
+      if (res.ok) setLocalTrashedBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    } finally {
+      setTrashActionId(null);
+    }
+  };
+
+  const handlePurgeBooking = async (bookingId: string) => {
+    setTrashActionId(bookingId);
+    try {
+      const res = await fetch('/api/admin/purge-booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId }),
+      });
+      if (res.status === 401) { handleUnauthorized(); return; }
+      if (res.ok) setLocalTrashedBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    } finally {
+      setTrashActionId(null);
+    }
+  };
+
+  const handleRestoreLead = async (leadId: string) => {
+    setTrashActionId(leadId);
+    try {
+      const res = await fetch('/api/admin/restore-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+      if (res.status === 401) { handleUnauthorized(); return; }
+      if (res.ok) setLocalTrashedLeads((prev) => prev.filter((l) => l.id !== leadId));
+    } finally {
+      setTrashActionId(null);
+    }
+  };
+
+  const handlePurgeLead = async (leadId: string) => {
+    setTrashActionId(leadId);
+    try {
+      const res = await fetch('/api/admin/purge-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId }),
+      });
+      if (res.status === 401) { handleUnauthorized(); return; }
+      if (res.ok) setLocalTrashedLeads((prev) => prev.filter((l) => l.id !== leadId));
+    } finally {
+      setTrashActionId(null);
+    }
+  };
+
   const handleMarkReviewReceived = async (bookingId: string) => {
     const booking = localBookings.find((item) => item.id === bookingId);
     const enrollmentId = booking?.review_request_enrollment?.id;
@@ -1488,46 +1579,175 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         {/* Filter tabs */}
         <div className="mb-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-foreground">{isLeadsView ? 'Leads' : 'Bookings'}</p>
+            <p className="text-sm font-medium text-foreground">{isLeadsView ? 'Leads' : isTrashView ? 'Trash' : 'Bookings'}</p>
             <p className="text-xs text-muted-foreground sm:hidden">Swipe for more</p>
           </div>
           <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-            <div className="flex min-w-max gap-2 sm:grid sm:min-w-0 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="flex min-w-max gap-2 sm:grid sm:min-w-0 sm:grid-cols-4 lg:grid-cols-7">
               {STATUS_OPTIONS.map((s) => (
                 <a
                   key={s}
                   href={filterUrl(s)}
                   className={`rounded-full border px-4 py-2 text-center text-sm font-medium capitalize transition-colors sm:w-full ${
                     currentStatus === s
-                      ? 'border-green-600 bg-green-600 text-white'
-                      : 'border-border bg-card text-muted-foreground hover:border-foreground/30'
+                      ? s === 'trash'
+                        ? 'border-red-600 bg-red-600 text-white'
+                        : 'border-green-600 bg-green-600 text-white'
+                      : s === 'trash'
+                        ? 'border-red-500/30 bg-card text-red-400 hover:border-red-500/60'
+                        : 'border-border bg-card text-muted-foreground hover:border-foreground/30'
                   }`}
                 >
-                  {s === 'all' ? 'All Bookings' : s}
+                  {s === 'all' ? 'All Bookings' : s === 'trash' ? '🗑 Trash' : s}
                 </a>
               ))}
             </div>
           </div>
         </div>
 
-        {/* â”€â”€ LEADS VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div className="mb-4">
-          <div className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.1)]">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder={
-                isLeadsView
-                  ? 'Search leads by name, email, phone, ZIP, source, trail, or location'
-                  : 'Search bookings by customer, email, phone, ZIP, trail, location, or status'
-              }
-              className="w-full rounded-xl border border-border/70 bg-background/80 px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/80 focus:border-green-500/40"
-            />
+        {/* â"€â"€ SEARCH BAR â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
+        {!isTrashView && (
+          <div className="mb-4">
+            <div className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-[0_10px_24px_rgba(0,0,0,0.1)]">
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={
+                  isLeadsView
+                    ? 'Search leads by name, email, phone, ZIP, source, trail, or location'
+                    : 'Search bookings by customer, email, phone, ZIP, trail, location, or status'
+                }
+                className="w-full rounded-xl border border-border/70 bg-background/80 px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/80 focus:border-green-500/40"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
-        {isLeadsView && (
+        {isTrashView && (
+          <div className="space-y-6">
+            {/* Trashed Bookings */}
+            <div>
+              <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">Archived Bookings ({localTrashedBookings.length})</h3>
+              {localTrashedBookings.length === 0 ? (
+                <div className="rounded-xl border border-border bg-card/60 py-10 text-center text-sm text-muted-foreground">No archived bookings.</div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-border bg-card/80">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-xs text-muted-foreground">
+                        <th className="px-4 py-3 text-left font-medium">Booking</th>
+                        <th className="px-4 py-3 text-left font-medium">Date</th>
+                        <th className="px-4 py-3 text-left font-medium">Payment</th>
+                        <th className="px-4 py-3 text-left font-medium">Archived by</th>
+                        <th className="px-4 py-3 text-right font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {localTrashedBookings.map((b) => (
+                        <tr key={b.id} className="hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-foreground">{b.location_name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{b.status}</p>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{formatDate(b.date)}</td>
+                          <td className="px-4 py-3">
+                            <p className="text-foreground">{formatPrice(b.total_price)}</p>
+                            {b.deposit_payment_status === 'paid' && (
+                              <p className="text-xs text-green-400">Deposit paid: {formatPrice(b.deposit_amount ?? 0)}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-xs text-muted-foreground">{b.deleted_by ?? '—'}</p>
+                            <p className="text-xs text-muted-foreground">{formatDateTime(b.deleted_at)}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleRestoreBooking(b.id)}
+                                disabled={trashActionId === b.id}
+                                className="rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:opacity-50"
+                              >
+                                {trashActionId === b.id ? '...' : 'Restore'}
+                              </button>
+                              <button
+                                onClick={() => { if (confirm('Permanently delete this booking? This cannot be undone.')) handlePurgeBooking(b.id); }}
+                                disabled={trashActionId === b.id}
+                                className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                              >
+                                Delete Forever
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Trashed Leads */}
+            <div>
+              <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">Archived Leads ({localTrashedLeads.length})</h3>
+              {localTrashedLeads.length === 0 ? (
+                <div className="rounded-xl border border-border bg-card/60 py-10 text-center text-sm text-muted-foreground">No archived leads.</div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-border bg-card/80">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-xs text-muted-foreground">
+                        <th className="px-4 py-3 text-left font-medium">Lead</th>
+                        <th className="px-4 py-3 text-left font-medium">Trail / Location</th>
+                        <th className="px-4 py-3 text-left font-medium">Archived by</th>
+                        <th className="px-4 py-3 text-right font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {localTrashedLeads.map((l) => (
+                        <tr key={l.id} className="hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-foreground">{l.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{l.email}</p>
+                            {l.phone && <p className="text-xs text-muted-foreground">{l.phone}</p>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-muted-foreground capitalize">{l.selected_trail_type ?? '—'}</p>
+                            <p className="text-xs text-muted-foreground">{l.selected_location_name ?? '—'}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-xs text-muted-foreground">{l.deleted_by ?? '—'}</p>
+                            <p className="text-xs text-muted-foreground">{formatDateTime(l.deleted_at)}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleRestoreLead(l.id)}
+                                disabled={trashActionId === l.id}
+                                className="rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-300 transition-colors hover:bg-green-500/20 disabled:opacity-50"
+                              >
+                                {trashActionId === l.id ? '...' : 'Restore'}
+                              </button>
+                              <button
+                                onClick={() => { if (confirm('Permanently delete this lead? This cannot be undone.')) handlePurgeLead(l.id); }}
+                                disabled={trashActionId === l.id}
+                                className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                              >
+                                Delete Forever
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!isTrashView && isLeadsView && (
           <>
             <div className="hidden overflow-hidden rounded-lg border border-border bg-card sm:block">
               {filteredLeads.length === 0 ? (
@@ -1728,8 +1948,8 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
           </>
         )}
 
-        {/* â”€â”€ BOOKINGS VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        {!isLeadsView && (
+        {/* â"€â"€ BOOKINGS VIEW â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
+        {!isLeadsView && !isTrashView && (
           <>
             {/* Mobile booking cards */}
             <div className="space-y-3 sm:hidden">
