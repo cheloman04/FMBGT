@@ -407,12 +407,23 @@ async function getStats() {
   const supabase = getSupabaseAdmin();
 
   const [bookingsResult, leadsResult] = await Promise.all([
-    supabase.from('bookings').select('status, total_price, deposit_amount, remaining_balance_amount, remaining_balance_status, deposit_payment_status'),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('bookings').select('status, total_price, deposit_amount, remaining_balance_amount, remaining_balance_status, deposit_payment_status, deleted_at').is('deleted_at', null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from('leads').select('id, status, booking_id, converted_at'),
   ]);
 
-  const bookings = bookingsResult.data ?? [];
+  type StatBooking = {
+    status: string;
+    total_price: number;
+    deposit_amount: number | null;
+    remaining_balance_amount: number | null;
+    remaining_balance_status: string | null;
+    deposit_payment_status: string | null;
+    deleted_at: string | null;
+  };
+
+  const bookings: StatBooking[] = bookingsResult.data ?? [];
   const leads = leadsResult.data ?? [];
   const conversionSignalLeadIds = await getLeadConversionSignalSet(
     leads.map((lead: { id: string }) => lead.id)
