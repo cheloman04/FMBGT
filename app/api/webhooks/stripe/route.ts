@@ -79,6 +79,18 @@ export async function POST(req: NextRequest) {
           break;
         }
 
+        // Only process sessions where Stripe actually collected payment
+        if (session.payment_status !== 'paid') {
+          console.warn(`[stripe-webhook] checkout.session.completed payment_status=${session.payment_status} for booking ${bookingId} — skipping`);
+          break;
+        }
+
+        // Require a PaymentIntent — no PI means no charge was captured
+        if (!session.payment_intent) {
+          console.warn(`[stripe-webhook] checkout.session.completed missing payment_intent for booking ${bookingId} — skipping`);
+          break;
+        }
+
         // Idempotency: skip if deposit already marked paid
         const { data: existing } = await supabase
           .from('bookings')
@@ -152,11 +164,13 @@ export async function POST(req: NextRequest) {
         }
 
         // Update booking: confirmed, deposit paid, save PM for future charge
+        const confirmedDepositCents = session.amount_total ?? 0;
         const { error: updateError } = await supabase
           .from('bookings')
           .update({
             status: 'confirmed',
             deposit_payment_status: 'paid',
+            deposit_paid_cents: confirmedDepositCents,
             remaining_balance_status: 'pending',
             stripe_payment_intent_id: paymentIntentId,
             deposit_payment_intent_id: paymentIntentId,
@@ -845,7 +859,11 @@ export async function POST(req: NextRequest) {
 
         const { error: updateError } = await supabase
           .from('bookings')
-          .update({ status: 'cancelled' })
+          .update({
+            status: 'cancelled',
+            deposit_payment_status: 'cancelled',
+            remaining_balance_status: 'cancelled',
+          })
           .eq('id', bookingId)
           .eq('status', 'pending');
 

@@ -112,7 +112,7 @@ async function getBookings(status?: string) {
       id, lead_id, trail_type, date, time_slot, duration_hours, bike_rental, rider_height_inches, participant_count, participant_info,
       total_price, status, created_at, location_id, customer_id, waiver_session_id,
       zip_code, marketing_source, attribution_snapshot,
-      deposit_amount, remaining_balance_amount, remaining_balance_due_at,
+      deposit_amount, deposit_paid_cents, remaining_balance_amount, remaining_balance_due_at,
       deposit_payment_status, remaining_balance_status,
       stripe_payment_method_id, cal_booking_status, webhook_sent,
       webhook_last_attempt_at, webhook_last_status_code, webhook_last_error,
@@ -156,6 +156,7 @@ async function getBookings(status?: string) {
     marketing_source: string | null;
     attribution_snapshot: Record<string, unknown> | null;
     deposit_amount: number | null;
+    deposit_paid_cents: number | null;
     remaining_balance_amount: number | null;
     remaining_balance_due_at: string | null;
     deposit_payment_status: string | null;

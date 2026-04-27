@@ -49,6 +49,7 @@ interface Booking {
   attribution_snapshot?: Record<string, unknown> | null;
   waiver_records: WaiverRecord[];
   deposit_amount: number | null;
+  deposit_paid_cents: number | null;
   remaining_balance_amount: number | null;
   remaining_balance_due_at: string | null;
   deposit_payment_status: string | null;
@@ -468,11 +469,16 @@ function BalanceBadge({
   status,
   amount,
   dueAt,
+  depositStatus,
 }: {
   status: string | null;
   amount: number | null;
   dueAt: string | null;
+  depositStatus: string | null;
 }) {
+  // Only show a balance badge when the deposit was actually collected
+  if (depositStatus !== 'paid') return null;
+
   if (!status || status === 'pending') {
     return (
       <span className="text-xs text-muted-foreground">
@@ -1463,12 +1469,17 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                         {selectedMobileBooking.discount_label} ({selectedMobileBooking.discount_percentage}%) — saved {formatPrice(selectedMobileBooking.discount_amount_cents ?? 0)}
                       </p>
                     )}
+                    {selectedMobileBooking.deposit_payment_status === 'paid'
+                      ? <p className="text-xs text-green-700 dark:text-green-400">Deposit paid: {formatPrice(selectedMobileBooking.deposit_paid_cents ?? selectedMobileBooking.deposit_amount ?? 0)}</p>
+                      : <p className="text-xs text-muted-foreground">Payment not completed</p>
+                    }
                     <BalanceBadge
                       status={selectedMobileBooking.remaining_balance_status}
                       amount={selectedMobileBooking.remaining_balance_amount}
                       dueAt={selectedMobileBooking.remaining_balance_due_at}
+                      depositStatus={selectedMobileBooking.deposit_payment_status}
                     />
-                    {selectedMobileBooking.remaining_balance_status === 'failed' && (
+                    {selectedMobileBooking.remaining_balance_status === 'failed' && selectedMobileBooking.deposit_payment_status === 'paid' && (
                       <button
                         onClick={() => handleRetryCharge(selectedMobileBooking.id)}
                         disabled={retrying === selectedMobileBooking.id}
@@ -2057,7 +2068,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                         <p className="text-sm font-semibold text-foreground">{formatPrice(booking.total_price)}</p>
                         <div className="flex flex-col items-end gap-1">
                           <WaiverBadge records={booking.waiver_records} />
-                          {booking.remaining_balance_status === 'failed' ? (
+                          {booking.deposit_payment_status !== 'paid' ? (
+                            <span className="text-[11px] text-muted-foreground">Payment not completed</span>
+                          ) : booking.remaining_balance_status === 'failed' ? (
                             <span className="text-[11px] font-medium text-red-400">Balance failed</span>
                           ) : booking.remaining_balance_status === 'paid' ? (
                             <span className="text-[11px] font-medium text-green-400">Paid in full</span>
@@ -2173,10 +2186,15 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                             ) : (
                               <div className="font-medium text-foreground">{formatPrice(booking.total_price)}</div>
                             )}
-                            {booking.deposit_amount && <div className="mt-0.5 text-xs text-muted-foreground">Deposit: {formatPrice(booking.deposit_amount)}</div>}
+                            {booking.deposit_payment_status === 'paid'
+                              ? <div className="mt-0.5 text-xs text-green-700 dark:text-green-400">Deposit paid: {formatPrice(booking.deposit_paid_cents ?? booking.deposit_amount ?? 0)}</div>
+                              : booking.deposit_payment_status === 'cancelled' || booking.status === 'cancelled'
+                                ? <div className="mt-0.5 text-xs text-muted-foreground">Payment not completed</div>
+                                : null
+                            }
                             <div className="mt-1 space-y-0.5">
-                              <div><BalanceBadge status={booking.remaining_balance_status} amount={booking.remaining_balance_amount} dueAt={booking.remaining_balance_due_at} /></div>
-                              {booking.remaining_balance_status === 'failed' && (
+                              <div><BalanceBadge status={booking.remaining_balance_status} amount={booking.remaining_balance_amount} dueAt={booking.remaining_balance_due_at} depositStatus={booking.deposit_payment_status} /></div>
+                              {booking.remaining_balance_status === 'failed' && booking.deposit_payment_status === 'paid' && (
                                 <div className="pt-1">
                                   <button onClick={() => handleRetryCharge(booking.id)} disabled={retrying === booking.id} className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 transition-colors hover:bg-red-200 disabled:opacity-50 dark:bg-red-900/40 dark:text-red-300 dark:hover:bg-red-900/60">{retrying === booking.id ? 'Retrying...' : 'Retry'}</button>
                                   {retryErrors[booking.id] && <p className="mt-0.5 text-xs text-red-500">{retryErrors[booking.id]}</p>}
