@@ -312,7 +312,7 @@ export function StepPayment() {
                   value={discountInput}
                   onChange={(e) => { setDiscountInput(e.target.value.toUpperCase()); setDiscountError(null); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyDiscount(); } }}
-                  placeholder="e.g. FAM-FMBGT"
+                  placeholder="Discount Code or Gift Card Code"
                   className="flex-1 uppercase"
                   maxLength={30}
                 />
