@@ -185,9 +185,9 @@ export function StepPayment() {
   const baseTotal = priceBreakdown?.total ?? 0;
   const estimatedDiscountAmount = appliedReductionCents(appliedDiscount, baseTotal);
   const total = baseTotal - estimatedDiscountAmount;
-  // Mirror the server: a sub-$0.50 deposit can't be charged via Stripe, so such a
-  // booking is treated as fully covered (free) and the remainder is waived.
-  const isFreeBooking = baseTotal > 0 && Math.round(total / 2) < 50;
+  // Mirror the server: a 50/50 split needs both halves >= Stripe's $0.50 minimum
+  // (net >= $1.00). Below that, the booking is fully covered (free) and the remainder waived.
+  const isFreeBooking = baseTotal > 0 && total < 100;
   const depositAmount = isFreeBooking ? 0 : Math.round(total / 2);
   const remainingBalance = isFreeBooking ? 0 : total - depositAmount;
   const participantCount = state.participant_count ?? 1;

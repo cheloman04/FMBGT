@@ -427,20 +427,19 @@ export async function POST(req: NextRequest) {
     const totalAfterDiscount = priceBreakdown.total - discountAmountCents;
 
     // Deposit split: 50% of the discounted total. Stripe rejects charges under $0.50,
-    // so when a code (gift card / high % discount) leaves a remainder whose 50% deposit
-    // would be sub-minimum, treat the booking as fully covered and waive the tiny
-    // remainder rather than failing checkout. (Fully covered, totalAfterDiscount<=0,
-    // also routes here — no Stripe charge at all.)
+    // and a 50/50 split is only valid when BOTH halves clear that minimum — i.e. the
+    // net is at least $1.00. Below that (including fully-covered, net <= 0), treat the
+    // booking as covered and waive the sub-$1 remainder instead of failing checkout or
+    // leaving an uncollectable deposit/remaining balance.
     const STRIPE_MIN_CENTS = 50;
-    const provisionalDeposit = Math.round(totalAfterDiscount / 2);
-    const isFreeBooking = totalAfterDiscount <= 0 || provisionalDeposit < STRIPE_MIN_CENTS;
+    const isFreeBooking = totalAfterDiscount < 2 * STRIPE_MIN_CENTS;
 
     // Code metadata for persistence (a gift card has no percentage).
     const codeValue = discountDef?.code ?? giftCard?.code ?? null;
     const codeLabel = discountDef?.label ?? (giftCard ? GIFT_CARD_LABEL : null);
     const hasCode = Boolean(discountDef || giftCard);
 
-    const depositAmount = isFreeBooking ? 0 : provisionalDeposit;
+    const depositAmount = isFreeBooking ? 0 : Math.round(totalAfterDiscount / 2);
     const remainingBalanceAmount = isFreeBooking ? 0 : totalAfterDiscount - depositAmount;
     const remainingBalanceDueAt = calcRemainingBalanceDueAt(state.date);
 
