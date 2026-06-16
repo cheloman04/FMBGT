@@ -6,13 +6,14 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 type AdminTopBarProps = {
-  activePage: 'dashboard' | 'fin-log' | 'referrals' | 'gift-cards';
+  activePage: 'dashboard' | 'manual-booking' | 'fin-log' | 'referrals' | 'gift-cards';
   title: string;
   subtitle: string;
 };
 
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', href: '/admin' },
+  { key: 'manual-booking', label: 'Manual Booking', href: '/admin/manual-booking' },
   { key: 'fin-log', label: 'Fin Log', href: '/admin/fin-log' },
   { key: 'referrals', label: 'Referrals', href: '/admin/referrals' },
   { key: 'gift-cards', label: 'Gift Cards', href: '/admin/gift-cards' },
