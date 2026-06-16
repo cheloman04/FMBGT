@@ -12,6 +12,8 @@ import { getAppUrl, isLocalOrigin } from '@/lib/app-url';
 import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { resolveFamDiscount, calcDiscountAmount, FAM_LABEL, type DiscountDef } from '@/lib/discounts';
+import { calcGiftCardApplied, GIFT_CARD_LABEL } from '@/lib/gift-cards';
+import { finalizeFreeBooking } from '@/lib/free-booking';
 import {
   buildMetaUserData,
   getClientIpFromHeaders,
@@ -354,9 +356,11 @@ export async function POST(req: NextRequest) {
       token: state.live_test_token,
     });
 
-    // Validate discount code server-side — never trust client percentage
+    // Validate the code server-side — never trust client values. A code is either
+    // a percentage discount (FAM / partner) or a fixed-amount gift card. One per booking.
     let discountDef: DiscountDef | null = null;
     let discountPartnerId: string | null = null;
+    let giftCard: { id: string; code: string; amount_cents: number } | null = null;
 
     if (state.discount_code) {
       const upper = state.discount_code.trim().toUpperCase();
@@ -374,20 +378,34 @@ export async function POST(req: NextRequest) {
           .eq('discount_code', upper)
           .maybeSingle();
 
-        if (!partner) {
-          return NextResponse.json({ error: 'Invalid discount code.' }, { status: 400 });
-        }
-        if (!partner.active) {
-          return NextResponse.json({ error: 'This discount code is no longer active.' }, { status: 400 });
-        }
+        if (partner) {
+          if (!partner.active) {
+            return NextResponse.json({ error: 'This discount code is no longer active.' }, { status: 400 });
+          }
+          discountDef = {
+            code: partner.discount_code,
+            label: `${partner.partner_name} Partner Discount`,
+            percentage: Number(partner.discount_percentage),
+            partner_id: partner.id,
+          } as DiscountDef;
+          discountPartnerId = partner.id;
+        } else {
+          // Gift card? Resolve here for pricing; reserved atomically after the booking row exists.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: card } = await (supabase as any)
+            .from('gift_cards')
+            .select('id, code, amount_cents, status')
+            .eq('code', upper)
+            .maybeSingle();
 
-        discountDef = {
-          code: partner.discount_code,
-          label: `${partner.partner_name} Partner Discount`,
-          percentage: Number(partner.discount_percentage),
-          partner_id: partner.id,
-        } as DiscountDef;
-        discountPartnerId = partner.id;
+          if (!card) {
+            return NextResponse.json({ error: 'Invalid code.' }, { status: 400 });
+          }
+          if (card.status !== 'active') {
+            return NextResponse.json({ error: 'This gift card is no longer available.' }, { status: 400 });
+          }
+          giftCard = { id: card.id, code: card.code, amount_cents: Number(card.amount_cents) };
+        }
       }
     }
 
@@ -400,19 +418,35 @@ export async function POST(req: NextRequest) {
       { liveTestMode }
     );
 
-    // Apply discount server-side (after tax; discount reduces the final total)
+    // Apply the code server-side (after tax). Percentage discount OR fixed-amount gift card.
     const discountAmountCents = discountDef
       ? calcDiscountAmount(priceBreakdown.total, discountDef.percentage)
-      : 0;
+      : giftCard
+        ? calcGiftCardApplied(giftCard.amount_cents, priceBreakdown.total)
+        : 0;
     const totalAfterDiscount = priceBreakdown.total - discountAmountCents;
 
-    // Deposit split: 50% of discounted total
-    const depositAmount = Math.round(totalAfterDiscount / 2);
-    const remainingBalanceAmount = totalAfterDiscount - depositAmount;
+    // Deposit split: 50% of the discounted total. Stripe rejects charges under $0.50,
+    // so when a code (gift card / high % discount) leaves a remainder whose 50% deposit
+    // would be sub-minimum, treat the booking as fully covered and waive the tiny
+    // remainder rather than failing checkout. (Fully covered, totalAfterDiscount<=0,
+    // also routes here — no Stripe charge at all.)
+    const STRIPE_MIN_CENTS = 50;
+    const provisionalDeposit = Math.round(totalAfterDiscount / 2);
+    const isFreeBooking = totalAfterDiscount <= 0 || provisionalDeposit < STRIPE_MIN_CENTS;
+
+    // Code metadata for persistence (a gift card has no percentage).
+    const codeValue = discountDef?.code ?? giftCard?.code ?? null;
+    const codeLabel = discountDef?.label ?? (giftCard ? GIFT_CARD_LABEL : null);
+    const hasCode = Boolean(discountDef || giftCard);
+
+    const depositAmount = isFreeBooking ? 0 : provisionalDeposit;
+    const remainingBalanceAmount = isFreeBooking ? 0 : totalAfterDiscount - depositAmount;
     const remainingBalanceDueAt = calcRemainingBalanceDueAt(state.date);
 
-    // ── Stripe Customer ───────────────────────────────────────────────────────
-    // Upsert our Supabase customer record, then get/create a Stripe customer
+    // ── Customer ──────────────────────────────────────────────────────────────
+    // Always upsert our Supabase customer record. A Stripe customer is only needed
+    // when money will be charged — skip it for fully gift-card-covered bookings.
     const { data: customerData, error: customerError } = await supabase
       .from('customers')
       .upsert(
@@ -431,22 +465,24 @@ export async function POST(req: NextRequest) {
 
     const customerRecord = customerData as { id: string; stripe_customer_id: string | null };
 
-    // Get existing Stripe customer or create a new one
-    let stripeCustomerId = customerRecord.stripe_customer_id ?? null;
-    if (stripeCustomerId) {
-      // Verify it still exists (could have been deleted in Stripe dashboard)
-      const existing = await getStripeCustomer(stripeCustomerId);
-      if (!existing) stripeCustomerId = null;
-    }
-
-    if (!stripeCustomerId) {
-      const newCustomer = await createStripeCustomer(state.customer.name, state.customer.email);
-      stripeCustomerId = newCustomer.id;
-      // Persist back to Supabase customer record
-      await supabase
-        .from('customers')
-        .update({ stripe_customer_id: stripeCustomerId })
-        .eq('id', customerRecord.id);
+    let stripeCustomerId: string | null = null;
+    if (!isFreeBooking) {
+      // Get existing Stripe customer or create a new one
+      stripeCustomerId = customerRecord.stripe_customer_id ?? null;
+      if (stripeCustomerId) {
+        // Verify it still exists (could have been deleted in Stripe dashboard)
+        const existing = await getStripeCustomer(stripeCustomerId);
+        if (!existing) stripeCustomerId = null;
+      }
+      if (!stripeCustomerId) {
+        const newCustomer = await createStripeCustomer(state.customer.name, state.customer.email);
+        stripeCustomerId = newCustomer.id;
+        // Persist back to Supabase customer record
+        await supabase
+          .from('customers')
+          .update({ stripe_customer_id: stripeCustomerId })
+          .eq('id', customerRecord.id);
+      }
     }
 
     // ── Tour lookup ───────────────────────────────────────────────────────────
@@ -484,13 +520,14 @@ export async function POST(req: NextRequest) {
         base_price: priceBreakdown.base_price,
         addons_price: priceBreakdown.addons_price,
         total_price: priceBreakdown.total,
-        // Discount
-        discount_code: discountDef?.code ?? null,
-        discount_label: discountDef?.label ?? null,
+        // Discount / gift card
+        discount_code: codeValue,
+        discount_label: codeLabel,
         discount_percentage: discountDef?.percentage ?? null,
         discount_amount_cents: discountAmountCents,
-        subtotal_before_discount_cents: discountDef ? priceBreakdown.total : null,
-        total_after_discount_cents: discountDef ? totalAfterDiscount : null,
+        subtotal_before_discount_cents: hasCode ? priceBreakdown.total : null,
+        total_after_discount_cents: hasCode ? totalAfterDiscount : null,
+        gift_card_id: giftCard?.id ?? null,
         // Deposit split
         deposit_amount: depositAmount,
         remaining_balance_amount: remainingBalanceAmount,
@@ -534,6 +571,48 @@ export async function POST(req: NextRequest) {
 
     const booking = bookingData as { id: string; created_at: string };
     const appUrl = getAppUrl();
+
+    // ── Reserve the gift card atomically (now that a booking id exists) ────────
+    // reserve_gift_card flips active→reserved in one statement; [] means it was
+    // just taken/voided by someone else, so we roll back this booking.
+    if (giftCard) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: reserved, error: reserveErr } = await (supabase as any).rpc('reserve_gift_card', {
+        p_code: giftCard.code,
+        p_booking_id: booking.id,
+      });
+      const reservedOk = !reserveErr && Array.isArray(reserved) && reserved.length === 1;
+      if (!reservedOk) {
+        await supabase
+          .from('bookings')
+          .update({ status: 'cancelled', deposit_payment_status: 'cancelled', remaining_balance_status: 'cancelled' })
+          .eq('id', booking.id);
+        return NextResponse.json({ error: 'This gift card is no longer available.' }, { status: 409 });
+      }
+    }
+
+    // ── Fully-covered booking: no Stripe. Redeem the card + confirm server-side ─
+    if (isFreeBooking) {
+      if (giftCard) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).rpc('redeem_gift_card', {
+          p_booking_id: booking.id,
+          p_amount_cents: discountAmountCents,
+        });
+      }
+      await finalizeFreeBooking(booking.id);
+      return NextResponse.json({
+        free: true,
+        booking_id: booking.id,
+        confirmation_url: `${appUrl}/booking/confirmation?booking_id=${booking.id}`,
+      });
+    }
+
+    // Paid path: a Stripe customer must exist here (created above when !isFreeBooking).
+    if (!stripeCustomerId) {
+      console.error('[checkout] Missing Stripe customer for paid checkout');
+      return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
+    }
 
     // ── Create Stripe Checkout Session ────────────────────────────────────────
     const session = await createCheckoutSession({

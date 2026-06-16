@@ -4,13 +4,7 @@ import { useBooking } from '@/context/BookingContext';
 import type { Addons, BikeRental, DurationHours, TrailType, AdditionalParticipant } from '@/types/booking';
 import { getPriceLineItems, formatPrice, calculatePriceBreakdown } from '@/lib/pricing';
 import { Separator } from '@/components/ui/separator';
-
-interface AppliedDiscount {
-  code: string;
-  label: string;
-  percentage: number;
-  partner_id: string | null;
-}
+import { type AppliedCode, appliedReductionCents } from '@/lib/discounts';
 
 interface PriceSummaryProps {
   bikeRental?: BikeRental;
@@ -18,7 +12,7 @@ interface PriceSummaryProps {
   addons?: Addons;
   trailType?: TrailType;
   additionalParticipants?: AdditionalParticipant[];
-  appliedDiscount?: AppliedDiscount | null;
+  appliedDiscount?: AppliedCode | null;
 }
 
 export function PriceSummary({
@@ -56,8 +50,8 @@ export function PriceSummary({
   );
 
   const discount = appliedDiscount ?? null;
-  const discountAmount = discount ? Math.floor((breakdown.total * discount.percentage) / 100) : 0;
-  const displayTotal = discount ? breakdown.total - discountAmount : breakdown.total;
+  const discountAmount = appliedReductionCents(discount, breakdown.total);
+  const displayTotal = breakdown.total - discountAmount;
 
   return (
     <div className="bg-card border border-border rounded-lg p-4">
@@ -76,7 +70,7 @@ export function PriceSummary({
         ))}
         {discount && (
           <div className="flex justify-between text-sm text-green-700 dark:text-green-400">
-            <span>{discount.label} ({discount.percentage}%)</span>
+            <span>{discount.label}{discount.type === 'discount' && discount.percentage != null ? ` (${discount.percentage}%)` : ''}</span>
             <span>-{formatPrice(discountAmount)}</span>
           </div>
         )}

@@ -28,6 +28,8 @@ export function ReferralsClient({ initialPartners }: Props) {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   const handleNameChange = (name: string) => {
     setForm((prev) => ({
@@ -85,6 +87,23 @@ export function ReferralsClient({ initialPartners }: Props) {
       }
     } finally {
       setToggling(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeleting(id);
+    try {
+      const res = await fetch('/api/admin/referral-partners', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setPartners((prev) => prev.filter((p) => p.id !== id));
+      }
+    } finally {
+      setDeleting(null);
+      setConfirmingDelete(null);
     }
   };
 
@@ -202,17 +221,48 @@ export function ReferralsClient({ initialPartners }: Props) {
                   </td>
                   <td className="px-5 py-3 max-w-[200px] truncate text-xs text-muted-foreground">{partner.notes ?? '—'}</td>
                   <td className="px-5 py-3">
-                    <button
-                      onClick={() => handleToggle(partner.id, partner.active)}
-                      disabled={toggling === partner.id}
-                      className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                        partner.active
-                          ? 'border-border text-muted-foreground hover:border-red-500/40 hover:text-red-400'
-                          : 'border-border text-muted-foreground hover:border-green-500/40 hover:text-green-400'
-                      }`}
-                    >
-                      {toggling === partner.id ? '...' : partner.active ? 'Deactivate' : 'Activate'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleToggle(partner.id, partner.active)}
+                        disabled={toggling === partner.id || deleting === partner.id}
+                        className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                          partner.active
+                            ? 'border-border text-muted-foreground hover:border-red-500/40 hover:text-red-400'
+                            : 'border-border text-muted-foreground hover:border-green-500/40 hover:text-green-400'
+                        }`}
+                      >
+                        {toggling === partner.id ? '...' : partner.active ? 'Deactivate' : 'Activate'}
+                      </button>
+
+                      {/* Delete — only for inactive partners (deactivate first) */}
+                      {!partner.active && (
+                        confirmingDelete === partner.id ? (
+                          <span className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDelete(partner.id)}
+                              disabled={deleting === partner.id}
+                              className="rounded-xl border border-red-500/40 bg-red-500/12 px-2.5 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                            >
+                              {deleting === partner.id ? '...' : 'Confirm delete'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmingDelete(null)}
+                              disabled={deleting === partner.id}
+                              className="rounded-xl border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmingDelete(partner.id)}
+                            className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-red-500/40 hover:text-red-400"
+                          >
+                            Delete
+                          </button>
+                        )
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

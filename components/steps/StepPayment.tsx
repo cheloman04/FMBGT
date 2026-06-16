@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PriceSummary } from '@/components/PriceSummary';
 import { formatPrice } from '@/lib/pricing';
+import { type AppliedCode, appliedReductionCents } from '@/lib/discounts';
 import { formatFloridaCalendarDate } from '@/lib/display-time';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { track, getAcquisitionContext } from '@/lib/analytics';
@@ -14,13 +15,6 @@ import { track, getAcquisitionContext } from '@/lib/analytics';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const HEARD_OPTIONS = ['Facebook', 'Instagram', 'YouTube', 'Google', 'ChatGPT'] as const;
-
-interface AppliedDiscount {
-  code: string;
-  label: string;
-  percentage: number;
-  partner_id: string | null;
-}
 
 function formatDueDate(tourDateStr: string): string {
   const [y, m, d] = tourDateStr.split('-').map(Number) as [number, number, number];
@@ -52,7 +46,7 @@ export function StepPayment() {
 
   // Discount state
   const [discountInput, setDiscountInput] = useState<string>(state.discount_code ?? '');
-  const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<AppliedCode | null>(null);
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [discountValidating, setDiscountValidating] = useState(false);
 
@@ -83,7 +77,15 @@ export function StepPayment() {
       });
       const data = await res.json();
       if (data.valid) {
-        setAppliedDiscount({ code: data.code, label: data.label, percentage: data.percentage, partner_id: data.partner_id ?? null });
+        setAppliedDiscount({
+          type: data.type === 'gift_card' ? 'gift_card' : 'discount',
+          code: data.code,
+          label: data.label,
+          percentage: data.percentage,
+          partner_id: data.partner_id ?? null,
+          amount_cents: data.amount_cents,
+          gift_card_id: data.gift_card_id ?? null,
+        });
         setDiscountInput(data.code);
       } else {
         setDiscountError(data.error ?? 'Invalid discount code.');
@@ -169,7 +171,8 @@ export function StepPayment() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to create checkout session');
 
-      window.location.href = data.checkout_url;
+      // Fully gift-card-covered bookings skip Stripe and confirm immediately.
+      window.location.href = data.free && data.confirmation_url ? data.confirmation_url : data.checkout_url;
     } catch (err) {
       setApiError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
       setLoading(false);
@@ -180,12 +183,13 @@ export function StepPayment() {
   const subtotal = priceBreakdown?.subtotal ?? 0;
   const taxAmount = priceBreakdown?.tax_amount ?? 0;
   const baseTotal = priceBreakdown?.total ?? 0;
-  const estimatedDiscountAmount = appliedDiscount
-    ? Math.floor((baseTotal * appliedDiscount.percentage) / 100)
-    : 0;
-  const total = appliedDiscount ? baseTotal - estimatedDiscountAmount : baseTotal;
-  const depositAmount = Math.round(total / 2);
-  const remainingBalance = total - depositAmount;
+  const estimatedDiscountAmount = appliedReductionCents(appliedDiscount, baseTotal);
+  const total = baseTotal - estimatedDiscountAmount;
+  // Mirror the server: a sub-$0.50 deposit can't be charged via Stripe, so such a
+  // booking is treated as fully covered (free) and the remainder is waived.
+  const isFreeBooking = baseTotal > 0 && Math.round(total / 2) < 50;
+  const depositAmount = isFreeBooking ? 0 : Math.round(total / 2);
+  const remainingBalance = isFreeBooking ? 0 : total - depositAmount;
   const participantCount = state.participant_count ?? 1;
   const dueDateLabel = state.date ? formatDueDate(state.date) : 'the day before your tour';
 
@@ -205,7 +209,9 @@ export function StepPayment() {
           </p>
         )}
         <p className="text-sm font-semibold text-green-800 dark:text-green-300">
-          50% deposit due today - remaining balance charged automatically
+          {isFreeBooking
+            ? 'Fully covered by your gift card — nothing due today'
+            : '50% deposit due today - remaining balance charged automatically'}
         </p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-sm">
           <span className="text-muted-foreground">Due now (50% deposit):</span>
@@ -230,10 +236,12 @@ export function StepPayment() {
             Includes {formatPrice(taxAmount)} in Florida state tax on a subtotal of {formatPrice(subtotal)}.
           </p>
         )}
-        <p className="border-t border-green-200 pt-1 text-xs text-green-700 dark:border-green-800 dark:text-green-400">
-          By completing checkout you authorize Florida Mountain Bike Guides LLC to charge
-          the remaining {formatPrice(remainingBalance)} to your saved card on {dueDateLabel}.
-        </p>
+        {!isFreeBooking && (
+          <p className="border-t border-green-200 pt-1 text-xs text-green-700 dark:border-green-800 dark:text-green-400">
+            By completing checkout you authorize Florida Mountain Bike Guides LLC to charge
+            the remaining {formatPrice(remainingBalance)} to your saved card on {dueDateLabel}.
+          </p>
+        )}
       </div>
 
       <div className="grid items-start gap-6 md:grid-cols-2">
@@ -289,7 +297,11 @@ export function StepPayment() {
               <div className="mt-1 flex items-center justify-between rounded-md border border-green-300 bg-green-50 px-3 py-2 dark:border-green-700 dark:bg-green-950/30">
                 <div>
                   <p className="text-sm font-semibold text-green-800 dark:text-green-300">{appliedDiscount.code}</p>
-                  <p className="text-xs text-green-700 dark:text-green-400">{appliedDiscount.label} — {appliedDiscount.percentage}% off</p>
+                  <p className="text-xs text-green-700 dark:text-green-400">
+                    {appliedDiscount.type === 'gift_card'
+                      ? `${appliedDiscount.label} — ${formatPrice(appliedDiscount.amount_cents ?? 0)} applied`
+                      : `${appliedDiscount.label} — ${appliedDiscount.percentage}% off`}
+                  </p>
                 </div>
                 <button type="button" onClick={handleRemoveDiscount} className="text-xs text-muted-foreground hover:text-destructive">Remove</button>
               </div>
@@ -336,7 +348,7 @@ export function StepPayment() {
                   <span className="text-foreground">{formatPrice(baseTotal)}</span>
                 </div>
                 <div className="flex justify-between text-green-700 dark:text-green-400">
-                  <span>{appliedDiscount.label} ({appliedDiscount.percentage}%)</span>
+                  <span>{appliedDiscount.label}{appliedDiscount.type === 'discount' && appliedDiscount.percentage != null ? ` (${appliedDiscount.percentage}%)` : ''}</span>
                   <span>-{formatPrice(estimatedDiscountAmount)}</span>
                 </div>
               </>
@@ -414,11 +426,15 @@ export function StepPayment() {
             className="w-full bg-green-600 text-white hover:bg-green-700"
             size="lg"
           >
-            {loading ? 'Redirecting to checkout...' : `Pay ${formatPrice(depositAmount)} Deposit Securely ->`}
+            {loading
+              ? (isFreeBooking ? 'Confirming...' : 'Redirecting to checkout...')
+              : (isFreeBooking ? 'Complete Free Booking ->' : `Pay ${formatPrice(depositAmount)} Deposit Securely ->`)}
           </Button>
 
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Stripe secures your payment. Your card is saved for the automatic balance charge on {dueDateLabel}.
+            {isFreeBooking
+              ? 'Your gift card covers this booking in full — no card required.'
+              : `Stripe secures your payment. Your card is saved for the automatic balance charge on ${dueDateLabel}.`}
           </p>
         </div>
       </div>

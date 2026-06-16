@@ -233,11 +233,18 @@ export async function confirmLeadSessionAbandoned(input: {
     return false;
   }
 
-  if (session?.status === 'abandoned') {
-    if (session.abandoned_alert_sent_at) {
-      return false;
-    }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: alertCheck } = await (supabase as any)
+    .from('leads')
+    .select('dustin_alert_sent_at')
+    .eq('id', input.leadId)
+    .single();
 
+  if (alertCheck?.dustin_alert_sent_at) {
+    return false;
+  }
+
+  if (session?.status === 'abandoned') {
     const notified = await notifyDustinLeadAlert({
       lead_id: lead.id,
       full_name: lead.full_name,
@@ -253,13 +260,10 @@ export async function confirmLeadSessionAbandoned(input: {
     if (notified) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
-        .from('lead_booking_sessions')
-        .update({
-          abandoned_alert_sent_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', input.sessionId)
-        .is('abandoned_alert_sent_at', null);
+        .from('leads')
+        .update({ dustin_alert_sent_at: new Date().toISOString() })
+        .eq('id', input.leadId)
+        .is('dustin_alert_sent_at', null);
     }
 
     return notified;
@@ -310,13 +314,10 @@ export async function confirmLeadSessionAbandoned(input: {
   if (notified) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
-      .from('lead_booking_sessions')
-      .update({
-        abandoned_alert_sent_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', input.sessionId)
-      .is('abandoned_alert_sent_at', null);
+      .from('leads')
+      .update({ dustin_alert_sent_at: new Date().toISOString() })
+      .eq('id', input.leadId)
+      .is('dustin_alert_sent_at', null);
   }
 
   console.log(`[lead-session] Session ${input.sessionId} marked abandoned via ${input.reason}.`);

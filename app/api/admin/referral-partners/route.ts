@@ -18,6 +18,10 @@ const UpdateSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
+const DeleteSchema = z.object({
+  id: z.string().uuid(),
+});
+
 // GET — list all referral partners
 export async function GET() {
   try {
@@ -118,6 +122,46 @@ export async function PATCH(req: NextRequest) {
   } catch (err) {
     console.error('[referral-partners PATCH]', err);
     return NextResponse.json({ error: 'Failed to update referral partner' }, { status: 500 });
+  }
+}
+
+// DELETE — permanently remove an INACTIVE referral partner (hygiene)
+export async function DELETE(req: NextRequest) {
+  try {
+    await requireAdminUser();
+    const body = await req.json();
+    const parsed = DeleteSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid data', details: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const supabase = getSupabaseAdmin();
+
+    // Safeguard: only inactive partners may be deleted. Deactivate first.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing, error: fetchErr } = await (supabase as any)
+      .from('referral_partners')
+      .select('id, active')
+      .eq('id', parsed.data.id)
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+    if (!existing) return NextResponse.json({ error: 'Partner not found' }, { status: 404 });
+    if (existing.active) {
+      return NextResponse.json({ error: 'Deactivate the partner before deleting it.' }, { status: 409 });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from('referral_partners')
+      .delete()
+      .eq('id', parsed.data.id);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true, id: parsed.data.id });
+  } catch (err) {
+    console.error('[referral-partners DELETE]', err);
+    return NextResponse.json({ error: 'Failed to delete referral partner' }, { status: 500 });
   }
 }
 

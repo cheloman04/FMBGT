@@ -184,6 +184,22 @@ export async function POST(req: NextRequest) {
           throw updateError;
         }
 
+        // Redeem a gift card that partially funded this booking (single-use).
+        // Idempotent: redeem_gift_card only matches a still-'reserved' card.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: giftRow } = await (supabase as any)
+          .from('bookings')
+          .select('gift_card_id, discount_amount_cents')
+          .eq('id', bookingId)
+          .maybeSingle();
+        if (giftRow?.gift_card_id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any)
+            .rpc('redeem_gift_card', { p_booking_id: bookingId, p_amount_cents: giftRow.discount_amount_cents ?? 0 })
+            .then(() => {})
+            .catch((e: unknown) => console.error('[stripe-webhook] gift card redeem failed:', (e as Error).message));
+        }
+
         // Override zip_code with Stripe billing postal code if available
         const stripePostalCode = (session as { customer_details?: { address?: { postal_code?: string } } })
           .customer_details?.address?.postal_code;
@@ -871,6 +887,13 @@ export async function POST(req: NextRequest) {
           console.error(`[stripe-webhook] Failed to cancel booking ${bookingId}:`, updateError);
           throw updateError;
         }
+
+        // Release any gift card held for this abandoned checkout back to 'active'.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .rpc('release_gift_card', { p_booking_id: bookingId })
+          .then(() => {})
+          .catch(() => {});
 
         if (expiredLeadId && expiredSessionId) {
           await confirmLeadSessionAbandoned({
