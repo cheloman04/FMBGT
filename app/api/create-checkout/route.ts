@@ -20,6 +20,7 @@ import {
   getEventSourceUrlFromHeaders,
   sendMetaEvent,
 } from '@/lib/meta-capi';
+import { parseGaClientId, parseGaSessionId, gaSessionCookieName } from '@/lib/analytics';
 
 const AdditionalParticipantSchema = z.object({
   name: z.string().min(1),
@@ -252,6 +253,12 @@ export async function POST(req: NextRequest) {
     const eventSourceUrl = getEventSourceUrlFromHeaders(req.headers);
     const fbc = req.cookies.get('_fbc')?.value ?? req.cookies.get('fbc')?.value ?? null;
     const fbp = req.cookies.get('_fbp')?.value ?? req.cookies.get('fbp')?.value ?? null;
+    // GA4 client identity — parsed from the same first-party cookies gtag sets and
+    // sends on this same-origin request, so the cookie-less server-side GA4
+    // Measurement Protocol purchase can replay the real session and attribute the
+    // conversion to its true source instead of (direct). Mirrors fbc/fbp above (gap A).
+    const gaClientId = parseGaClientId(req.cookies.get('_ga')?.value);
+    const gaSessionId = parseGaSessionId(req.cookies.get(gaSessionCookieName())?.value);
 
     // Validate participant count
     const maxParticipants = state.trail_type === 'paved'
@@ -550,6 +557,8 @@ export async function POST(req: NextRequest) {
           ...(clientUserAgent ? { meta_client_user_agent: clientUserAgent } : {}),
           ...(fbc ? { meta_fbc: fbc } : {}),
           ...(fbp ? { meta_fbp: fbp } : {}),
+          ...(gaClientId ? { ga_client_id: gaClientId } : {}),
+          ...(gaSessionId ? { ga_session_id: gaSessionId } : {}),
           ...(liveTestMode ? { live_test_mode: true, live_test_total: PRICING.LIVE_TEST_TOTAL } : {}),
         },
       })

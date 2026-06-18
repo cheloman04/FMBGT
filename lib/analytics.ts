@@ -159,6 +159,43 @@ export function getAcquisitionContext(): AcquisitionContext {
   }
 }
 
+// ─── GA4 client identity (server-side MP stitching) ─────────────────────────────────
+// The GA4 `_ga` / `_ga_<stream>` cookies carry the real client_id + session_id that
+// gtag uses to sessionize the browser. We persist these on the booking's attribution
+// snapshot (alongside meta_fbc/meta_fbp) so the cookie-less server-side conversion
+// (Stripe webhook → GA4 Measurement Protocol) can REPLAY them and attribute the
+// purchase to the originating session/campaign instead of (direct). These parsers are
+// pure (no window/cookie access) so the server route can run them on the raw cookie
+// values it reads from the request — mirroring how it already reads `_fbc`/`_fbp`.
+
+/** GA4 measurement ID — mirrors the value wired in app/layout.tsx. */
+export const GA4_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-SMP4GWTYJW';
+
+/** Name of the GA4 session cookie: `_ga_<container>`, container = measurement id minus "G-". */
+export function gaSessionCookieName(measurementId: string = GA4_MEASUREMENT_ID): string {
+  return `_ga_${measurementId.replace(/^G-/, '')}`;
+}
+
+/**
+ * Extract the GA4 client_id from the raw `_ga` cookie value.
+ * Format: `GA1.1.<clientId>.<firstVisitTs>` → returns `<clientId>.<firstVisitTs>`.
+ */
+export function parseGaClientId(rawGaCookie: string | null | undefined): string | null {
+  if (!rawGaCookie) return null;
+  const parts = rawGaCookie.split('.');
+  if (parts.length < 4) return null;
+  return `${parts[parts.length - 2]}.${parts[parts.length - 1]}`;
+}
+
+/**
+ * Extract the GA4 session_id from the raw `_ga_<stream>` cookie value.
+ * Format: `GS1.1.<sessionId>.<n>…` (or `GS2.1.<sessionId>.…`) → returns `<sessionId>`.
+ */
+export function parseGaSessionId(rawGaStreamCookie: string | null | undefined): string | null {
+  if (!rawGaStreamCookie) return null;
+  return rawGaStreamCookie.split('.')[2] || null;
+}
+
 // ─── Adapter Interface ────────────────────────────────────────────────────────────
 
 interface AnalyticsAdapter {
@@ -197,6 +234,9 @@ function buildPayload(params?: TrackingParams): Record<string, unknown> {
     tenant_name: TENANT_CONFIG.tenant_name,
     app_name: TENANT_CONFIG.app_name,
     funnel_name: TENANT_CONFIG.funnel_name,
+    // Senzai dictionary §8 behavioral param — the current URL path, attached to
+    // every behavioral event so reports can segment by page. (callers may override)
+    ...(typeof window !== 'undefined' ? { page_path: window.location.pathname } : {}),
     ...params,
   };
   for (const key of Object.keys(payload)) {
@@ -261,11 +301,15 @@ export function trackPurchase(params: PurchaseParams): void {
     });
   }
 
+  // Behavioral mirror of the purchase. Gap F: do NOT send `value`/`currency` here —
+  // the `purchase` event above is the single revenue line. booking_completed fires at
+  // the same moment with the same booking, so carrying `value` would double-count the
+  // revenue in any exploration that sums "Event value" across events. Keep it as a
+  // funnel-completion signal only (transaction_id stays for joinability, not revenue).
   track('booking_completed', {
+    funnel_step: 'booking_completed',
     transaction_id: params.transaction_id,
     booking_id: params.booking_id,
-    value: params.value,
-    currency: params.currency,
     trail_type: params.trail_type,
     location_name: params.location_name,
     marketing_source: params.marketing_source,
@@ -301,7 +345,13 @@ export function trackBookingStart(source: string): void {
 }
 
 export function trackBookingStepComplete(stepNumber: number, stepName: string): void {
-  track('booking_step_completed', { booking_step_number: stepNumber, booking_step_name: stepName });
+  // Senzai dictionary §8: funnel_step is the canonical dimension the funnel
+  // exploration breaks down on (booking_step_* kept for backward-compat).
+  track('booking_step_completed', {
+    funnel_step: stepName,
+    booking_step_number: stepNumber,
+    booking_step_name: stepName,
+  });
 }
 
 export function trackBookingCompleted(params: {
@@ -310,12 +360,14 @@ export function trackBookingCompleted(params: {
   revenue?: number;
   transactionId?: string;
 }): void {
+  // Gap F: revenue belongs only on the `purchase` event (see trackPurchase).
+  // `revenue` is intentionally not forwarded here so booking_completed is never
+  // summed as a second revenue line.
   track('booking_completed', {
+    funnel_step: 'booking_completed',
     trail_type: params.tourType,
     participant_count: params.riderCount,
-    value: params.revenue,
     transaction_id: params.transactionId,
-    currency: 'USD',
   });
 }
 

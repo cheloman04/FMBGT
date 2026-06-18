@@ -1011,6 +1011,7 @@ Future clients should categorize environment variables by responsibility.
 ### Tracking and analytics
 
 - `NEXT_PUBLIC_GA_MEASUREMENT_ID` — GA4 measurement ID
+- `GA4_API_SECRET` — GA4 Measurement Protocol API secret; enables the server-side GA4 `purchase` from the Stripe webhook (`lib/ga4-mp.ts`). Without it the server purchase is skipped (browser-only, lossy). Create at GA4 Admin → Data Streams → (web stream) → Measurement Protocol API secrets.
 - `NEXT_PUBLIC_GTM_ID` — GTM container ID if tag manager is used
 - `NEXT_PUBLIC_META_PIXEL_ID` — Meta Pixel ID if Meta is an active acquisition channel
 - `GOOGLE_ADS_CONVERSION_ID` — Google Ads conversion sync if implemented
@@ -2103,6 +2104,7 @@ Server-side Google Tag Manager or equivalent server-side event pipelines should 
 The following env vars should be added to the tracking category:
 
 - `NEXT_PUBLIC_GA_MEASUREMENT_ID` — GA4 measurement ID
+- `GA4_API_SECRET` — GA4 Measurement Protocol API secret (server-side GA4 `purchase` from the Stripe webhook)
 - `NEXT_PUBLIC_GTM_ID` — GTM container ID if used
 - `NEXT_PUBLIC_META_PIXEL_ID` — Meta Pixel ID if applicable
 - `GOOGLE_ADS_CONVERSION_ID` — server-side conversion sync if implemented

@@ -349,6 +349,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     if (direction === 'forward') {
       const prevIndex = activeSteps.findIndex((s) => s.id === prevStep);
       track('booking_step_completed', {
+        funnel_step: prevStep,
         booking_step_name: prevStep,
         booking_step_number: prevIndex + 1,
         booking_flow_variant: getFlowVariant(state),
