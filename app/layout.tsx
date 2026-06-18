@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ['latin'] });
 // GTM_ID is read at build/request time from env.
 // Set NEXT_PUBLIC_GTM_ID=GTM-XXXXXXX in .env.local (or Vercel env vars).
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID;
-const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-CFPS9G0HHJ';
+const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-SMP4GWTYJW';
 const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? process.env.META_PIXEL_ID;
 
 export const metadata: Metadata = {

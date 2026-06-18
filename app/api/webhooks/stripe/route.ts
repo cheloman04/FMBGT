@@ -12,6 +12,7 @@ import { sendSenzaiEvent } from '@/lib/senzai-ingest';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { notifySupportAlert, triggerN8nEvent, type N8nWebhookResult } from '@/lib/n8n';
 import { buildMetaUserData, sendMetaEvent } from '@/lib/meta-capi';
+import { sendGa4Event, syntheticGaClientId } from '@/lib/ga4-mp';
 
 type WebhookAttemptResult = N8nWebhookResult;
 
@@ -255,7 +256,7 @@ export async function POST(req: NextRequest) {
         // Fetch full booking for Cal.com + n8n
         const { data: confirmedBooking } = await supabase
           .from('bookings')
-          .select('date, time_slot, duration_hours, participant_count, participant_info, trail_type, skill_level, deposit_amount, remaining_balance_amount, remaining_balance_due_at')
+          .select('date, time_slot, duration_hours, participant_count, participant_info, trail_type, skill_level, total_price, deposit_amount, remaining_balance_amount, remaining_balance_due_at')
           .eq('id', bookingId)
           .single();
 
@@ -426,6 +427,52 @@ export async function POST(req: NextRequest) {
               },
             },
           ],
+        });
+
+        // GA4 server-side `purchase` — mirrors the Meta CAPI Purchase above and the
+        // browser gtag purchase on the confirmation page. Backstops the lossy case
+        // where the browser never reaches confirmation (closed tab, failed redirect,
+        // ad-blocker): without this, those paid bookings are invisible to GA4 / Google Ads.
+        //
+        //  - transaction_id = bookingId → GA4 auto-dedups against the browser purchase
+        //    (same id), so this never double-counts; whichever beacon lands first wins.
+        //  - value mirrors the browser (booking.total_price) so reported revenue is the
+        //    same regardless of which beacon wins the dedup race.
+        //  - client_id / session_id are replayed from the attribution snapshot so the
+        //    conversion attributes to the real session instead of (direct).
+        //
+        // Unlike Meta (a Purchase for the deposit here AND one for the remaining balance
+        // in payment_intent.succeeded), GA4 fires ONE purchase for the full booking value
+        // here: GA4 dedups purchases by transaction_id, so a second event with the same id
+        // is dropped, not summed — hence no GA4 purchase in the remaining-balance handler.
+        const ga4ClientId =
+          getStringAttributionValue(attributionSnapshot, 'ga_client_id') ??
+          syntheticGaClientId(bookingId);
+        const ga4SessionId = getStringAttributionValue(attributionSnapshot, 'ga_session_id');
+        const ga4PurchaseValueDollars = Number(
+          (((confirmedBooking?.total_price ?? session.amount_total ?? depositCents) || 0) / 100).toFixed(2)
+        );
+        const ga4TrailLabel =
+          confirmedBooking?.trail_type === 'mtb' ? 'MTB Trail Guided Tour' : 'Paved Trail Guided Tour';
+        await sendGa4Event({
+          clientId: ga4ClientId,
+          sessionId: ga4SessionId,
+          name: 'purchase',
+          params: {
+            transaction_id: bookingId,
+            currency: 'USD',
+            value: ga4PurchaseValueDollars,
+            booking_id: bookingId,
+            items: [
+              {
+                item_id: bookingId,
+                item_name: locationName ? `${ga4TrailLabel} — ${locationName}` : ga4TrailLabel,
+                item_category: confirmedBooking?.trail_type === 'mtb' ? 'MTB Tour' : 'Paved Trail Tour',
+                price: ga4PurchaseValueDollars,
+                quantity: confirmedBooking?.participant_count ?? 1,
+              },
+            ],
+          },
         });
 
         await sendSenzaiEvent({
@@ -678,6 +725,11 @@ export async function POST(req: NextRequest) {
         // Use the succeeded PaymentIntent ID as event_id so each collected payment
         // has one stable Meta dedupe key even if Stripe replays the webhook.
         const metaEventId = pi.id;
+
+        // NOTE: no GA4 purchase here by design. GA4 dedups purchases by transaction_id
+        // (= bookingId), and the full-value GA4 purchase already fired at deposit
+        // confirmation (checkout.session.completed). A second GA4 purchase for the same
+        // booking would be dropped, not summed — Meta needs both halves, GA4 does not.
 
         await sendMetaEvent({
           data: [

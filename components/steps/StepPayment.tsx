@@ -124,6 +124,7 @@ export function StepPayment() {
 
     const acq = getAcquisitionContext();
     track('checkout_started', {
+      funnel_step: 'checkout',
       trail_type: state.trail_type,
       location_name: state.location_name,
       participant_count: state.participant_count,

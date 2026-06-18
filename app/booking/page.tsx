@@ -59,6 +59,7 @@ export default function BookingPage() {
     if (!mounted) return;
     const acq = captureAcquisitionContext();
     track('booking_started', {
+      funnel_step: currentStepId,
       booking_step_name: currentStepId,
       trail_type: state.trail_type,
       traffic_source: acq.traffic_source,
