@@ -684,6 +684,7 @@ export async function POST(req: NextRequest) {
           entity_id: pi.id,
           refs: {
             booking_id: bookingId,
+            lead_id: existingBooking.lead_id ?? null,
             stripe_event_id: event.id,
             payment_intent_id: pi.id,
           },
@@ -787,7 +788,7 @@ export async function POST(req: NextRequest) {
 
         const { data: existingBooking } = await supabase
           .from('bookings')
-          .select('id')
+          .select('id, lead_id')
           .eq('id', bookingId)
           .maybeSingle();
 
@@ -858,6 +859,7 @@ export async function POST(req: NextRequest) {
           entity_id: pi.id,
           refs: {
             booking_id: bookingId,
+            lead_id: existingBooking.lead_id ?? null,
             stripe_event_id: event.id,
             payment_intent_id: pi.id,
           },
@@ -983,7 +985,7 @@ export async function POST(req: NextRequest) {
 
         const { data: matchingRefundBookings, error: refundLookupErr } = await supabase
           .from('bookings')
-          .select('id')
+          .select('id, lead_id')
           .or(`stripe_payment_intent_id.eq.${paymentIntentId},remaining_balance_payment_intent_id.eq.${paymentIntentId}`);
 
         if (refundLookupErr) {
@@ -992,6 +994,12 @@ export async function POST(req: NextRequest) {
 
         const refundedBookingIds = (matchingRefundBookings ?? []).map((row) => row.id);
         const refundedBookingId = refundedBookingIds.length === 1 ? refundedBookingIds[0] : null;
+        // Only carry a lead_id when the refund maps to exactly one booking; a 0/many
+        // match is ambiguous, so leave it null rather than guess an attribution.
+        const refundedLeadId =
+          (matchingRefundBookings ?? []).length === 1
+            ? (matchingRefundBookings![0] as { lead_id: string | null }).lead_id ?? null
+            : null;
 
         // Match on either deposit or remaining balance PI
         const { error: depositRefundErr } = await supabase
@@ -1015,6 +1023,7 @@ export async function POST(req: NextRequest) {
           entity_id: paymentIntentId,
           refs: {
             booking_id: refundedBookingId,
+            lead_id: refundedLeadId,
             stripe_event_id: event.id,
             payment_intent_id: paymentIntentId,
           },
