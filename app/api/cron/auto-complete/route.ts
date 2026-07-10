@@ -24,6 +24,10 @@
  *   - Reports staleBeyondLookback (confirmed tours older than the window) for
  *     visibility without acting on them.
  *
+ * Preview: call with ?dry_run=1 to list what WOULD be completed with no mutation
+ * or side effects. A dry run ignores AUTO_COMPLETE_ENABLED (preview before you
+ * opt in) but still requires auth.
+ *
  * Authorization (mirrors /api/cron/charge-remaining):
  *   Vercel Cron sends: Authorization: Bearer <CRON_SECRET>
  *   Admin / n8n:       x-admin-secret: <ADMIN_SECRET>
@@ -45,6 +49,11 @@ function isAuthorized(req: NextRequest): boolean {
   if (adminSecret && adminHeader === adminSecret) return true;
 
   return false;
+}
+
+function isDryRun(req: NextRequest): boolean {
+  const value = new URL(req.url).searchParams.get('dry_run');
+  return value === '1' || value === 'true';
 }
 
 /** Today's date as YYYY-MM-DD in the tour timezone (America/New_York). */
@@ -76,28 +85,31 @@ export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  return runAutoCompleteJob();
+  return runAutoCompleteJob(req);
 }
 
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  return runAutoCompleteJob();
+  return runAutoCompleteJob(req);
 }
 
-async function runAutoCompleteJob(): Promise<NextResponse> {
+async function runAutoCompleteJob(req: NextRequest): Promise<NextResponse> {
+  const dryRun = isDryRun(req);
   const now = new Date();
   const nowIso = now.toISOString();
 
-  if (process.env.AUTO_COMPLETE_ENABLED !== 'true') {
+  // A real run needs the opt-in flag; a dry run never mutates, so it always runs —
+  // that's the point: preview the impact before flipping AUTO_COMPLETE_ENABLED.
+  if (!dryRun && process.env.AUTO_COMPLETE_ENABLED !== 'true') {
     console.log(`[cron/auto-complete] Skipped at ${nowIso}: AUTO_COMPLETE_ENABLED is not 'true'.`);
     return NextResponse.json({
       enabled: false,
       completed: 0,
       skipped: 0,
       failed: 0,
-      note: "Set AUTO_COMPLETE_ENABLED='true' to activate auto-completion.",
+      note: "Set AUTO_COMPLETE_ENABLED='true' to activate, or call with ?dry_run=1 to preview.",
     });
   }
 
@@ -142,6 +154,38 @@ async function runAutoCompleteJob(): Promise<NextResponse> {
     console.warn(
       `[cron/auto-complete] ${candidates.length}+ candidates exceed MAX_PER_RUN=${MAX_PER_RUN}; processing ${MAX_PER_RUN} now, remainder next run.`
     );
+  }
+
+  if (dryRun) {
+    // Preview only: no status change, no n8n alert, no review enrollment, no
+    // Senzai emit. Reports the exact window total (not just the capped page).
+    const { count: windowTotal } = await supabase
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'confirmed')
+      .gte('date', lookbackDate)
+      .lt('date', today);
+    const withLead = batch.filter((b) => b.lead_id).length;
+    console.log(
+      `[cron/auto-complete] DRY RUN: ${windowTotal ?? batch.length} tour(s) in window would be completed (showing ${batch.length}; ${withLead} have lead_id).`
+    );
+    return NextResponse.json({
+      dry_run: true,
+      enabled: process.env.AUTO_COMPLETE_ENABLED === 'true',
+      window: { from: lookbackDate, to: today, lookbackDays },
+      would_complete_total: windowTotal ?? batch.length,
+      preview_count: batch.length,
+      with_lead_id_in_preview: withLead,
+      without_lead_id_in_preview: batch.length - withLead,
+      staleBeyondLookback: staleBeyondLookback ?? null,
+      candidates: batch.map((b) => ({
+        booking_id: b.id,
+        date: b.date,
+        lead_id: b.lead_id,
+        has_lead_id: Boolean(b.lead_id),
+        customer_id: b.customer_id,
+      })),
+    });
   }
 
   const results = {
