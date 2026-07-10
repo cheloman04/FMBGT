@@ -70,7 +70,7 @@ async function runChargeJob(): Promise<NextResponse> {
 
   const { data: dueBookings, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, remaining_balance_amount, stripe_customer_id, stripe_payment_method_id, date, location_id')
+    .select('id, lead_id, remaining_balance_amount, stripe_customer_id, stripe_payment_method_id, date, location_id')
     .lte('remaining_balance_due_at', now)
     .eq('remaining_balance_status', 'pending')
     .is('remaining_balance_payment_intent_id', null)
@@ -100,6 +100,7 @@ async function runChargeJob(): Promise<NextResponse> {
   for (const booking of bookings) {
     const {
       id: bookingId,
+      lead_id: leadId,
       remaining_balance_amount,
       stripe_customer_id,
       stripe_payment_method_id,
@@ -107,6 +108,7 @@ async function runChargeJob(): Promise<NextResponse> {
       location_id,
     } = booking as {
       id: string;
+      lead_id: string | null;
       remaining_balance_amount: number | null;
       stripe_customer_id: string | null;
       stripe_payment_method_id: string | null;
@@ -148,6 +150,7 @@ async function runChargeJob(): Promise<NextResponse> {
       entity_id: `${bookingId}:remaining_balance:${attemptedAt}`,
       refs: {
         booking_id: bookingId,
+        lead_id: leadId ?? null,
         stripe_session_id: null,
       },
       data: {

@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     .from('bookings')
     .select(
       `
-      id, customer_id, location_id, trail_type, skill_level, date, time_slot,
+      id, customer_id, lead_id, location_id, trail_type, skill_level, date, time_slot,
       duration_hours, bike_rental, participant_count, total_price, status
     `
     )
@@ -138,6 +138,7 @@ export async function POST(req: NextRequest) {
       entity_id: booking_id,
       refs: {
         booking_id,
+        lead_id: existingBooking.lead_id ?? null,
         customer_id: existingBooking.customer_id,
       },
       data: {
@@ -169,6 +170,7 @@ export async function POST(req: NextRequest) {
       entity_id: booking_id,
       refs: {
         booking_id,
+        lead_id: existingBooking.lead_id ?? null,
         customer_id: existingBooking.customer_id,
       },
       data: {
