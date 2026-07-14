@@ -54,5 +54,5 @@ The local `.env.local` has the expected GA4 Measurement ID. The operator confirm
 1. Migration `031_analytics_delivery_outbox.sql` was applied by the operator; validate claim/retry behavior without reapplying it blindly.
 2. Deploy the Hub adapter change that accepts deposit/balance canonical event names.
 3. Confirm the production environment-variable names are available to the deployment without printing values (the operator reports this is complete).
-4. Deploy the client code and verify the ten-minute retry cron is supported by the Vercel plan.
+4. Deploy the client code. The built-in retry cron runs daily because the current Vercel Hobby plan rejects more frequent schedules; use an authorized external scheduler or upgrade to Pro for ten-minute recovery.
 5. Exercise a test-mode deposit and balance, then reconcile Stripe amounts against GA4, Meta Events Manager, Hub ingestion events, and Hub business events.

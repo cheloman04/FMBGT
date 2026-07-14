@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/process-analytics-deliveries",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }
