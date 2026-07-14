@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { runServiceCompletionEffects, type ServiceCompletionResult } from '@/lib/complete-booking';
 
 const Schema = z.object({
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
   if (shouldEmitBookingCancelled) {
     const occurredAt = new Date().toISOString();
-    await sendSenzaiEvent({
+    await queueSenzaiEvent({
       event_name: 'booking.cancelled',
       occurred_at: occurredAt,
       source_event_id: booking_id,

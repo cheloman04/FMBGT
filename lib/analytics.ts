@@ -341,7 +341,7 @@ export function trackSocialClick(platform: string): void {
 }
 
 export function trackBookingStart(source: string): void {
-  track('cta_clicked', { cta_text: 'Book', cta_location: source, destination: '/booking' });
+  track('booking_started', { funnel_step: 'booking_started', cta_location: source });
 }
 
 export function trackBookingStepComplete(stepNumber: number, stepName: string): void {

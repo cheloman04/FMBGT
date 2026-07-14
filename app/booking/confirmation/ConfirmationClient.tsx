@@ -7,7 +7,7 @@ import { useBooking } from '@/context/BookingContext';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/pricing';
 import { formatFloridaCalendarDate } from '@/lib/display-time';
-import { track, trackPurchase } from '@/lib/analytics';
+import { track, trackBookingCompleted } from '@/lib/analytics';
 
 interface BookingDetails {
   id: string;
@@ -65,32 +65,15 @@ export function ConfirmationClient({ booking, bookingId }: Props) {
     return () => { reset(); };
   }, [reset]);
 
-  // Fire purchase + booking_completed tracking events on confirmation page load.
-  // DEDUPLICATION: trackPurchase() is session-scoped by booking_id via sessionStorage.
+  // Revenue is emitted durably from Stripe webhooks. This page records only the
+  // behavioral completion signal, so closing the browser cannot lose a purchase.
   useEffect(() => {
     if (!booking || !bookingId) return;
 
-    const trailLabel = booking.trail_type === 'mtb' ? 'MTB Trail Guided Tour' : 'Paved Trail Guided Tour';
-    const itemName = booking.location_name
-      ? `${trailLabel} — ${booking.location_name}`
-      : trailLabel;
-
-    trackPurchase({
-      transaction_id: bookingId,
-      booking_id: bookingId,
-      value: booking.total_price / 100,
-      currency: 'USD',
-      trail_type: booking.trail_type,
-      location_name: booking.location_name ?? undefined,
-      items: [
-        {
-          item_id: bookingId,
-          item_name: itemName,
-          item_category: booking.trail_type === 'mtb' ? 'MTB Tour' : 'Paved Trail Tour',
-          price: booking.total_price / 100,
-          quantity: booking.participant_count,
-        },
-      ],
+    trackBookingCompleted({
+      transactionId: bookingId,
+      tourType: booking.trail_type,
+      riderCount: booking.participant_count,
     });
   }, [booking, bookingId]);
 
@@ -191,7 +174,7 @@ export function ConfirmationClient({ booking, bookingId }: Props) {
           )}
 
           <div className="border-t border-border pt-2 mt-2 flex justify-between font-semibold">
-            <span className="text-foreground">Total Paid</span>
+            <span className="text-foreground">Booking Total</span>
             <span className="text-green-600 dark:text-green-400">{formatPrice(booking.total_price)}</span>
           </div>
 

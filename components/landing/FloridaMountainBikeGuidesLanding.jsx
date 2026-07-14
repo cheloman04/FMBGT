@@ -41,7 +41,6 @@ import {
   trackCtaClick,
   trackContactFormSubmit,
   trackSocialClick,
-  trackBookingStart,
 } from "@/lib/analytics";
 
 function FacebookIcon({ className }) {
@@ -500,7 +499,7 @@ export default function FloridaMountainBikeGuidesLanding() {
             <ThemeToggle />
             <CTAButton
               trackLocation="nav"
-              onClick={() => { trackCtaClick('Book a Guide', 'nav'); trackBookingStart('nav'); }}
+              onClick={() => trackCtaClick('Book a Guide', 'nav')}
             >Book a Guide</CTAButton>
           </div>
 
@@ -534,7 +533,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               <div className="pt-4">
                 <CTAButton
                   trackLocation="mobile_menu"
-                  onClick={() => { trackCtaClick('Book a Guide', 'mobile_menu'); trackBookingStart('mobile_menu'); }}
+                  onClick={() => trackCtaClick('Book a Guide', 'mobile_menu')}
                 >Book a Guide</CTAButton>
               </div>
             </nav>
@@ -698,7 +697,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <CTAButton
                   trackLocation="hero"
-                  onClick={() => { trackCtaClick('Book a Guide', 'hero'); trackBookingStart('hero'); }}
+                  onClick={() => trackCtaClick('Book a Guide', 'hero')}
                 >Book a Guide</CTAButton>
                 <CTAButton secondary href="#tours" trackLocation="hero"
                   onClick={() => trackCtaClick('Explore Trails', 'hero')}
@@ -1119,7 +1118,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                   href="/booking"
                   data-track="cta_click"
                   data-location="guides"
-                  onClick={() => { trackCtaClick('Book a ride', 'guides'); trackBookingStart('guides'); }}
+                  onClick={() => trackCtaClick('Book a ride', 'guides')}
                   className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[var(--lp-green)] transition hover:text-[var(--lp-green-dark)]"
                 >
                   Book a ride
@@ -1344,7 +1343,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                   href="/booking"
                   data-track="cta_click"
                   data-location="cta_banner"
-                  onClick={() => { trackCtaClick('Book a Tour', 'cta_banner'); trackBookingStart('cta_banner'); }}
+                  onClick={() => trackCtaClick('Book a Tour', 'cta_banner')}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#f7efdf] px-5 py-3 text-sm font-semibold text-[var(--lp-green-dark)] transition hover:-translate-y-0.5 hover:bg-[var(--lp-card-solid)]"
                 >
                   Book a Tour
@@ -1477,4 +1476,3 @@ export default function FloridaMountainBikeGuidesLanding() {
     </div>
   );
 }
-

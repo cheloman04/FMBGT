@@ -8,11 +8,11 @@ import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { confirmLeadSessionAbandoned, markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueGa4Event, queueMetaEvent, queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { notifySupportAlert, triggerN8nEvent, type N8nWebhookResult } from '@/lib/n8n';
-import { buildMetaUserData, sendMetaEvent } from '@/lib/meta-capi';
-import { sendGa4Event, syntheticGaClientId } from '@/lib/ga4-mp';
+import { buildMetaUserData } from '@/lib/meta-capi';
+import { syntheticGaClientId } from '@/lib/ga4-mp';
 
 type WebhookAttemptResult = N8nWebhookResult;
 
@@ -410,7 +410,7 @@ export async function POST(req: NextRequest) {
         // browser/server Purchase dedupe converge on the same completed payment.
         const metaEventId = paymentIntentId ?? event.id;
 
-        await sendMetaEvent({
+        await queueMetaEvent(`payment:${metaEventId}`, metaEventId, {
           data: [
             {
               event_name: 'Purchase',
@@ -449,17 +449,15 @@ export async function POST(req: NextRequest) {
           getStringAttributionValue(attributionSnapshot, 'ga_client_id') ??
           syntheticGaClientId(bookingId);
         const ga4SessionId = getStringAttributionValue(attributionSnapshot, 'ga_session_id');
-        const ga4PurchaseValueDollars = Number(
-          (((confirmedBooking?.total_price ?? session.amount_total ?? depositCents) || 0) / 100).toFixed(2)
-        );
+        const ga4PurchaseValueDollars = purchaseAmountDollars;
         const ga4TrailLabel =
           confirmedBooking?.trail_type === 'mtb' ? 'MTB Trail Guided Tour' : 'Paved Trail Guided Tour';
-        await sendGa4Event({
+        await queueGa4Event(`payment:${paymentIntentId ?? event.id}`, paymentIntentId ?? event.id, {
           clientId: ga4ClientId,
           sessionId: ga4SessionId,
           name: 'purchase',
           params: {
-            transaction_id: bookingId,
+            transaction_id: paymentIntentId ?? event.id,
             currency: 'USD',
             value: ga4PurchaseValueDollars,
             booking_id: bookingId,
@@ -469,21 +467,31 @@ export async function POST(req: NextRequest) {
                 item_name: locationName ? `${ga4TrailLabel} — ${locationName}` : ga4TrailLabel,
                 item_category: confirmedBooking?.trail_type === 'mtb' ? 'MTB Tour' : 'Paved Trail Tour',
                 price: ga4PurchaseValueDollars,
-                quantity: confirmedBooking?.participant_count ?? 1,
+                quantity: 1,
               },
             ],
           },
         });
 
-        await sendSenzaiEvent({
-          event_name: 'payment.succeeded',
+        await queueSenzaiEvent({
+          event_name: 'payment.deposit_succeeded',
           occurred_at: occurredAt,
           source_event_id: paymentIntentId ?? event.id,
-          idempotency_key: `stripe_event:${event.id}:payment.succeeded`,
+          idempotency_key: `stripe_payment:${paymentIntentId ?? event.id}:payment.deposit_succeeded`,
           source_route: '/api/webhooks/stripe',
           authoritative_source: 'stripe.checkout.session.completed',
           entity_type: 'payment',
           entity_id: paymentIntentId ?? event.id,
+          amount: {
+            value: session.amount_total ?? depositCents,
+            currency: (session.currency ?? 'usd').toUpperCase(),
+            unit: 'cents',
+          },
+          customer: {
+            email: customerEmail ?? undefined,
+            phone: session.metadata?.customer_phone ?? undefined,
+            name: session.metadata?.customer_name ?? undefined,
+          },
           refs: {
             booking_id: bookingId,
             lead_id: leadId ?? null,
@@ -497,7 +505,10 @@ export async function POST(req: NextRequest) {
             stripe_session_id: session.id,
             payment_intent_id: paymentIntentId,
             charge_type: 'deposit',
-            amount: depositCents,
+            amount_collected_cents: session.amount_total ?? depositCents,
+            booking_total_cents: confirmedBooking?.total_price ?? Number(session.metadata?.total_amount ?? 0),
+            deposit_amount_cents: depositCents,
+            balance_amount_cents: remainingCents,
             customer_email: customerEmail,
             customer_name: session.metadata?.customer_name ?? null,
             location_name: locationName,
@@ -506,7 +517,7 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        await sendSenzaiEvent({
+        await queueSenzaiEvent({
           event_name: 'booking.confirmed',
           occurred_at: occurredAt,
           source_event_id: bookingId,
@@ -673,15 +684,25 @@ export async function POST(req: NextRequest) {
           }
         );
 
-        await sendSenzaiEvent({
-          event_name: 'payment.succeeded',
+        await queueSenzaiEvent({
+          event_name: 'payment.remaining_balance_succeeded',
           occurred_at: new Date(event.created * 1000).toISOString(),
           source_event_id: pi.id,
-          idempotency_key: `stripe_event:${event.id}:payment.succeeded`,
+          idempotency_key: `stripe_payment:${pi.id}:payment.remaining_balance_succeeded`,
           source_route: '/api/webhooks/stripe',
           authoritative_source: 'stripe.payment_intent.succeeded',
           entity_type: 'payment',
           entity_id: pi.id,
+          amount: {
+            value: pi.amount_received || pi.amount,
+            currency: pi.currency.toUpperCase(),
+            unit: 'cents',
+          },
+          customer: {
+            email: existingBooking.customers?.email ?? undefined,
+            phone: existingBooking.customers?.phone ?? undefined,
+            name: existingBooking.customers?.name ?? undefined,
+          },
           refs: {
             booking_id: bookingId,
             lead_id: existingBooking.lead_id ?? null,
@@ -693,8 +714,9 @@ export async function POST(req: NextRequest) {
             stripe_event_id: event.id,
             payment_intent_id: pi.id,
             charge_type: 'remaining_balance',
-            amount: pi.amount,
-            currency: pi.currency,
+            amount_collected_cents: pi.amount_received || pi.amount,
+            balance_amount_cents: existingBooking.remaining_balance_amount ?? pi.amount,
+            currency: pi.currency.toUpperCase(),
           },
         });
 
@@ -727,12 +749,37 @@ export async function POST(req: NextRequest) {
         // has one stable Meta dedupe key even if Stripe replays the webhook.
         const metaEventId = pi.id;
 
-        // NOTE: no GA4 purchase here by design. GA4 dedups purchases by transaction_id
-        // (= bookingId), and the full-value GA4 purchase already fired at deposit
-        // confirmation (checkout.session.completed). A second GA4 purchase for the same
-        // booking would be dropped, not summed — Meta needs both halves, GA4 does not.
+        const remainingGa4ClientId =
+          getStringAttributionValue(existingBooking.attribution_snapshot, 'ga_client_id') ??
+          syntheticGaClientId(bookingId);
+        const remainingGa4SessionId = getStringAttributionValue(
+          existingBooking.attribution_snapshot,
+          'ga_session_id'
+        );
 
-        await sendMetaEvent({
+        await queueGa4Event(`payment:${pi.id}`, pi.id, {
+          clientId: remainingGa4ClientId,
+          sessionId: remainingGa4SessionId,
+          name: 'purchase',
+          params: {
+            transaction_id: pi.id,
+            currency: pi.currency.toUpperCase(),
+            value: remainingPurchaseAmountDollars,
+            booking_id: bookingId,
+            payment_type: 'remaining_balance',
+            items: [
+              {
+                item_id: `${bookingId}:remaining_balance`,
+                item_name: `Remaining balance — ${remainingBalanceLocationName}`,
+                item_category: 'Tour balance',
+                price: remainingPurchaseAmountDollars,
+                quantity: 1,
+              },
+            ],
+          },
+        });
+
+        await queueMetaEvent(`payment:${metaEventId}`, metaEventId, {
           data: [
             {
               event_name: 'Purchase',
@@ -848,15 +895,16 @@ export async function POST(req: NextRequest) {
           error_message: pi.last_payment_error?.message ?? 'Unknown error',
         });
 
-        await sendSenzaiEvent({
-          event_name: 'payment.failed',
+        await queueSenzaiEvent({
+          event_name: 'payment.remaining_balance_failed',
           occurred_at: new Date(event.created * 1000).toISOString(),
           source_event_id: pi.id,
-          idempotency_key: `stripe_event:${event.id}:payment.failed`,
+          idempotency_key: `stripe_payment:${pi.id}:payment.remaining_balance_failed`,
           source_route: '/api/webhooks/stripe',
           authoritative_source: 'stripe.payment_intent.payment_failed',
           entity_type: 'payment',
           entity_id: pi.id,
+          amount: { value: pi.amount, currency: pi.currency.toUpperCase(), unit: 'cents' },
           refs: {
             booking_id: bookingId,
             lead_id: existingBooking.lead_id ?? null,
@@ -1012,7 +1060,7 @@ export async function POST(req: NextRequest) {
           throw depositRefundErr;
         }
 
-        await sendSenzaiEvent({
+        await queueSenzaiEvent({
           event_name: 'refund.processed',
           occurred_at: new Date(event.created * 1000).toISOString(),
           source_event_id: paymentIntentId,

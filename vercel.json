@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/auto-complete",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/process-analytics-deliveries",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

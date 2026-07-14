@@ -7,12 +7,11 @@ import type { TrailType } from '@/types/booking';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueMetaEvent, queueSenzaiEvent } from '@/lib/analytics-delivery';
 import {
   buildMetaUserData,
   getClientIpFromHeaders,
   getEventSourceUrlFromHeaders,
-  sendMetaEvent,
 } from '@/lib/meta-capi';
 
 // Rate limiter — 20 lead submissions per IP per hour
@@ -265,7 +264,7 @@ export async function POST(req: NextRequest) {
     // any browser-side Lead signal with the same stable business identifier.
     const metaEventId = data.id;
 
-    await sendMetaEvent({
+    await queueMetaEvent(`lead:${metaEventId}`, metaEventId, {
       data: [
         {
           event_name: 'Lead',
@@ -282,7 +281,7 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    await sendSenzaiEvent({
+    await queueSenzaiEvent({
       event_name: 'lead.created',
       occurred_at: data.created_at,
       source_event_id: data.id,
@@ -291,6 +290,12 @@ export async function POST(req: NextRequest) {
       authoritative_source: 'supabase.leads.insert',
       entity_type: 'lead',
       entity_id: data.id,
+      customer: {
+        id: data.id,
+        email: data.email,
+        phone: data.phone ?? undefined,
+        name: data.full_name,
+      },
       refs: {
         lead_id: data.id,
       },

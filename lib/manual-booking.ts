@@ -17,7 +17,7 @@ import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { getAppUrl } from '@/lib/app-url';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { triggerN8nEvent } from '@/lib/n8n';
 
@@ -136,7 +136,7 @@ export async function finalizeManualBooking(bookingId: string): Promise<Finalize
 
   // 3. Senzai — booking confirmed (cash, off-platform).
   try {
-    await sendSenzaiEvent({
+    await queueSenzaiEvent({
       event_name: 'booking.confirmed',
       occurred_at: occurredAt,
       source_event_id: bookingId,

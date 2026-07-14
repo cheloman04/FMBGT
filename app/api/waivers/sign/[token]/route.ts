@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { WAIVER_VERSION } from '@/lib/waiver-text';
 
 // Public endpoint: a customer signs the waiver for a manual booking via its
@@ -142,7 +142,7 @@ export async function POST(
       .update({ waiver_accepted: true, waiver_accepted_at: acceptedAt })
       .eq('id', booking.id);
 
-    await sendSenzaiEvent({
+    await queueSenzaiEvent({
       event_name: 'waiver.signed',
       occurred_at: acceptedAt,
       source_event_id: sessionId,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { WAIVER_VERSION } from '@/lib/waiver-text';
 import { randomUUID } from 'crypto';
 
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
       return agreedAt > latest ? agreedAt : latest;
     }, new Date().toISOString());
 
-    await sendSenzaiEvent({
+    await queueSenzaiEvent({
       event_name: 'waiver.signed',
       occurred_at: occurredAt,
       source_event_id: sessionId,

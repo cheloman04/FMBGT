@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
     .select(
-      'id, remaining_balance_amount, remaining_balance_status, stripe_customer_id, stripe_payment_method_id, date, location_id, status'
+      'id, remaining_balance_amount, remaining_balance_status, remaining_balance_payment_intent_id, stripe_customer_id, stripe_payment_method_id, date, location_id, status'
     )
     .eq('id', booking_id)
     .single();
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
     id: string;
     remaining_balance_amount: number | null;
     remaining_balance_status: string;
+    remaining_balance_payment_intent_id: string | null;
     stripe_customer_id: string | null;
     stripe_payment_method_id: string | null;
     date: string;
@@ -113,7 +114,9 @@ export async function POST(req: NextRequest) {
     stripePaymentMethodId: b.stripe_payment_method_id,
     amount: b.remaining_balance_amount,
     description: `Remaining balance (retry) - ${locationName} on ${b.date}`,
-    idempotencySuffix: `retry-${Date.now()}`,
+    // Stable for retries of the same failed PaymentIntent. If Stripe creates a
+    // new failed PI, that ID becomes the identity of the next intentional attempt.
+    idempotencySuffix: `retry-after-${b.remaining_balance_payment_intent_id ?? 'initial-failure'}`,
   });
 
   if (result.success) {
