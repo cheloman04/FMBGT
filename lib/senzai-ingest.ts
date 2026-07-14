@@ -25,15 +25,36 @@ export type SenzaiEventInput = {
   authoritative_source: string;
   entity_type: string;
   entity_id: string;
+  amount?: {
+    value: number;
+    currency: string;
+    unit: 'major' | 'cents';
+  };
+  customer?: {
+    id?: string;
+    email?: string;
+    phone?: string;
+    name?: string;
+  };
   refs?: SenzaiEntityRefs;
   data?: SenzaiAttributes;
 };
 
-type SenzaiIngestEvent = {
+export type SenzaiIngestEvent = {
   event_name: string;
   occurred_at: string;
   source_event_id: string;
   idempotency_key: string;
+  entity: {
+    type: string;
+    id: string;
+  };
+  amount?: {
+    value: number;
+    currency: string;
+    unit: 'major' | 'cents';
+  };
+  customer?: SenzaiEventInput['customer'];
   attributes: SenzaiAttributes;
 };
 
@@ -43,6 +64,7 @@ export type SenzaiIngestResult = {
   statusCode: number | null;
   error: string | null;
   ingestUrl: string | null;
+  hubStatus: string | null;
 };
 
 const SENZAI_INGEST_PATH = '/api/ingest/events';
@@ -80,22 +102,26 @@ function normalizeRefs(refs?: SenzaiEntityRefs): SenzaiAttributes {
   };
 }
 
-function buildEventPayload(input: SenzaiEventInput): SenzaiIngestEvent {
+export function buildSenzaiEventPayload(input: SenzaiEventInput): SenzaiIngestEvent {
   return {
     event_name: input.event_name,
     occurred_at: input.occurred_at,
     source_event_id: input.source_event_id,
     idempotency_key: input.idempotency_key,
+    entity: {
+      type: input.entity_type,
+      id: input.entity_id,
+    },
+    ...(input.amount ? { amount: input.amount } : {}),
+    ...(input.customer ? { customer: input.customer } : {}),
     attributes: {
       schema_version: SCHEMA_VERSION,
       source_system: 'florida_mountain_bike_guides',
       source_environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'development',
       source_route: input.source_route,
       authoritative_source: input.authoritative_source,
-      entity_type: input.entity_type,
-      entity_id: input.entity_id,
       refs: normalizeRefs(input.refs),
-      data: input.data ?? {},
+      ...(input.data ?? {}),
     },
   };
 }
@@ -138,6 +164,7 @@ export async function sendSenzaiEvent(
       statusCode: null,
       error: 'Senzai ingest is not configured',
       ingestUrl: getSenzaiIngestUrl(),
+      hubStatus: null,
     };
   }
 
@@ -145,7 +172,7 @@ export async function sendSenzaiEvent(
   const connectionKey = process.env.SENZAI_CONNECTION_KEY as string;
   const connectionSecret = process.env.SENZAI_CONNECTION_SECRET as string;
   const authToken = Buffer.from(`${connectionKey}:${connectionSecret}`).toString('base64');
-  const payload = buildEventPayload(input);
+  const payload = buildSenzaiEventPayload(input);
 
   logEvent('info', 'sending', input, { ingest_url: ingestUrl });
 
@@ -161,10 +188,12 @@ export async function sendSenzaiEvent(
       body: JSON.stringify(payload),
     });
 
+    const responseText = await response.text();
+
     if (!response.ok) {
-      const responseText = trimErrorMessage(await response.text());
-      const errorMessage = responseText
-        ? `Senzai returned ${response.status}: ${responseText}`
+      const safeResponseText = trimErrorMessage(responseText);
+      const errorMessage = safeResponseText
+        ? `Senzai returned ${response.status}: ${safeResponseText}`
         : `Senzai returned ${response.status}`;
 
       if (response.status === 404) {
@@ -185,6 +214,33 @@ export async function sendSenzaiEvent(
         statusCode: response.status,
         error: errorMessage,
         ingestUrl,
+        hubStatus: null,
+      };
+    }
+
+    let hubStatus: string | null = null;
+    try {
+      const responseBody = JSON.parse(responseText) as { data?: { status?: unknown } };
+      hubStatus =
+        typeof responseBody.data?.status === 'string' ? responseBody.data.status : null;
+    } catch {
+      // A 2xx without the Hub acknowledgement contract is not proof of delivery.
+    }
+
+    if (hubStatus !== 'translated') {
+      const errorMessage = `Senzai acknowledged event without translated status (${hubStatus ?? 'missing'})`;
+      logEvent('error', 'not_translated', input, {
+        ingest_url: ingestUrl,
+        status_code: response.status,
+        hub_status: hubStatus,
+      });
+      return {
+        ok: false,
+        skipped: false,
+        statusCode: response.status,
+        error: errorMessage,
+        ingestUrl,
+        hubStatus,
       };
     }
 
@@ -198,6 +254,7 @@ export async function sendSenzaiEvent(
       statusCode: response.status,
       error: null,
       ingestUrl,
+      hubStatus,
     };
   } catch (error) {
     const message = trimErrorMessage(
@@ -213,6 +270,7 @@ export async function sendSenzaiEvent(
       statusCode: null,
       error: message,
       ingestUrl,
+      hubStatus: null,
     };
   }
 }

@@ -9,7 +9,7 @@ import type { BookingState, TrailType } from '@/types/booking';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { getAppUrl, isLocalOrigin } from '@/lib/app-url';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueMetaEvent, queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { resolveFamDiscount, calcDiscountAmount, FAM_LABEL, type DiscountDef } from '@/lib/discounts';
 import { calcGiftCardApplied, GIFT_CARD_LABEL } from '@/lib/gift-cards';
@@ -18,7 +18,6 @@ import {
   buildMetaUserData,
   getClientIpFromHeaders,
   getEventSourceUrlFromHeaders,
-  sendMetaEvent,
 } from '@/lib/meta-capi';
 import { parseGaClientId, parseGaSessionId, gaSessionCookieName } from '@/lib/analytics';
 
@@ -669,7 +668,7 @@ export async function POST(req: NextRequest) {
     // server-side InitiateCheckout event is anchored to the real payment session.
     const metaEventId = session.id;
 
-    await sendMetaEvent({
+    await queueMetaEvent(`checkout:${session.id}`, session.id, {
       data: [
         {
           event_name: 'InitiateCheckout',
@@ -719,7 +718,7 @@ export async function POST(req: NextRequest) {
       live_test_mode: liveTestMode,
     };
 
-    await sendSenzaiEvent({
+    await queueSenzaiEvent({
       event_name: 'booking.started',
       occurred_at: booking.created_at,
       source_event_id: booking.id,
@@ -728,6 +727,12 @@ export async function POST(req: NextRequest) {
       authoritative_source: 'supabase.bookings.insert_and_stripe.checkout_session.create',
       entity_type: 'booking',
       entity_id: booking.id,
+      customer: {
+        id: customerRecord.id,
+        email: state.customer.email,
+        phone: state.customer.phone ?? undefined,
+        name: state.customer.name,
+      },
       refs: {
         booking_id: booking.id,
         lead_id: effectiveLeadId,
@@ -738,7 +743,7 @@ export async function POST(req: NextRequest) {
       data: checkoutAttributes,
     });
 
-    await sendSenzaiEvent({
+    await queueSenzaiEvent({
       event_name: 'booking.created',
       occurred_at: booking.created_at,
       source_event_id: booking.id,
@@ -747,6 +752,12 @@ export async function POST(req: NextRequest) {
       authoritative_source: 'supabase.bookings.insert',
       entity_type: 'booking',
       entity_id: booking.id,
+      customer: {
+        id: customerRecord.id,
+        email: state.customer.email,
+        phone: state.customer.phone ?? undefined,
+        name: state.customer.name,
+      },
       refs: {
         booking_id: booking.id,
         lead_id: effectiveLeadId,
@@ -774,15 +785,22 @@ export async function POST(req: NextRequest) {
       occurred_at: booking.created_at,
     });
 
-    await sendSenzaiEvent({
-      event_name: 'payment.requested',
+    await queueSenzaiEvent({
+      event_name: 'payment.deposit_requested',
       occurred_at: new Date().toISOString(),
       source_event_id: session.id,
-      idempotency_key: `stripe_session:${session.id}:payment.requested`,
+      idempotency_key: `stripe_session:${session.id}:payment.deposit_requested`,
       source_route: '/api/create-checkout',
       authoritative_source: 'stripe.checkout_session.create',
       entity_type: 'payment_request',
       entity_id: session.id,
+      amount: { value: depositAmount, currency: 'USD', unit: 'cents' },
+      customer: {
+        id: customerRecord.id,
+        email: state.customer.email,
+        phone: state.customer.phone ?? undefined,
+        name: state.customer.name,
+      },
       refs: {
         booking_id: booking.id,
         lead_id: effectiveLeadId,

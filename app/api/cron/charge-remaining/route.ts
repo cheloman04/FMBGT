@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { chargeRemainingBalance } from '@/lib/stripe';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { notifySupportAlert } from '@/lib/n8n';
 
@@ -138,16 +138,18 @@ async function runChargeJob(): Promise<NextResponse> {
 
     const locationName = location_id ? locationMap[location_id] ?? 'Florida MTB Tour' : 'Florida MTB Tour';
     const attemptedAt = new Date().toISOString();
+    const requestIdentity = `${bookingId}:remaining_balance`;
 
-    await sendSenzaiEvent({
-      event_name: 'payment.requested',
+    await queueSenzaiEvent({
+      event_name: 'payment.remaining_balance_requested',
       occurred_at: attemptedAt,
-      source_event_id: `${bookingId}:remaining_balance:${attemptedAt}`,
-      idempotency_key: `booking:${bookingId}:remaining_balance:payment.requested:${attemptedAt}`,
+      source_event_id: requestIdentity,
+      idempotency_key: `booking:${bookingId}:payment.remaining_balance_requested`,
       source_route: '/api/cron/charge-remaining',
       authoritative_source: 'cron.remaining_balance_charge_attempt',
       entity_type: 'payment_request',
-      entity_id: `${bookingId}:remaining_balance:${attemptedAt}`,
+      entity_id: requestIdentity,
+      amount: { value: remaining_balance_amount, currency: 'USD', unit: 'cents' },
       refs: {
         booking_id: bookingId,
         lead_id: leadId ?? null,

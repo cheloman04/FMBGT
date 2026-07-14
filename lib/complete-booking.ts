@@ -2,7 +2,7 @@ import 'server-only';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyCompletedService } from '@/lib/completed-service-alert';
 import { enrollBookingInReviewRequest } from '@/lib/review-requests';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 
 /**
  * The booking fields needed to fire the completion side effects. Both callers
@@ -112,7 +112,7 @@ export async function runServiceCompletionEffects(
     );
   }
 
-  await sendSenzaiEvent({
+  await queueSenzaiEvent({
     event_name: 'service.completed',
     occurred_at: completedAt,
     source_event_id: booking.id,

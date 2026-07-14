@@ -7,7 +7,7 @@ import {
   markReviewRequestStepSent,
   skipReviewRequestStep,
 } from '@/lib/review-requests';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 
 const BodySchema = z.discriminatedUnion('event', [
   z.object({
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       const updatedTargetStep = updatedSteps.find((step) => step.step_key === eventData.step_key);
 
       if (enrollment && shouldAttemptReviewRequested && updatedTargetStep?.status === 'sent') {
-        await sendSenzaiEvent({
+        await queueSenzaiEvent({
           event_name: 'review.requested',
           occurred_at: new Date().toISOString(),
           source_event_id: `${eventData.enrollment_id}:${eventData.step_key}`,
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
         : enrollment;
 
       if (enrollment && shouldAttemptReviewReceived && updatedEnrollment?.status === 'reviewed') {
-        await sendSenzaiEvent({
+        await queueSenzaiEvent({
           event_name: 'review.received',
           occurred_at: new Date().toISOString(),
           source_event_id: eventData.enrollment_id,

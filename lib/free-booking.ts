@@ -15,7 +15,7 @@ import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
-import { sendSenzaiEvent } from '@/lib/senzai-ingest';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { triggerN8nEvent } from '@/lib/n8n';
 
@@ -182,7 +182,7 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
 
   // 6. Senzai — booking confirmed (no cash payment; gift-card covered).
   try {
-    await sendSenzaiEvent({
+    await queueSenzaiEvent({
       event_name: 'booking.confirmed',
       occurred_at: occurredAt,
       source_event_id: bookingId,
