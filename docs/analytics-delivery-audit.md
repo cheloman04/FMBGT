@@ -47,12 +47,12 @@ Workers claim due rows using `FOR UPDATE SKIP LOCKED`. Failed deliveries use bou
 - GA4: `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-SMP4GWTYJW`, `GA4_API_SECRET`.
 - Meta CAPI: `META_PIXEL_ID`, `META_ACCESS_TOKEN`, `META_API_VERSION`; `META_TEST_EVENT_CODE` is optional outside production.
 
-The local `.env.local` has the expected GA4 Measurement ID. It does not have the two Senzai connection credentials. Production could not be verified because the saved Vercel CLI token is invalid; no secret values were printed.
+The local `.env.local` has the expected GA4 Measurement ID. The operator confirmed that the two Senzai connection credentials were configured in production and redeployed; their values were not inspected or printed. Public checks made before this branch was published still showed the previous application code, so end-to-end delivery must be verified after this PR is merged and deployed.
 
 ## Deployment order
 
-1. Apply `031_analytics_delivery_outbox.sql` to a non-production environment and validate claim/retry behavior.
+1. Migration `031_analytics_delivery_outbox.sql` was applied by the operator; validate claim/retry behavior without reapplying it blindly.
 2. Deploy the Hub adapter change that accepts deposit/balance canonical event names.
-3. Confirm production environment-variable names without printing values.
-4. Deploy the client code and verify the retry cron is supported by the Vercel plan.
+3. Confirm the production environment-variable names are available to the deployment without printing values (the operator reports this is complete).
+4. Deploy the client code and verify the ten-minute retry cron is supported by the Vercel plan.
 5. Exercise a test-mode deposit and balance, then reconcile Stripe amounts against GA4, Meta Events Manager, Hub ingestion events, and Hub business events.
