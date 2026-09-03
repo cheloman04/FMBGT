@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { requireAdminUser } from '@/lib/admin-auth';
-import { suggestPartnerCode, FAM_CODE } from '@/lib/discounts';
+import { FAM_CODE } from '@/lib/discounts';
 
 const CreateSchema = z.object({
   partner_name: z.string().min(2).max(100),
@@ -164,6 +164,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to delete referral partner' }, { status: 500 });
   }
 }
-
-// Utility export used by other server code
-export { suggestPartnerCode };
