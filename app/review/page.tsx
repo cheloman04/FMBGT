@@ -21,6 +21,7 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/review`,
     siteName: 'Florida Mountain Bike Guides',
     type: 'website',
+    images: [`${SITE_URL}/opengraph-image`],
   },
 };
 
