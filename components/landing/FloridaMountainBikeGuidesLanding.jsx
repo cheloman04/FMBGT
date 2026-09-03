@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { faqItems } from "@/data/faqs";
+import { TrailDirectory } from "@/components/landing/TrailDirectory";
 import { StatCard } from "@/components/ui/StatCard";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
@@ -244,41 +246,6 @@ const whatToExpect = [
     step: "05",
     title: "Wrap up and head out",
     desc: "Finish at the trailhead with great memories. Ask about upcoming tours or book your next ride on the spot.",
-  },
-];
-
-const faqItems = [
-  {
-    q: "Do I need to bring my own bike?",
-    a: "You can, but you don't have to. We offer a Bring Your Own Bike (BYOB) option if you prefer riding your own setup. For the best experience, many riders choose our ready-to-ride fleet, including high-quality mountain bikes and e-bikes. It's a convenient way to enjoy the trail without worrying about setup or transport.",
-  },
-  {
-    q: "Are the tours beginner-friendly?",
-    a: "Absolutely. Tours are designed for all skill levels, from complete beginners to experienced riders. Your guide shapes the pace and trail choice around your comfort level.",
-  },
-  {
-    q: "How long are the tours?",
-    a: "Most mountain bike tours run approximately 2 hours. Scenic paved trail tours may run 2–3 hours depending on the route and group pace.",
-  },
-  {
-    q: "What should I wear or bring?",
-    a: "Wear comfortable athletic clothing and closed-toe shoes suitable for biking. We recommend bringing water to stay hydrated, a light snack for energy, and sunscreen for Florida's sun. If you choose a rental, your bike and helmet will be provided and ready at the trailhead. If you're bringing your own bike (BYOB), just make sure it's in good working condition and ready to ride.",
-  },
-  {
-    q: "What happens if it rains or weather turns bad?",
-    a: "Light rain is usually fine for trail riding. For the safety of the group, tours may be rescheduled in the event of lightning or severe weather. We'll reach out in advance if conditions require a change.",
-  },
-  {
-    q: "Can you arrange pickup from my hotel or Airbnb?",
-    a: "Yes. Pickup and drop-off can be arranged for select locations. Contact us when booking to confirm availability and any additional logistics.",
-  },
-  {
-    q: "Are tours suitable for families and kids?",
-    a: "Yes. Our scenic paved trail tours are especially popular with families and younger riders. Mountain bike tours can also be adapted for younger participants depending on fitness and comfort level.",
-  },
-  {
-    q: "How do I book, and what is the cancellation policy?",
-    a: "Book online in just a few minutes. Free cancellation is available up to 24 hours before your scheduled tour. Contact us directly for any last-minute adjustments.",
   },
 ];
 
@@ -731,7 +698,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs uppercase tracking-[0.25em] text-[var(--lp-text-muted)]">Featured Experience</p>
-                        <h3 className="mt-2 text-2xl font-bold text-[var(--lp-text)]">Central Florida Trail Adventures</h3>
+                        <p className="mt-2 text-2xl font-bold text-[var(--lp-text)]">Central Florida Trail Adventures</p>
                       </div>
                       <div className="rounded-2xl bg-[var(--lp-tan)] p-3">
                         <Trees className="h-6 w-6 text-[var(--lp-green)]" />
@@ -777,6 +744,10 @@ export default function FloridaMountainBikeGuidesLanding() {
         </section>
 
         <section id="experiences" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <h2 className="max-w-3xl text-2xl font-bold tracking-tight text-[var(--lp-text)] sm:text-3xl">
+            What&rsquo;s included on every guided ride in Central Florida
+          </h2>
+
           <motion.div
               initial="hidden"
               whileInView="show"
@@ -825,7 +796,7 @@ export default function FloridaMountainBikeGuidesLanding() {
         <section id="tours" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <SectionHeading
             eyebrow="Experiences"
-            title="Two ways to experience Florida on two wheels"
+            title="Guided Mountain Bike & Paved Trail Tours Near Orlando"
             text="The landing is structured around both core offers: guided mountain bike tours for adventure seekers and scenic paved tours for a more relaxed Florida experience."
           />
 
@@ -937,7 +908,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Interactive Map"
-              title="Explore Our Central Florida Trails"
+              title="Where We Ride: Mountain Bike & Paved Trails Across Central Florida"
               text="Discover where your next ride begins. Our guided tours cover trails from Orlando and Sanford to Mount Dora, DeLand, Ocala, and Palm Coast — riverfront paths, shaded singletrack, and scenic nature rides across Central Florida. Use the map to explore locations and find the perfect ride for your adventure."
             />
 
@@ -965,6 +936,8 @@ export default function FloridaMountainBikeGuidesLanding() {
             <div className="relative mt-6">
               <InteractiveTrailMap />
             </div>
+
+            <TrailDirectory />
           </div>
         </section>
 
@@ -1001,7 +974,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                           {item.category}
                         </div>
                         <div className="absolute bottom-4 left-4 right-4">
-                          <h3 className="text-lg font-bold text-white">{item.title}</h3>
+                          <p className="text-lg font-bold text-white">{item.title}</p>
                         </div>
                       </div>
                     </div>
@@ -1070,7 +1043,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                       {item.category}
                     </div>
                     <div className="absolute bottom-4 left-4 right-4">
-                      <h3 className="text-lg font-bold text-white">{item.title}</h3>
+                      <p className="text-lg font-bold text-white">{item.title}</p>
                     </div>
                   </div>
                 </div>
@@ -1083,7 +1056,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="Guides"
-              title="Your guide — friendly, local, and ready to ride"
+              title="Meet Your Local Central Florida Mountain Bike Guide"
               text="Florida Mountain Bike Guides is built around friendly and professional expertise dedicated to making each ride safe, enjoyable, and easy to navigate for every skill level."
             />
 
@@ -1132,7 +1105,7 @@ export default function FloridaMountainBikeGuidesLanding() {
         <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <SectionHeading
             eyebrow="Testimonials"
-            title="Rides people remember long after the trail ends"
+            title="What Riders Say About Our Central Florida Bike Tours"
             text="Friendly local guides, ride-ready bikes, and a pace that meets people where they are. First-time visitors and returning riders alike leave with an easier, more memorable Florida experience."
           />
 
@@ -1180,7 +1153,7 @@ export default function FloridaMountainBikeGuidesLanding() {
             >
               <SectionHeading
                 eyebrow="Rental Fleet"
-                title="Specialized bikes and a local bike shop partner riders can trust"
+                title="Mountain Bike & E-Bike Rentals in Sanford, FL"
                 text="We're proud to partner with Bicikleta Bike Shop in Sanford, giving riders access to full-suspension mountain bikes and e-bikes, along with the welcoming charm of a trusted local bike shop that complements our guided tour experience."
               />
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -1260,7 +1233,7 @@ export default function FloridaMountainBikeGuidesLanding() {
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <SectionHeading
               eyebrow="What To Expect"
-              title="A smooth, reassuring flow from arrival to finish"
+              title="How a Guided Bike Tour Works, From Trailhead to Finish"
               text="Everything is designed to feel easy for first-time visitors. You show up, meet your guide, get comfortably fitted, and enjoy the ride at a pace that works for you."
             />
 
@@ -1289,7 +1262,7 @@ export default function FloridaMountainBikeGuidesLanding() {
         <section className="mx-auto max-w-5xl px-4 py-20 sm:px-6 lg:px-8">
           <SectionHeading
             eyebrow="FAQ"
-            title="Questions riders usually ask before booking"
+            title="Mountain Bike Tour FAQs for Orlando & Central Florida"
             text="Clear answers for first-time guests, families, and travelers planning a guided ride in Central Florida."
           />
 
