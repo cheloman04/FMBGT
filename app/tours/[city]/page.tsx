@@ -52,10 +52,11 @@ export default async function CityToursPage({ params }: PageProps) {
   if (!city) notFound();
 
   const trails = cityTrails(city);
+  // No /tours index exists, so there is no middle crumb to link to — a "Tours"
+  // level here would just point back at this page.
   const crumbs: Crumb[] = [
     { name: 'Home', url: SITE_URL },
-    { name: 'Tours', url: `${SITE_URL}/tours/${city.slug}` },
-    { name: city.name },
+    { name: `Bike tours in ${city.name}` },
   ];
 
   return (

@@ -28,10 +28,11 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+// This page is the guides hub the other two link back to, so it has no parent
+// crumb of its own — a "Ride guides" level would point at this page.
 const crumbs: Crumb[] = [
   { name: 'Home', url: SITE_URL },
-  { name: 'Ride guides', url: PAGE_URL },
-  { name: 'Central Florida trails' },
+  { name: 'Every Central Florida trail, compared' },
 ];
 
 export default function TrailComparisonGuide() {
