@@ -1,6 +1,14 @@
 import { Suspense } from 'react';
+import type { Metadata } from 'next';
 import { getSupabaseAdmin, type Database } from '@/lib/supabase';
 import { ConfirmationClient } from './ConfirmationClient';
+
+export const metadata: Metadata = {
+  title: 'Booking Confirmed | Florida Mountain Bike Guides',
+  description: 'Your Florida Mountain Bike Guides tour reservation is confirmed.',
+  // Post-checkout page: unique per booking and worthless in search results.
+  robots: { index: false, follow: false },
+};
 
 type BookingRow = Database['public']['Tables']['bookings']['Row'];
 

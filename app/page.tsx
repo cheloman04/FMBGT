@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import FloridaMountainBikeGuidesLanding from '@/components/landing/FloridaMountainBikeGuidesLanding';
 import { getSiteUrl } from '@/lib/site-url';
 
 const SITE_URL = getSiteUrl();
+const LOGO_URL =
+  'https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png';
 
 // ─────────────────────────────────────────────
 // Page-level SEO metadata
@@ -22,14 +23,6 @@ export const metadata: Metadata = {
       'Expert-guided mountain bike and paved trail tours across Central Florida. Bikes included, all skill levels welcome. Ride Sanford, Mount Dora, Ocala, and beyond.',
     url: SITE_URL,
     siteName: 'Florida Mountain Bike Guides',
-    images: [
-      {
-        url: `${SITE_URL}/og-image.jpg`,
-        width: 1200,
-        height: 630,
-        alt: 'Guided mountain bike tour on a Central Florida trail — Florida Mountain Bike Guides',
-      },
-    ],
     locale: 'en_US',
     type: 'website',
   },
@@ -38,7 +31,6 @@ export const metadata: Metadata = {
     title: 'Guided Mountain Bike Tours in Central Florida | Florida Mountain Bike Guides',
     description:
       'All skill levels. Bikes included. Local guides. Book your Central Florida trail adventure today.',
-    images: [`${SITE_URL}/og-image.jpg`],
   },
   robots: {
     index: true,
@@ -55,7 +47,7 @@ const organizationSchema = {
   name: 'Florida Mountain Bike Guides',
   alternateName: 'FMBGT',
   url: SITE_URL,
-  logo: 'https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png',
+  logo: LOGO_URL,
   foundingDate: '2024',
   description:
     'Guided mountain bike and paved trail tours across Central Florida for all skill levels. Bikes and gear provided.',
@@ -78,8 +70,8 @@ const localBusinessSchema = {
   description:
     'Guided mountain bike and scenic paved trail tours across Central Florida. All skill levels welcome. Bikes and gear provided at the trailhead.',
   url: SITE_URL,
-  logo: 'https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png',
-  image: `${SITE_URL}/og-image.jpg`,
+  logo: LOGO_URL,
+  image: LOGO_URL,
   foundingDate: '2024',
   priceRange: '$$',
   address: {
@@ -129,20 +121,25 @@ const localBusinessSchema = {
   ],
 };
 
+// next/script injects its tag on the client, which left the structured data out
+// of the server HTML entirely. A plain <script> renders it into the markup that
+// crawlers read on the first pass.
+function jsonLd(schema: object) {
+  return { __html: JSON.stringify(schema).replace(/</g, '\\u003c') };
+}
+
 export default function HomePage() {
   return (
     <>
-      <Script
+      <script
         id="schema-organization"
         type="application/ld+json"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        dangerouslySetInnerHTML={jsonLd(organizationSchema)}
       />
-      <Script
+      <script
         id="schema-local-business"
         type="application/ld+json"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
+        dangerouslySetInnerHTML={jsonLd(localBusinessSchema)}
       />
       <FloridaMountainBikeGuidesLanding />
     </>
