@@ -42,7 +42,7 @@ export type Ga4SendResult = {
 };
 
 function getGa4Config() {
-  const measurementId = (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-SMP4GWTYJW').trim();
+  const measurementId = (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-MGYCPQF7B6').trim();
   const apiSecret = process.env.GA4_API_SECRET?.trim() || null;
   return { measurementId: measurementId || null, apiSecret };
 }

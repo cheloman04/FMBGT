@@ -169,7 +169,7 @@ export function getAcquisitionContext(): AcquisitionContext {
 // values it reads from the request — mirroring how it already reads `_fbc`/`_fbp`.
 
 /** GA4 measurement ID — mirrors the value wired in app/layout.tsx. */
-export const GA4_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-SMP4GWTYJW';
+export const GA4_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-MGYCPQF7B6';
 
 /** Name of the GA4 session cookie: `_ga_<container>`, container = measurement id minus "G-". */
 export function gaSessionCookieName(measurementId: string = GA4_MEASUREMENT_ID): string {
