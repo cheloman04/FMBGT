@@ -44,7 +44,7 @@ Workers claim due rows using `FOR UPDATE SKIP LOCKED`. Failed deliveries use bou
 - Shared persistence: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
 - Retry worker authorization: `CRON_SECRET`; `ADMIN_SECRET` is the optional manual-call path.
 - Senzai: `SENZAI_INGEST_URL`, `SENZAI_CONNECTION_KEY`, `SENZAI_CONNECTION_SECRET`.
-- GA4: `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-SMP4GWTYJW`, `GA4_API_SECRET`.
+- GA4: `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-MGYCPQF7B6`, `GA4_API_SECRET`.
 - Meta CAPI: `META_PIXEL_ID`, `META_ACCESS_TOKEN`, `META_API_VERSION`; `META_TEST_EVENT_CODE` is optional outside production.
 
 The local `.env.local` has the expected GA4 Measurement ID. The operator confirmed that the two Senzai connection credentials were configured in production and redeployed; their values were not inspected or printed. Public checks made before this branch was published still showed the previous application code, so end-to-end delivery must be verified after this PR is merged and deployed.
