@@ -936,7 +936,14 @@ export default function FloridaMountainBikeGuidesLanding() {
             <div className="relative mt-6">
               <InteractiveTrailMap />
             </div>
+          </div>
+        </section>
 
+        {/* Kept out of #map on purpose: that section's background photo is
+            object-cover, so anything this tall inside it blows the image up
+            several times over behind the translucent cards. */}
+        <section className="bg-[var(--lp-bg)]">
+          <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
             <TrailDirectory />
           </div>
         </section>
