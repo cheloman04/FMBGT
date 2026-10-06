@@ -17,6 +17,22 @@ const DIFFICULTY = {
   'Advanced':   { color: '#dc2626', badge: 'bg-red-100 text-red-800'       },
 };
 
+// CARTO basemaps now require a key: keyless requests get a 200 with an
+// "API KEY REQUIRED" watermark tile instead of the map, so nothing errors.
+// Without a key, fall back to OpenStreetMap's own tiles rather than shipping
+// a map made of watermarks.
+const CARTO_KEY = process.env.NEXT_PUBLIC_CARTO_BASEMAPS_KEY;
+
+const TILES = CARTO_KEY
+  ? {
+      url: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    }
+  : {
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    };
+
 const LOCATIONS = [
   {
     id: 'lake-druid',
@@ -316,8 +332,8 @@ export default function InteractiveTrailMap() {
             scrollWheelZoom={false}
           >
             <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              url={TILES.url}
+              attribution={TILES.attribution}
               maxZoom={19}
             />
             {LOCATIONS.map((loc) => (

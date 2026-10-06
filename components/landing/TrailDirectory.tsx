@@ -22,7 +22,7 @@ const BADGE: Record<Difficulty, string> = {
 
 export function TrailDirectory() {
   return (
-    <div className="mt-16">
+    <div>
       <h3 className="text-2xl font-bold tracking-tight text-[var(--lp-text)] sm:text-3xl">
         Every trail we guide, by difficulty
       </h3>
