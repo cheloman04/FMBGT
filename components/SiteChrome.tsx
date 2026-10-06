@@ -4,7 +4,8 @@ import { CITIES } from '@/data/cities';
 import { MTB_TRAILS, PAVED_TRAILS } from '@/data/trails';
 
 /**
- * Header and footer for the content pages (/tours, /trails, /guides).
+ * Header and footer for the content pages (/tours, /trails, /guides). The
+ * footer is also the homepage's footer.
  *
  * The footer is deliberately link-heavy: before this existed the entire site
  * navigated by in-page anchors (#tours, #map, #guides), so nothing but the
@@ -67,10 +68,11 @@ function FooterLink({ href, children }: { href: string; children: React.ReactNod
   );
 }
 
-export function SiteFooter() {
+/** `wide` matches the homepage's max-w-7xl sections; the content pages are 6xl. */
+export function SiteFooter({ wide = false }: { wide?: boolean }) {
   return (
     <footer className="border-t border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
-      <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+      <div className={`mx-auto px-4 py-14 sm:px-6 ${wide ? 'max-w-7xl lg:px-8' : 'max-w-6xl'}`}>
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <FooterColumn title="Tours by area">
             {CITIES.map((city) => (
@@ -111,10 +113,23 @@ export function SiteFooter() {
           </FooterColumn>
         </div>
 
-        <p className="mt-12 border-t border-[var(--lp-border)] pt-6 text-xs text-[var(--lp-text-muted)]">
-          Florida Mountain Bike Guides &mdash; guided mountain bike and paved trail tours
-          across Central Florida. Bikes, helmets and local guides included.
-        </p>
+        <div className="mt-12 flex flex-col gap-3 border-t border-[var(--lp-border)] pt-6 text-xs text-[var(--lp-text-muted)] lg:flex-row lg:items-center lg:justify-between">
+          <p>
+            &copy; Florida Mountain Bike Guides LLC &mdash; guided mountain bike and paved
+            trail tours across Central Florida.
+          </p>
+          <p>
+            Developed by{' '}
+            <a
+              href="https://www.senzaiautomations.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-[var(--lp-text)] transition hover:text-[var(--lp-green)]"
+            >
+              Senzai Automations
+            </a>
+          </p>
+        </div>
       </div>
     </footer>
   );

@@ -1,8 +1,8 @@
 /**
  * Canonical ride-location dataset.
  *
- * Single source of truth for the interactive map, the server-rendered trail
- * directory, the /trails/[slug] pages, the /tours/[city] pages and the sitemap.
+ * Single source of truth for the interactive map, the trail carousel under it,
+ * the /trails/[slug] pages, the /tours/[city] pages and the sitemap.
  *
  * Everything here is first-party: names, difficulty and descriptions come from
  * the landing copy, meeting-point addresses from the booking flow

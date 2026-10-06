@@ -36,7 +36,8 @@ import {
 import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { faqItems } from "@/data/faqs";
-import { TrailDirectory } from "@/components/landing/TrailDirectory";
+import { TrailCarousel } from "@/components/landing/TrailCarousel";
+import { SiteFooter } from "@/components/SiteChrome";
 import { StatCard } from "@/components/ui/StatCard";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
@@ -936,15 +937,8 @@ export default function FloridaMountainBikeGuidesLanding() {
             <div className="relative mt-6">
               <InteractiveTrailMap />
             </div>
-          </div>
-        </section>
 
-        {/* Kept out of #map on purpose: that section's background photo is
-            object-cover, so anything this tall inside it blows the image up
-            several times over behind the translucent cards. */}
-        <section className="bg-[var(--lp-bg)]">
-          <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-            <TrailDirectory />
+            <TrailCarousel />
           </div>
         </section>
 
@@ -1431,28 +1425,7 @@ export default function FloridaMountainBikeGuidesLanding() {
 
       </main>
 
-      <footer className="border-t border-[var(--lp-border)] bg-[var(--lp-bg-alt)]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-[var(--lp-text-muted)] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <p>© Florida Mountain Bike Guides LLC — Redesign concept landing page.</p>
-          <p>
-            Developed by{' '}
-            <a
-              href="https://www.senzaiautomations.com"
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-[var(--lp-text)] transition hover:text-[var(--lp-green)]"
-            >
-              Senzai Automations
-            </a>
-          </p>
-          <div className="flex flex-wrap gap-5">
-            <a href="#tours" className="transition hover:text-[var(--lp-text)]">Mountain bike tours</a>
-            <a href="#guides" className="transition hover:text-[var(--lp-text)]">Meet Our Guides</a>
-            <a href="#fleet" className="transition hover:text-[var(--lp-text)]">Rental Fleet</a>
-            <a href="/booking" className="transition hover:text-[var(--lp-text)]">Book a Tour</a>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter wide />
     </div>
   );
 }
