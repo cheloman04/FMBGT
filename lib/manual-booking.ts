@@ -51,6 +51,20 @@ function fmtUsd(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+/**
+ * `attributes.stage` of a payment.succeeded (contract 2026-10-01, senzai-skills
+ * events.catalog.json `payment_stages`): the first payment is the deposit, or the
+ * full price when it covers the total; any later payment settles the balance.
+ */
+export function manualPaymentStage(
+  totalCents: number,
+  collectedBeforeCents: number,
+  amountCents: number
+): 'deposit' | 'balance' | 'full' {
+  if (collectedBeforeCents > 0) return 'balance';
+  return amountCents >= totalCents ? 'full' : 'deposit';
+}
+
 type CustomerRow = { name?: string; email?: string; phone?: string | null } | null;
 
 // ─── Confirmation email ────────────────────────────────────────────────────────
@@ -266,6 +280,40 @@ export async function finalizeManualBooking(
     console.error('[manual-booking] Senzai event failed:', (e as Error).message);
   }
 
+  // 3b. Senzai — money collected at creation is revenue: payment.succeeded with
+  //     stage + method (the Hub counts only payment.succeeded as collected).
+  if (collectedCents > 0) {
+    try {
+      await queueSenzaiEvent({
+        event_name: 'payment.succeeded',
+        occurred_at: occurredAt,
+        source_event_id: `${bookingId}:initial_payment`,
+        idempotency_key: `booking:${bookingId}:payment.succeeded:initial`,
+        source_route: source,
+        authoritative_source: 'supabase.bookings.manual_cash_confirmation',
+        entity_type: 'booking',
+        entity_id: bookingId,
+        amount: { value: collectedCents, currency: 'USD', unit: 'cents' },
+        customer: {
+          email: customer?.email ?? undefined,
+          phone: customer?.phone ?? undefined,
+          name: customer?.name ?? undefined,
+        },
+        refs: { booking_id: bookingId },
+        data: {
+          stage: manualPaymentStage(booking.total_price ?? 0, 0, collectedCents),
+          method: paymentMethod,
+          booking_id: bookingId,
+          manual_booking: true,
+          amount_collected_cents: collectedCents,
+          remaining_after_cents: remainingCents,
+        },
+      });
+    } catch (e) {
+      console.error('[manual-booking] Senzai payment event failed:', (e as Error).message);
+    }
+  }
+
   // 4. Financial log — cash collected off-platform (keeps the books complete).
   try {
     await recordFinancialEvent({
@@ -403,17 +451,17 @@ export async function recordManualPayment(input: {
     console.error('[manual-booking] financial log failed:', (e as Error).message);
   }
 
-  // Counts toward collected_revenue (deposits paid + remaining balances paid).
+  // Revenue for the Hub: payment.succeeded with stage + method (contract 2026-10-01).
   try {
     await queueSenzaiEvent({
-      event_name: 'payment.remaining_balance_succeeded',
+      event_name: 'payment.succeeded',
       occurred_at: occurredAt,
       source_event_id: paymentId,
-      idempotency_key: `manual_payment:${paymentId}:payment.remaining_balance_succeeded`,
+      idempotency_key: `booking:${input.bookingId}:payment.succeeded:${paymentId}`,
       source_route: source,
       authoritative_source: 'supabase.bookings.manual_payment_recorded',
-      entity_type: 'payment',
-      entity_id: paymentId,
+      entity_type: 'booking',
+      entity_id: input.bookingId,
       amount: { value: input.amountCents, currency: 'USD', unit: 'cents' },
       customer: {
         email: customer?.email ?? undefined,
@@ -426,10 +474,11 @@ export async function recordManualPayment(input: {
         customer_id: booking.customer_id ?? null,
       },
       data: {
+        stage: manualPaymentStage(totalCents, collectedCents, input.amountCents),
+        method: input.paymentMethod,
         booking_id: input.bookingId,
-        charge_type: 'remaining_balance',
+        payment_id: paymentId,
         manual_booking: true,
-        payment_method: input.paymentMethod,
         amount_collected_cents: input.amountCents,
         balance_amount_cents: balanceCents,
         remaining_after_cents: balance.remaining_balance_amount,
@@ -647,16 +696,17 @@ export async function updateManualBooking(
     calendar = await syncBookingCalendarEvent(input.id, { source, reason: 'Tour details updated' });
   }
 
+  // Senzai — only a new date/time/duration is a business event (booking.rescheduled in
+  // the contract catalog); contact, rider, price and note edits stay in the app.
   const changed = Object.keys(changes);
-  if (changed.length > 0) {
+  if (scheduleChanged) {
     const occurredAt = new Date().toISOString();
-    const totalCents: number = input.total_cents ?? booking.total_price ?? 0;
     try {
       await queueSenzaiEvent({
-        event_name: 'booking.updated',
+        event_name: 'booking.rescheduled',
         occurred_at: occurredAt,
-        source_event_id: input.id,
-        idempotency_key: `booking:${input.id}:updated:${occurredAt}`,
+        source_event_id: `${input.id}:${occurredAt}`,
+        idempotency_key: `booking:${input.id}:booking.rescheduled:${occurredAt}`,
         source_route: source,
         authoritative_source: 'supabase.bookings.admin_edit',
         entity_type: 'booking',
@@ -669,16 +719,17 @@ export async function updateManualBooking(
         data: {
           booking_id: input.id,
           manual_booking: true,
-          changed_fields: changed,
-          changes,
-          updated_by: adminEmail,
-          total_amount: totalCents,
-          deposit_amount: collectedCents,
-          remaining_balance_amount: Math.max(0, totalCents - collectedCents),
+          previous_date: booking.date ?? null,
+          date: input.date ?? booking.date ?? null,
+          previous_time: booking.time_slot ?? null,
+          time: input.time_slot ?? booking.time_slot ?? null,
+          previous_duration_hours: booking.duration_hours ?? null,
+          duration_hours: input.duration_hours ?? booking.duration_hours ?? null,
+          rescheduled_by: adminEmail,
         },
       });
     } catch (e) {
-      console.error('[manual-booking] Senzai booking.updated failed:', (e as Error).message);
+      console.error('[manual-booking] Senzai booking.rescheduled failed:', (e as Error).message);
     }
   }
 

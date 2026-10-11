@@ -41,8 +41,9 @@ function trimError(error: unknown): string {
 async function deliver(row: AnalyticsDeliveryRow): Promise<{ ok: boolean; error: string | null }> {
   switch (row.payload.destination) {
     case 'senzai': {
+      // ok = translated, duplicate or skipped by the Hub (contract §1.1); see sendSenzaiEvent.
       const result = await sendSenzaiEvent(row.payload.input);
-      return { ok: result.ok && result.hubStatus === 'translated', error: result.error };
+      return { ok: result.ok, error: result.error };
     }
     case 'ga4': {
       const result = await sendGa4Event(row.payload.input);
