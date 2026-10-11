@@ -219,12 +219,35 @@ export async function sendSenzaiEvent(
     }
 
     let hubStatus: string | null = null;
+    let duplicate = false;
     try {
-      const responseBody = JSON.parse(responseText) as { data?: { status?: unknown } };
+      const responseBody = JSON.parse(responseText) as {
+        data?: { status?: unknown; duplicate?: unknown };
+      };
       hubStatus =
         typeof responseBody.data?.status === 'string' ? responseBody.data.status : null;
+      duplicate = responseBody.data?.duplicate === true;
     } catch {
       // A 2xx without the Hub acknowledgement contract is not proof of delivery.
+    }
+
+    // Contract 2026-10-01 §1.1 (senzai-skills/contract/CONTRACT.md): a duplicate and a
+    // "skipped" event are both stored by the Hub, so the spoke marks them sent. "skipped"
+    // means the Hub doesn't recognise the name yet; the operator reprocesses it there.
+    if (duplicate || hubStatus === 'skipped') {
+      logEvent(duplicate ? 'info' : 'warn', duplicate ? 'duplicate' : 'skipped_by_hub', input, {
+        ingest_url: ingestUrl,
+        status_code: response.status,
+        hub_status: hubStatus,
+      });
+      return {
+        ok: true,
+        skipped: false,
+        statusCode: response.status,
+        error: null,
+        ingestUrl,
+        hubStatus: duplicate ? 'duplicate' : hubStatus,
+      };
     }
 
     if (hubStatus !== 'translated') {

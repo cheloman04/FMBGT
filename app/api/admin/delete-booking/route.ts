@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 import { recordFinancialEvent } from '@/lib/financial-log';
+import { cancelBookingCalendarEvent } from '@/lib/booking-calendar';
 
 const Schema = z.object({
   booking_id: z.string().uuid(),
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
     .select(
-      'id, waiver_session_id, status, deposit_payment_status, remaining_balance_status, stripe_session_id, stripe_customer_id, stripe_payment_method_id, stripe_payment_intent_id, deposit_payment_intent_id, remaining_balance_payment_intent_id'
+      'id, waiver_session_id, status, cal_booking_uid, deposit_payment_status, remaining_balance_status, stripe_session_id, stripe_customer_id, stripe_payment_method_id, stripe_payment_intent_id, deposit_payment_intent_id, remaining_balance_payment_intent_id'
     )
     .eq('id', booking_id)
     .single();
@@ -106,6 +107,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // The tour is gone — free its calendar slot for online booking.
+    await cancelBookingCalendarEvent(booking, 'Tour cancelled by Florida Mountain Bike Guides');
+
     console.log(`[DELETE_BOOKING_SUCCESS] booking_id=${booking_id} action=archived`);
     return NextResponse.json({ success: true, action: 'archived', booking_id });
   }
@@ -144,6 +148,8 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+
+  await cancelBookingCalendarEvent(booking, 'Tour cancelled by Florida Mountain Bike Guides');
 
   console.log(`[DELETE_BOOKING_SUCCESS] booking_id=${booking_id} action=deleted`);
   return NextResponse.json({ success: true, action: 'deleted', booking_id });

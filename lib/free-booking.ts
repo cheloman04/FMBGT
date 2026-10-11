@@ -9,6 +9,7 @@
 
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
+import { alertCalendarFailure } from '@/lib/booking-calendar';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
@@ -17,7 +18,7 @@ import { markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
 import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
-import { triggerN8nEvent } from '@/lib/n8n';
+import { notifySupportAlert, triggerN8nEvent } from '@/lib/n8n';
 
 type FinalizeResult = { ok: boolean; calBooked: boolean; emailQueued: boolean };
 
@@ -97,7 +98,7 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
     try {
       const startIso = easternLocalToUtcIso(booking.date, booking.time_slot);
       const endIso = addHoursToIso(startIso, booking.duration_hours);
-      const calUid = await createCalBooking({
+      const cal = await createCalBooking({
         startIso,
         endIso,
         name: customer?.name ?? '',
@@ -107,12 +108,21 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
         trailType: booking.trail_type ?? null,
         locationName,
       });
-      calBooked = Boolean(calUid);
+      calBooked = Boolean(cal.uid);
       await supabase
         .from('bookings')
-        .update(calUid ? { cal_booking_uid: calUid, cal_booking_status: 'created' } : { cal_booking_status: 'failed' })
+        .update(cal.uid ? { cal_booking_uid: cal.uid, cal_booking_status: 'created' } : { cal_booking_status: 'failed' })
         .eq('id', bookingId);
-      if (!calUid) console.error(`[free-booking] Cal.com booking FAILED for ${bookingId}`);
+      if (!cal.uid) {
+        console.error(`[free-booking] Cal.com booking FAILED for ${bookingId}`);
+        await alertCalendarFailure({
+          bookingId,
+          source: '/api/create-checkout (free)',
+          error: cal.error,
+          date: booking.date,
+          time: booking.time_slot,
+        });
+      }
     } catch (e) {
       console.error('[free-booking] Cal.com error:', (e as Error).message);
     }
@@ -176,6 +186,16 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
       },
     });
     emailQueued = result.ok;
+    await supabase.from('bookings').update({ webhook_sent: result.ok }).eq('id', bookingId);
+    if (!result.ok) {
+      await notifySupportAlert({
+        source: '/api/create-checkout (free)',
+        severity: 'error',
+        summary: `Confirmation email NOT sent for gift-card booking ${bookingId}`,
+        bookingId,
+        details: { n8n_error: result.error, status_code: result.statusCode },
+      });
+    }
   } catch (e) {
     console.error('[free-booking] n8n booking_confirmed failed:', (e as Error).message);
   }

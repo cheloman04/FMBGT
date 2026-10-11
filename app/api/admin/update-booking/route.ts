@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { runServiceCompletionEffects, type ServiceCompletionResult } from '@/lib/complete-booking';
+import { cancelBookingCalendarEvent } from '@/lib/booking-calendar';
 
 const Schema = z.object({
   booking_id: z.string().uuid(),
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     .select(
       `
       id, customer_id, lead_id, location_id, trail_type, skill_level, date, time_slot,
-      duration_hours, bike_rental, participant_count, total_price, status
+      duration_hours, bike_rental, participant_count, total_price, status, cal_booking_uid
     `
     )
     .eq('id', booking_id)
@@ -49,6 +50,11 @@ export async function POST(req: NextRequest) {
     status === 'completed' && existingBooking.status !== 'completed';
   const shouldEmitBookingCancelled =
     status === 'cancelled' && existingBooking.status !== 'cancelled';
+  // A cancelled or refunded tour no longer happens — free its calendar slot.
+  const shouldReleaseCalendar =
+    (status === 'cancelled' || status === 'refunded') &&
+    existingBooking.status !== 'cancelled' &&
+    existingBooking.status !== 'refunded';
 
   const { error } = await supabase
     .from('bookings')
@@ -73,6 +79,10 @@ export async function POST(req: NextRequest) {
       previousStatus: existingBooking.status,
       sourceRoute: '/api/admin/update-booking',
     });
+  }
+
+  if (shouldReleaseCalendar) {
+    await cancelBookingCalendarEvent(existingBooking, `Tour ${status} by Florida Mountain Bike Guides`);
   }
 
   if (shouldEmitBookingCancelled) {

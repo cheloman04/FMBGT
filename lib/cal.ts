@@ -1,4 +1,5 @@
 import type { AvailabilitySlot, TrailType } from '@/types/booking';
+import { getBookingLocationMeta } from '@/lib/location-meta';
 
 const CAL_API_BASE = 'https://api.cal.com/v2';
 const CAL_API_KEY = process.env.CAL_API_KEY;
@@ -270,7 +271,7 @@ export function groupSlotsByDate(
 }
 
 // ---------------------------------------------------------------------------
-// Cal.com v2 booking creation
+// Cal.com v2 booking writes (create / reschedule / cancel)
 // ---------------------------------------------------------------------------
 
 export interface CalBookingParams {
@@ -284,9 +285,75 @@ export interface CalBookingParams {
   locationName?: string | null;
 }
 
+/** uid of the Cal.com booking on success; otherwise a human-readable error. */
+export interface CalWriteResult {
+  uid: string | null;
+  error: string | null;
+  status?: number;
+}
+
+// Optional fields an event type can reject depending on how it is configured in
+// Cal.com: `lengthInMinutes` needs "multiple durations" enabled, and `location`
+// must fit the event type's location setup. When Cal names one of them in a 400
+// we drop it and retry — an event without it beats no calendar event at all.
+const DROPPABLE_FIELDS = ['lengthInMinutes', 'location'] as const;
+
+type CalPostResult = { ok: boolean; status: number; rawBody: string };
+
+async function postCal(path: string, body: Record<string, unknown>, label: string): Promise<CalPostResult> {
+  let payload = { ...body };
+
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(`${CAL_API_BASE}${path}`, {
+      method: 'POST',
+      headers: calHeaders(),
+      signal: AbortSignal.timeout(8000),
+      body: JSON.stringify(payload),
+    });
+    const rawBody = await response.text();
+    console.log(`[cal] ${label} response status:`, response.status);
+    console.log(`[cal] ${label} response body:`, rawBody.slice(0, 1000));
+
+    const rejected =
+      response.status === 400 && attempt < DROPPABLE_FIELDS.length
+        ? DROPPABLE_FIELDS.find((field) => field in payload && rawBody.includes(field))
+        : undefined;
+    if (!rejected) return { ok: response.ok, status: response.status, rawBody };
+
+    console.warn(`[cal] ${label}: Cal.com rejected '${rejected}' — retrying without it`);
+    payload = { ...payload };
+    delete payload[rejected];
+  }
+}
+
+function calErrorMessage(result: CalPostResult): string {
+  try {
+    const parsed = JSON.parse(result.rawBody) as { error?: { message?: string } };
+    if (parsed?.error?.message) return `Cal.com ${result.status}: ${parsed.error.message}`;
+  } catch {
+    /* non-JSON body */
+  }
+  return `Cal.com ${result.status}: ${result.rawBody.slice(0, 200)}`;
+}
+
+function parseCalUid(rawBody: string): string | null {
+  try {
+    const data = JSON.parse(rawBody) as { data?: { uid?: string } };
+    return data?.data?.uid ?? null;
+  } catch {
+    console.error('[cal] Failed to parse booking response as JSON');
+    return null;
+  }
+}
+
+function minutesBetween(startIso: string, endIso: string): number | null {
+  const minutes = Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60_000);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
 export async function createCalBooking(
   params: CalBookingParams
-): Promise<string | null> {
+): Promise<CalWriteResult> {
   const eventTypeId = getCalEventTypeId({
     trailType: params.trailType,
     locationName: params.locationName,
@@ -299,20 +366,26 @@ export async function createCalBooking(
       !eventTypeId ? `eventTypeId for ${params.trailType ?? 'unknown'} / ${params.locationName ?? 'unknown'}` : '',
       '| booking will have cal_booking_uid=NULL'
     );
-    return null;
+    return { uid: null, error: 'Cal.com is not configured for this tour (missing API key or event type)' };
   }
 
   try {
-    const url = new URL(`${CAL_API_BASE}/bookings`);
-
-    const body = {
+    const lengthInMinutes = minutesBetween(params.startIso, params.endIso);
+    const body: Record<string, unknown> = {
       eventTypeId: Number(eventTypeId),
       start: params.startIso,
+      ...(lengthInMinutes ? { lengthInMinutes } : {}),
       attendee: {
         name: params.name,
         email: params.email,
         timeZone: params.timeZone ?? 'America/New_York',
         language: 'en',
+      },
+      // The event types ask for an attendee-defined location; send the tour's
+      // meeting point so the guide's calendar event shows where to meet.
+      location: {
+        type: 'attendeeDefined',
+        location: getBookingLocationMeta(params.locationName).meetingPointAddress,
       },
       metadata: {},
     };
@@ -320,37 +393,82 @@ export async function createCalBooking(
     console.log(
       `[cal] Resolved booking event type ${eventTypeId} for trail=${params.trailType ?? 'unknown'} location="${params.locationName ?? 'unknown'}"`
     );
-    console.log('[cal] Creating booking (v2):', JSON.stringify({ ...body, attendee: { ...body.attendee, email: '[REDACTED]' } }));
+    console.log(
+      '[cal] Creating booking (v2):',
+      JSON.stringify({ ...body, attendee: { ...(body.attendee as object), email: '[REDACTED]' } })
+    );
 
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: calHeaders(),
-      signal: AbortSignal.timeout(8000),
-      body: JSON.stringify(body),
-    });
-
-    const rawBody = await response.text();
-    console.log('[cal] Booking response status:', response.status);
-    console.log('[cal] Booking response body:', rawBody.slice(0, 1000));
-
-    if (!response.ok) {
-      console.error(`[cal] Booking creation failed: ${response.status}`, rawBody.slice(0, 500));
-      return null;
+    const result = await postCal('/bookings', body, 'Booking');
+    if (!result.ok) {
+      console.error(`[cal] Booking creation failed: ${result.status}`, result.rawBody.slice(0, 500));
+      return { uid: null, error: calErrorMessage(result), status: result.status };
     }
 
-    let data: { status?: string; data?: { uid?: string } };
-    try {
-      data = JSON.parse(rawBody) as typeof data;
-    } catch {
-      console.error('[cal] Failed to parse booking response as JSON');
-      return null;
-    }
-
-    const uid = data?.data?.uid ?? null;
+    const uid = parseCalUid(result.rawBody);
     console.log(`[cal] Booking created: uid=${uid}`);
-    return uid;
+    return uid ? { uid, error: null } : { uid: null, error: 'Cal.com returned no booking uid' };
   } catch (error) {
     console.error('[cal] createCalBooking error:', error);
-    return null;
+    return { uid: null, error: (error as Error).message };
+  }
+}
+
+/**
+ * Move an existing Cal.com booking. Cal.com creates a NEW booking for the new
+ * time, so the returned uid replaces the old one.
+ */
+export async function rescheduleCalBooking(
+  uid: string,
+  params: { startIso: string; endIso: string; reason?: string }
+): Promise<CalWriteResult> {
+  if (!CAL_API_KEY) return { uid: null, error: 'Cal.com is not configured (missing CAL_API_KEY)' };
+
+  try {
+    const lengthInMinutes = minutesBetween(params.startIso, params.endIso);
+    const result = await postCal(
+      `/bookings/${encodeURIComponent(uid)}/reschedule`,
+      {
+        start: params.startIso,
+        ...(lengthInMinutes ? { lengthInMinutes } : {}),
+        reschedulingReason: params.reason ?? 'Updated by Florida Mountain Bike Guides',
+      },
+      'Reschedule'
+    );
+    if (!result.ok) {
+      console.error(`[cal] Reschedule failed for ${uid}: ${result.status}`, result.rawBody.slice(0, 500));
+      return { uid: null, error: calErrorMessage(result), status: result.status };
+    }
+
+    const newUid = parseCalUid(result.rawBody);
+    console.log(`[cal] Booking rescheduled: ${uid} -> ${newUid}`);
+    return newUid ? { uid: newUid, error: null } : { uid: null, error: 'Cal.com returned no booking uid' };
+  } catch (error) {
+    console.error('[cal] rescheduleCalBooking error:', error);
+    return { uid: null, error: (error as Error).message };
+  }
+}
+
+/** Cancel a Cal.com booking so the slot opens up again. A 404 counts as done. */
+export async function cancelCalBooking(
+  uid: string,
+  reason?: string
+): Promise<{ ok: boolean; error: string | null }> {
+  if (!CAL_API_KEY) return { ok: false, error: 'Cal.com is not configured (missing CAL_API_KEY)' };
+
+  try {
+    const result = await postCal(
+      `/bookings/${encodeURIComponent(uid)}/cancel`,
+      { cancellationReason: reason ?? 'Cancelled by Florida Mountain Bike Guides' },
+      'Cancel'
+    );
+    if (result.ok || result.status === 404) {
+      console.log(`[cal] Booking cancelled: uid=${uid} (status ${result.status})`);
+      return { ok: true, error: null };
+    }
+    console.error(`[cal] Cancel failed for ${uid}: ${result.status}`, result.rawBody.slice(0, 500));
+    return { ok: false, error: calErrorMessage(result) };
+  } catch (error) {
+    console.error('[cal] cancelCalBooking error:', error);
+    return { ok: false, error: (error as Error).message };
   }
 }
