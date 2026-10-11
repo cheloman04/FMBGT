@@ -8,6 +8,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 const ADMIN_EMAIL = 'floridamountainbikeguides@gmail.com';
 
 export default function AdminForgotPasswordPage() {
+  const [email, setEmail] = useState(ADMIN_EMAIL);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,14 +26,14 @@ export default function AdminForgotPasswordPage() {
           : `${window.location.origin}/admin/reset-password`;
 
       const supabase = getSupabaseClient();
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(ADMIN_EMAIL, {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
         redirectTo,
       });
 
       if (resetError) {
         setError(resetError.message);
       } else {
-        setStatus('Password reset email sent. Check the admin inbox for the recovery link.');
+        setStatus('If that email belongs to an admin account, a password reset link is on its way.');
       }
     } catch {
       setError('Unable to send reset email right now. Please try again.');
@@ -56,14 +57,28 @@ export default function AdminForgotPasswordPage() {
             />
           </div>
           <h1 className="text-2xl font-bold text-foreground leading-tight">Reset Admin Password</h1>
-          <p className="text-muted-foreground mt-2 text-sm">{ADMIN_EMAIL}</p>
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-5">
             <p className="text-sm text-muted-foreground">
-              We&apos;ll send a secure password reset link to the admin email above.
+              We&apos;ll send a secure password reset link to this admin email.
             </p>
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1.5">
+                Admin Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+              />
+            </div>
 
             {status && (
               <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">

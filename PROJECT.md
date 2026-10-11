@@ -892,8 +892,9 @@ Sets the `admin_session` httpOnly cookie (8 hours, secure in production). Used b
 
 ### Admin Dashboard
 
-- **Login URL:** `/admin/login` — branded password form; redirects to `/admin` on success
-- **Auth:** Cookie-based session (`admin_session` httpOnly, 8-hour expiry) checked against `ADMIN_SECRET` env var
+- **Login URL:** `/admin/login` — branded email + password form; redirects to `/admin` on success
+- **Auth:** Supabase Auth password sign-in; the session is kept in httpOnly cookies (`admin_access_token` / `admin_refresh_token`, 7 days) and re-checked server-side on every admin page and API route (`lib/admin-auth.ts`)
+- **Who can sign in:** the owner (`floridamountainbikeguides@gmail.com`) plus any email listed in `ADMIN_EMAILS` (comma-separated). Each extra admin also needs a Supabase Auth user with a password. Delete / purge / retry-charge actions record `admin_email`, so you can tell which account did them
 - **Features:** Booking stats, full table with filters, inline status update, Sign Out button
 - **Status options:** `pending` → `confirmed` → `cancelled` → `refunded`
 

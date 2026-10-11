@@ -2,6 +2,9 @@ import { createClient, type Session } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+// The business owner is always an admin. Extra admins (e.g. the developer's own
+// account, used to audit the dashboard) come from ADMIN_EMAILS, comma-separated.
+// Each one still needs a Supabase Auth user with a password to sign in.
 export const ADMIN_EMAIL = 'floridamountainbikeguides@gmail.com';
 export const ADMIN_ACCESS_COOKIE = 'admin_access_token';
 export const ADMIN_REFRESH_COOKIE = 'admin_refresh_token';
@@ -31,8 +34,19 @@ function normalizeEmail(email: string | null | undefined): string | null {
   return email.trim().toLowerCase();
 }
 
+export function getAdminEmails(): string[] {
+  const extra = (process.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((email) => normalizeEmail(email))
+    .filter((email): email is string => Boolean(email));
+
+  return [ADMIN_EMAIL, ...extra];
+}
+
 export function isAuthorizedAdminEmail(email: string | null | undefined): boolean {
-  return normalizeEmail(email) === ADMIN_EMAIL;
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  return getAdminEmails().includes(normalized);
 }
 
 export function applyAdminSessionCookies(
