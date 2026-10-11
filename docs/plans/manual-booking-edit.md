@@ -106,13 +106,16 @@ Dustin la guardó con $0 para apartar la fecha. Por eso a Laura le llegó un ema
 
 - [ ] 🟨 **Step 10: Verificación**
   - [x] 🟩 `tsc` y `build` sin errores; `eslint` sin errores nuevos (los de `AdminClient.tsx` ya existían); `vitest` 11/11
-  - [ ] 🟥 En el preview de Vercel, con una reserva manual de prueba:
-    - [ ] 🟥 Crearla con $0 cobrado y sin email; confirmar que sale "Payment pending" y que el evento de 2 h está en Cal.com
-    - [ ] 🟥 Record payment: revisar Fin Log y Senzai
-    - [ ] 🟥 Edit de fecha, total y riders con el waiver ya firmado: revisar Cal.com y que aparezca "Waiver needs update"
-    - [ ] 🟥 Forzar un fallo de Cal.com: confirmar que llega la alerta y probar "Retry calendar"
-    - [ ] 🟥 Correr el cron de revisión a mano
-    - [ ] 🟥 Cancelarla (el evento se libera) y borrarla
+  - [x] 🟩 Migración 032 aplicada en Supabase (verificada en `pg_constraint`)
+  - [x] 🟩 En el preview de Vercel, con una reserva de prueba (8 dic 2026, cliente de prueba "Luis Gonzalez"):
+    - [x] 🟩 Crearla con $100 de total, $0 cobrado y sin email: "Payment pending · $100", "Email not sent"; evento creado en Cal.com con la dirección de Markham Woods (60 min, porque las duraciones múltiples siguen apagadas)
+    - [x] 🟩 Record payment $40 (Zelle): Fin Log `booking.payment_recorded_manual` y Senzai `payment.remaining_balance_succeeded` entregado
+    - [x] 🟩 Edit (9 dic 9:00, total $120, rider renombrado): Cal.com reprogramó (el evento viejo queda "cancelled" con `rescheduledToUid`); saldo $80
+    - [x] 🟩 Fallo forzado (6:00 AM, fuera de horario): "Calendar NOT updated" con el motivo, badge "No Cal event" y alerta real por `OPS_ALERT` a los 2 correos. De vuelta a 9:00 → "Calendar updated"
+    - [x] 🟩 Cancelar desde el dashboard: evento de Cal.com cancelado, `cal_booking_status = cancelled`, el horario vuelve a estar libre. Borrar → archivada en Trash
+    - [x] 🟩 Bug encontrado y corregido (`c32c06c`): el "Revenue" del dashboard no contaba los pagos registrados con Record payment
+    - [ ] 🟥 Sin probar: reapertura del waiver (requiere firmar un waiver), "Send email" (manda un correo real) y el cron diario en producción (Vercel solo corre crons en producción; ya se probó en local)
+  - [ ] 🟥 Pendiente de decisión: Senzai responde "skipped" a `booking.updated` (el hub no tiene traductor para ese evento), así que la entrega queda en "failed" y se reintenta cada vez más espaciado
 
 - [ ] 🟥 **Step 11: Deploy + arreglar la reserva de Laura** (con aprobación antes de producción)
   - [ ] 🟥 Correr la migración 032 en Supabase; merge a `master` y deploy
