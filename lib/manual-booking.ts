@@ -344,10 +344,17 @@ export async function recordManualPayment(input: {
   const balance = manualBalance(totalCents, newCollected);
 
   // Guard on the collected amount we read so a double-submit can't apply twice.
+  // deposit_amount tracks collected too: the dashboard's revenue = deposit_amount
+  // (deposit paid) + remaining_balance_amount (once paid, which is 0 here).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let update = (supabase as any)
     .from('bookings')
-    .update({ deposit_paid_cents: newCollected, payment_method: input.paymentMethod, ...balance })
+    .update({
+      deposit_amount: newCollected,
+      deposit_paid_cents: newCollected,
+      payment_method: input.paymentMethod,
+      ...balance,
+    })
     .eq('id', input.bookingId);
   update =
     booking.deposit_paid_cents === null
