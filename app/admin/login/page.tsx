@@ -9,7 +9,7 @@ const ADMIN_EMAIL = 'floridamountainbikeguides@gmail.com';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email] = useState(ADMIN_EMAIL);
+  const [email, setEmail] = useState(ADMIN_EMAIL);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ export default function AdminLoginPage() {
       if (res.ok) {
         router.push('/admin');
       } else {
-        setError('Incorrect password. Please try again.');
+        setError('Incorrect email or password. Please try again.');
       }
     } catch {
       setError('Connection error. Please try again.');
@@ -70,9 +70,11 @@ export default function AdminLoginPage() {
               <input
                 id="email"
                 type="email"
-                readOnly
+                required
+                autoComplete="username"
                 value={email}
-                className="w-full border border-input bg-muted text-foreground rounded-lg px-3 py-2.5 text-sm"
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
               />
             </div>
 
@@ -85,6 +87,7 @@ export default function AdminLoginPage() {
                 type="password"
                 required
                 autoFocus
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
@@ -100,7 +103,7 @@ export default function AdminLoginPage() {
 
             <button
               type="submit"
-              disabled={loading || !password}
+              disabled={loading || !email || !password}
               className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
             >
               {loading ? 'Signing in...' : 'Sign In'}

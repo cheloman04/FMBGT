@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  ADMIN_EMAIL,
   applyAdminSessionCookies,
   clearAdminSessionCookies,
   isAuthorizedAdminEmail,
@@ -8,7 +7,9 @@ import {
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: NextRequest) {
-  const { email, password } = await req.json();
+  const body = await req.json();
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
 
   if (!email || !password || !isAuthorizedAdminEmail(email)) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     password,
   });
 
-  if (error || !data.session || !data.user || data.user.email?.toLowerCase() !== ADMIN_EMAIL) {
+  if (error || !data.session || !data.user || !isAuthorizedAdminEmail(data.user.email)) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
 
