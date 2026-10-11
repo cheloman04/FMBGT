@@ -1,13 +1,8 @@
 import { requireAdminUser } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { MANUAL_BOOKING_LIST_COLUMNS as LIST_COLUMNS } from '@/lib/manual-booking';
 import { AdminTopBar } from '../AdminTopBar';
 import { ManualBookingClient } from './ManualBookingClient';
-
-const LIST_COLUMNS =
-  'id, created_at, date, time_slot, duration_hours, trail_type, skill_level, status, ' +
-  'payment_method, deposit_paid_cents, total_price, waiver_accepted, waiver_accepted_at, ' +
-  'waiver_link_token, admin_notes, bike_rental, participant_count, ' +
-  'customers(name, email, phone), locations(name)';
 
 async function getData() {
   const supabase = getSupabaseAdmin();

@@ -111,7 +111,8 @@ export async function notifySupportAlert(
   return triggerN8nEvent({
     event: 'ops_alert',
     source: input.source,
-    envKeys: ['N8N_SUPPORT_WEBHOOK_URL', 'N8N_WEBHOOK_URL'],
+    // N8N_OPS_ALERT_WEBHOOK_URL → the OPS_ALERT workflow (emails Dustin + developer).
+    envKeys: ['N8N_OPS_ALERT_WEBHOOK_URL', 'N8N_SUPPORT_WEBHOOK_URL', 'N8N_WEBHOOK_URL'],
     data: {
       severity: input.severity ?? 'error',
       summary: input.summary,

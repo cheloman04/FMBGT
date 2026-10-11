@@ -781,6 +781,8 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({});
   const [retriggeringWebhook, setRetriggeringWebhook] = useState<string | null>(null);
   const [webhookRetriggerStatus, setWebhookRetriggerStatus] = useState<Record<string, string>>({});
+  const [retryingCal, setRetryingCal] = useState<string | null>(null);
+  const [calRetryStatus, setCalRetryStatus] = useState<Record<string, string>>({});
   const [expandedLeads, setExpandedLeads] = useState<Set<string>>(new Set());
   const [sendingLeadId, setSendingLeadId] = useState<string | null>(null);
   const [leadFollowUpStatus, setLeadFollowUpStatus] = useState<Record<string, string>>({});
@@ -1047,6 +1049,28 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
       }
     } finally {
       setRetriggeringWebhook(null);
+    }
+  };
+
+  const handleRetryCal = async (bookingId: string) => {
+    setRetryingCal(bookingId);
+    setCalRetryStatus((prev) => ({ ...prev, [bookingId]: '' }));
+    try {
+      const res = await fetch('/api/admin/retry-cal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId }),
+      });
+      if (res.status === 401) { handleUnauthorized(); return; }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setLocalBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, cal_booking_status: 'created' } : b)));
+        setCalRetryStatus((prev) => ({ ...prev, [bookingId]: 'On calendar' }));
+      } else {
+        setCalRetryStatus((prev) => ({ ...prev, [bookingId]: data.error ?? 'Failed' }));
+      }
+    } finally {
+      setRetryingCal(null);
     }
   };
 
@@ -1504,6 +1528,18 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                       </div>
                     )}
                     <div className="grid grid-cols-1 gap-2">
+                      {selectedMobileBooking.cal_booking_status === 'failed' && selectedMobileBooking.status === 'confirmed' && (
+                        <button
+                          onClick={() => handleRetryCal(selectedMobileBooking.id)}
+                          disabled={retryingCal === selectedMobileBooking.id}
+                          className="min-h-11 rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 text-sm font-medium text-orange-600 transition-colors hover:bg-orange-500/20 disabled:opacity-50 dark:text-orange-300"
+                        >
+                          {retryingCal === selectedMobileBooking.id ? 'Retrying...' : 'No Cal event — Retry calendar'}
+                        </button>
+                      )}
+                      {calRetryStatus[selectedMobileBooking.id] && (
+                        <p className="text-xs text-muted-foreground">{calRetryStatus[selectedMobileBooking.id]}</p>
+                      )}
                       <select
                         value={selectedMobileBooking.status}
                         disabled={updating === selectedMobileBooking.id}
@@ -2214,6 +2250,18 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                               <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[booking.status] ?? 'bg-muted text-muted-foreground'}`}>{booking.status}</span>
                               {booking.cal_booking_status === 'failed' && (
                                 <div className="rounded bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">No Cal event</div>
+                              )}
+                              {booking.cal_booking_status === 'failed' && booking.status === 'confirmed' && (
+                                <button
+                                  onClick={() => handleRetryCal(booking.id)}
+                                  disabled={retryingCal === booking.id}
+                                  className="block text-[11px] font-semibold text-orange-600 underline-offset-2 hover:underline disabled:opacity-50 dark:text-orange-300"
+                                >
+                                  {retryingCal === booking.id ? 'Retrying...' : 'Retry calendar'}
+                                </button>
+                              )}
+                              {calRetryStatus[booking.id] && (
+                                <p className="max-w-[220px] text-[11px] text-muted-foreground">{calRetryStatus[booking.id]}</p>
                               )}
                               {booking.webhook_sent === false && (
                                 <div className="space-y-1">

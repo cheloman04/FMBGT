@@ -6,6 +6,7 @@ import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { getAppUrl } from '@/lib/app-url';
+import { sendManualBookingEmail } from '@/lib/manual-booking';
 
 function trimWebhookError(message: string): string {
   return message.replace(/\s+/g, ' ').trim().slice(0, 300);
@@ -32,7 +33,7 @@ export async function POST(
     .from('bookings')
     .select(`
       id, date, time_slot, duration_hours, participant_count, participant_info,
-      trail_type, skill_level, status, customer_id, location_id,
+      trail_type, skill_level, status, customer_id, location_id, booking_source,
       deposit_amount, remaining_balance_amount, remaining_balance_due_at,
       zip_code, marketing_source
     `)
@@ -47,19 +48,30 @@ export async function POST(
     id: string; date: string; time_slot: string; duration_hours: number;
     participant_count: number | null; participant_info: unknown;
     trail_type: string; skill_level: string | null; status: string;
-    customer_id: string | null; location_id: string | null;
+    customer_id: string | null; location_id: string | null; booking_source: string | null;
     deposit_amount: number | null; remaining_balance_amount: number | null;
     remaining_balance_due_at: string | null;
     zip_code: string | null; marketing_source: string | null;
   };
 
-  const b = booking as BookingRow;
+  // booking_source is not in the generated Database type yet.
+  const b = booking as unknown as BookingRow;
 
   if (b.status !== 'confirmed') {
     return NextResponse.json(
       { error: `Webhook can only be retriggered for confirmed bookings. Current status: ${b.status}` },
       { status: 409 }
     );
+  }
+
+  // Manual (off-platform) bookings use their own email: waiver link + real balance.
+  if (b.booking_source === 'manual') {
+    const email = await sendManualBookingEmail(bookingId, {
+      resend: true,
+      source: '/api/admin/retrigger-webhook',
+    });
+    if (!email.ok) return NextResponse.json({ error: email.error ?? 'Failed to send email' }, { status: 502 });
+    return NextResponse.json({ ok: true });
   }
 
   const [{ data: customer }, { data: location }] = await Promise.all([

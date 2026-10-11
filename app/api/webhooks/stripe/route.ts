@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { constructWebhookEvent, stripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
+import { alertCalendarFailure } from '@/lib/booking-calendar';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
@@ -273,7 +274,7 @@ export async function POST(req: NextRequest) {
           const calEmail = session.customer_email ?? session.metadata?.customer_email ?? '';
           console.log(`[stripe-webhook] Cal.com booking payload: start=${startIso} end=${endIso} name="${session.metadata?.customer_name}" email="${calEmail}"`);
 
-          const calUid = await createCalBooking({
+          const cal = await createCalBooking({
             startIso,
             endIso,
             name: session.metadata?.customer_name ?? '',
@@ -286,14 +287,21 @@ export async function POST(req: NextRequest) {
 
           await supabase
             .from('bookings')
-            .update(calUid
-              ? { cal_booking_uid: calUid, cal_booking_status: 'created' }
+            .update(cal.uid
+              ? { cal_booking_uid: cal.uid, cal_booking_status: 'created' }
               : { cal_booking_status: 'failed' }
             )
             .eq('id', bookingId);
 
-          if (!calUid) {
+          if (!cal.uid) {
             console.error(`[stripe-webhook] Cal.com booking FAILED for booking ${bookingId} — guide has no calendar event`);
+            await alertCalendarFailure({
+              bookingId,
+              source: '/api/webhooks/stripe',
+              error: cal.error,
+              date: confirmedBooking.date,
+              time: confirmedBooking.time_slot,
+            });
           }
         }
 
