@@ -1,9 +1,35 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+
+// `next` is set by middleware.ts. Only same-origin /admin paths are honored, so the
+// login page can't be used to bounce someone to another site.
+function safeNextPath(raw: string | null): string {
+  if (!raw) return '/admin';
+  try {
+    const base = 'http://admin.invalid';
+    const url = new URL(raw, base);
+    if (url.origin !== base) return '/admin';
+    if (!/^\/admin(\/|$)/.test(url.pathname) || url.pathname.startsWith('/admin/login')) return '/admin';
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return '/admin';
+  }
+}
+
+// Set by AdminClient when an admin API call returns 401.
+function SessionExpiredNotice() {
+  const searchParams = useSearchParams();
+  if (searchParams.get('expired') !== '1') return null;
+  return (
+    <p className="mb-5 text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+      Your session expired. Please sign in again.
+    </p>
+  );
+}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -27,7 +53,8 @@ export default function AdminLoginPage() {
       });
 
       if (res.ok) {
-        router.push('/admin');
+        // Read at submit time so the form itself doesn't need a Suspense boundary.
+        router.push(safeNextPath(new URLSearchParams(window.location.search).get('next')));
       } else {
         setError('Incorrect email or password. Please try again.');
       }
@@ -62,6 +89,9 @@ export default function AdminLoginPage() {
 
         {/* Login Card */}
         <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
+          <Suspense fallback={null}>
+            <SessionExpiredNotice />
+          </Suspense>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1.5">

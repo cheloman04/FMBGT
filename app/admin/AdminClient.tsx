@@ -1317,10 +1317,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         {deleteDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => (deleting ? undefined : setDeleteDialog(null))} />
-            <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-red-500/30 bg-zinc-950 shadow-[0_0_0_1px_rgba(239,68,68,0.08),0_20px_80px_rgba(0,0,0,0.55)]">
+            <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-red-500/30 bg-card text-card-foreground shadow-[0_0_0_1px_rgba(239,68,68,0.08),0_20px_80px_rgba(0,0,0,0.55)]">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-400/70 to-transparent" />
               <div className="p-6">
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-300">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-7.5 13A1 1 0 003.66 18h16.68a1 1 0 00.87-1.5l-7.5-13a1 1 0 00-1.74 0z" />
                   </svg>
@@ -1334,13 +1334,13 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                   <p className="mt-1 text-muted-foreground">{formatDate(deleteDialog.date)}</p>
                 </div>
                 {deleteBookingMsg && (
-                  <p className={`mt-4 rounded-lg px-3 py-2 text-xs leading-5 ${deleteBookingMsg.startsWith('Booking archived') ? 'bg-yellow-500/10 text-yellow-300' : 'bg-red-500/10 text-red-300'}`}>
+                  <p className={`mt-4 rounded-lg px-3 py-2 text-xs leading-5 ${deleteBookingMsg.startsWith('Booking archived') ? 'bg-yellow-500/10 text-yellow-800 dark:text-yellow-300' : 'bg-red-500/10 text-red-700 dark:text-red-300'}`}>
                     {deleteBookingMsg}
                   </p>
                 )}
                 <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <button onClick={() => { setDeleteDialog(null); setDeleteBookingMsg(''); }} disabled={!!deleting} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50">Keep Booking</button>
-                  <button onClick={() => handleDeleteBooking(deleteDialog.id)} disabled={!!deleting || deleteBookingMsg.startsWith('Booking archived')} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50">
+                  <button onClick={() => handleDeleteBooking(deleteDialog.id)} disabled={!!deleting || deleteBookingMsg.startsWith('Booking archived')} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50">
                     {deleting === deleteDialog.id ? 'Deleting...' : 'Delete Permanently'}
                   </button>
                 </div>
@@ -1352,10 +1352,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         {leadDeleteDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => (deletingLeadId ? undefined : setLeadDeleteDialog(null))} />
-            <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-red-500/30 bg-zinc-950 shadow-[0_0_0_1px_rgba(239,68,68,0.08),0_20px_80px_rgba(0,0,0,0.55)]">
+            <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-red-500/30 bg-card text-card-foreground shadow-[0_0_0_1px_rgba(239,68,68,0.08),0_20px_80px_rgba(0,0,0,0.55)]">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-400/70 to-transparent" />
               <div className="p-6">
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-300">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-7.5 13A1 1 0 003.66 18h16.68a1 1 0 00.87-1.5l-7.5-13a1 1 0 00-1.74 0z" />
                   </svg>
@@ -1370,7 +1370,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                 </div>
                 <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <button onClick={() => setLeadDeleteDialog(null)} disabled={!!deletingLeadId} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50">Keep Lead</button>
-                  <button onClick={() => handleDeleteLead(leadDeleteDialog.id)} disabled={!!deletingLeadId} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50">
+                  <button onClick={() => handleDeleteLead(leadDeleteDialog.id)} disabled={!!deletingLeadId} className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50">
                     {deletingLeadId === leadDeleteDialog.id ? 'Deleting...' : 'Delete Permanently'}
                   </button>
                 </div>
@@ -1382,10 +1382,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         {purgeDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => (trashActionId ? undefined : setPurgeDialog(null))} />
-            <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-red-500/30 bg-zinc-950 shadow-[0_0_0_1px_rgba(239,68,68,0.08),0_20px_80px_rgba(0,0,0,0.55)]">
+            <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-red-500/30 bg-card text-card-foreground shadow-[0_0_0_1px_rgba(239,68,68,0.08),0_20px_80px_rgba(0,0,0,0.55)]">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-400/70 to-transparent" />
               <div className="p-6">
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-300">
+                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
@@ -1394,7 +1394,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                   Delete {purgeDialog.type === 'booking' ? 'Booking' : 'Lead'} Forever?
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  This will <span className="font-semibold text-red-300">permanently remove</span> this record from the database. This action cannot be undone.
+                  This will <span className="font-semibold text-red-600 dark:text-red-300">permanently remove</span> this record from the database. This action cannot be undone.
                 </p>
                 <div className="mt-4 rounded-xl border border-border bg-background/60 p-4 text-sm">
                   <p className="font-medium text-foreground">{purgeDialog.label}</p>
@@ -1415,7 +1415,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                       setPurgeDialog(null);
                     }}
                     disabled={!!trashActionId}
-                    className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                    className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
                   >
                     {trashActionId ? 'Deleting...' : 'Delete Forever'}
                   </button>
@@ -1601,8 +1601,6 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                         )}
                     </div>
                   </div>
-
-                  <RidersPanel riders={selectedMobileBookingRiders} />
 
                   <div className="space-y-2 rounded-2xl border border-border/70 bg-card/70 p-4">
                     <div className="flex items-center justify-between gap-3">
