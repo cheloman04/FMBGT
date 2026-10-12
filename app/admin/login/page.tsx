@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 
-const ADMIN_EMAIL = 'floridamountainbikeguides@gmail.com';
-
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState(ADMIN_EMAIL);
+  // Starts empty: pre-filling it showed the admin username to anyone on this page.
+  // The browser's own autofill (autoComplete="username") still fills it in.
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -72,6 +72,7 @@ export default function AdminLoginPage() {
                 type="email"
                 required
                 autoComplete="username"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"

@@ -993,6 +993,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
       if (res.status === 401) { handleUnauthorized(); return; }
       if (res.ok) {
         setLocalBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b)));
+        router.refresh(); // the stat cards (revenue, confirmed…) are computed on the server
       }
     } finally {
       setUpdating(null);
@@ -1097,6 +1098,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
 
       if (res.ok) {
         setLocalBookings((prev) => prev.filter((b) => b.id !== bookingId));
+        router.refresh(); // recompute the stat cards without the deleted booking
         setExpandedWaivers((prev) => {
           const next = new Set(prev);
           next.delete(bookingId);
@@ -1132,6 +1134,7 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setLocalLeads((prev) => prev.filter((lead) => lead.id !== leadId));
+        router.refresh();
         setExpandedLeads((prev) => {
           const next = new Set(prev);
           next.delete(leadId);
@@ -1159,7 +1162,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         body: JSON.stringify({ booking_id: bookingId }),
       });
       if (res.status === 401) { handleUnauthorized(); return; }
-      if (res.ok) setLocalTrashedBookings((prev) => prev.filter((b) => b.id !== bookingId));
+      if (res.ok) {
+        setLocalTrashedBookings((prev) => prev.filter((b) => b.id !== bookingId));
+        router.refresh(); // a restored booking counts in the stats again
+      }
     } finally {
       setTrashActionId(null);
     }
@@ -1189,7 +1195,10 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
         body: JSON.stringify({ lead_id: leadId }),
       });
       if (res.status === 401) { handleUnauthorized(); return; }
-      if (res.ok) setLocalTrashedLeads((prev) => prev.filter((l) => l.id !== leadId));
+      if (res.ok) {
+        setLocalTrashedLeads((prev) => prev.filter((l) => l.id !== leadId));
+        router.refresh();
+      }
     } finally {
       setTrashActionId(null);
     }

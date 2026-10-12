@@ -5,10 +5,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getSupabaseClient } from '@/lib/supabase';
 
-const ADMIN_EMAIL = 'floridamountainbikeguides@gmail.com';
-
 export default function AdminForgotPasswordPage() {
-  const [email, setEmail] = useState(ADMIN_EMAIL);
+  // Starts empty so the page doesn't show the admin username (browser autofill still works).
+  const [email, setEmail] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -74,6 +73,7 @@ export default function AdminForgotPasswordPage() {
                 type="email"
                 required
                 autoComplete="username"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
