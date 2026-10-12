@@ -3,6 +3,7 @@ import { constructWebhookEvent, stripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
 import { alertCalendarFailure } from '@/lib/booking-calendar';
+import { sharedTourExists } from '@/lib/shared-tours';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
@@ -257,7 +258,7 @@ export async function POST(req: NextRequest) {
         // Fetch full booking for Cal.com + n8n
         const { data: confirmedBooking } = await supabase
           .from('bookings')
-          .select('date, time_slot, duration_hours, participant_count, participant_info, trail_type, skill_level, total_price, deposit_amount, remaining_balance_amount, remaining_balance_due_at')
+          .select('date, time_slot, duration_hours, participant_count, participant_info, trail_type, skill_level, total_price, deposit_amount, remaining_balance_amount, remaining_balance_due_at, location_id')
           .eq('id', bookingId)
           .single();
 
@@ -283,6 +284,14 @@ export async function POST(req: NextRequest) {
             notes: `Florida MTB Tour — ${session.metadata?.location ?? ''} — ${session.metadata?.date ?? ''}`,
             trailType: confirmedBooking?.trail_type ?? null,
             locationName: session.metadata?.location ?? null,
+            // Sanford: another group's tour already holds this time — book alongside it.
+            joinSharedTour: await sharedTourExists({
+              locationId: confirmedBooking.location_id,
+              locationName: session.metadata?.location ?? null,
+              date: confirmedBooking.date,
+              time: confirmedBooking.time_slot,
+              excludeBookingId: bookingId,
+            }),
           });
 
           await supabase

@@ -53,6 +53,14 @@ export function getCalEventTypeId(input: CalEventTypeLookupInput): string | null
   return null;
 }
 
+/**
+ * Sanford tours take several groups at the same time slot (bikes permitting);
+ * every other tour is one group per day.
+ */
+export function allowsSharedTours(locationName: string | null | undefined): boolean {
+  return normalizeCalLocationName(locationName) === normalizeCalLocationName(SANFORD_PAVED_LOCATION);
+}
+
 /** Headers for Cal.com v2 GET requests (no Content-Type) */
 function calGetHeaders(): HeadersInit {
   return {
@@ -61,11 +69,15 @@ function calGetHeaders(): HeadersInit {
   };
 }
 
+const CAL_WRITE_API_VERSION = '2024-08-13';
+// `allowConflicts` / `skipBookingLimits` only exist from this API version on.
+const CAL_SHARED_TOUR_API_VERSION = '2026-02-25';
+
 /** Headers for Cal.com v2 POST/PATCH requests */
-function calHeaders(): HeadersInit {
+function calHeaders(apiVersion = CAL_WRITE_API_VERSION): HeadersInit {
   return {
     Authorization: `Bearer ${CAL_API_KEY}`,
-    'cal-api-version': '2024-08-13',
+    'cal-api-version': apiVersion,
     'Content-Type': 'application/json',
   };
 }
@@ -252,6 +264,8 @@ export interface CalBookingParams {
   notes?: string;
   trailType?: TrailType | null;
   locationName?: string | null;
+  /** Another group's event already holds this time (Sanford) — book alongside it. */
+  joinSharedTour?: boolean;
 }
 
 /** uid of the Cal.com booking on success; otherwise a human-readable error. */
@@ -267,15 +281,36 @@ export interface CalWriteResult {
 // we drop it and retry — an event without it beats no calendar event at all.
 const DROPPABLE_FIELDS = ['lengthInMinutes', 'location'] as const;
 
+// A group joining a Sanford tour that already has its calendar event books the
+// same time on purpose: skip Cal.com's conflict check and its one-booking-per-day
+// limit. Cal.com only honours these for the event owner's API key.
+const SHARED_TOUR_FLAGS = { allowConflicts: true, skipBookingLimits: true };
+
 type CalPostResult = { ok: boolean; status: number; rawBody: string };
 
-async function postCal(path: string, body: Record<string, unknown>, label: string): Promise<CalPostResult> {
+function droppableField(payload: Record<string, unknown>, status: number, rawBody: string) {
+  if (status !== 400 && status !== 409) return undefined;
+  const named = DROPPABLE_FIELDS.find((field) => field in payload && rawBody.includes(field));
+  if (named) return named;
+  // The schedules are 8–11 AM (start times), so a tour that runs past 11:00 —
+  // 2 h at 10:00, 3 h at 9:00 — is refused as "not available". Fall back to the
+  // event type's default length: the start time is still blocked, as it was
+  // before multiple durations were turned on.
+  return 'lengthInMinutes' in payload ? 'lengthInMinutes' : undefined;
+}
+
+async function postCal(
+  path: string,
+  body: Record<string, unknown>,
+  label: string,
+  apiVersion?: string
+): Promise<CalPostResult> {
   let payload = { ...body };
 
   for (let attempt = 0; ; attempt++) {
     const response = await fetch(`${CAL_API_BASE}${path}`, {
       method: 'POST',
-      headers: calHeaders(),
+      headers: calHeaders(apiVersion),
       signal: AbortSignal.timeout(8000),
       body: JSON.stringify(payload),
     });
@@ -284,9 +319,7 @@ async function postCal(path: string, body: Record<string, unknown>, label: strin
     console.log(`[cal] ${label} response body:`, rawBody.slice(0, 1000));
 
     const rejected =
-      response.status === 400 && attempt < DROPPABLE_FIELDS.length
-        ? DROPPABLE_FIELDS.find((field) => field in payload && rawBody.includes(field))
-        : undefined;
+      attempt < DROPPABLE_FIELDS.length ? droppableField(payload, response.status, rawBody) : undefined;
     if (!rejected) return { ok: response.ok, status: response.status, rawBody };
 
     console.warn(`[cal] ${label}: Cal.com rejected '${rejected}' — retrying without it`);
@@ -357,6 +390,7 @@ export async function createCalBooking(
         location: getBookingLocationMeta(params.locationName).meetingPointAddress,
       },
       metadata: {},
+      ...(params.joinSharedTour ? SHARED_TOUR_FLAGS : {}),
     };
 
     console.log(
@@ -367,7 +401,12 @@ export async function createCalBooking(
       JSON.stringify({ ...body, attendee: { ...(body.attendee as object), email: '[REDACTED]' } })
     );
 
-    const result = await postCal('/bookings', body, 'Booking');
+    const result = await postCal(
+      '/bookings',
+      body,
+      'Booking',
+      params.joinSharedTour ? CAL_SHARED_TOUR_API_VERSION : undefined
+    );
     if (!result.ok) {
       console.error(`[cal] Booking creation failed: ${result.status}`, result.rawBody.slice(0, 500));
       return { uid: null, error: calErrorMessage(result), status: result.status };
@@ -388,7 +427,7 @@ export async function createCalBooking(
  */
 export async function rescheduleCalBooking(
   uid: string,
-  params: { startIso: string; endIso: string; reason?: string }
+  params: { startIso: string; endIso: string; reason?: string; joinSharedTour?: boolean }
 ): Promise<CalWriteResult> {
   if (!CAL_API_KEY) return { uid: null, error: 'Cal.com is not configured (missing CAL_API_KEY)' };
 
@@ -400,8 +439,10 @@ export async function rescheduleCalBooking(
         start: params.startIso,
         ...(lengthInMinutes ? { lengthInMinutes } : {}),
         reschedulingReason: params.reason ?? 'Updated by Florida Mountain Bike Guides',
+        ...(params.joinSharedTour ? SHARED_TOUR_FLAGS : {}),
       },
-      'Reschedule'
+      'Reschedule',
+      params.joinSharedTour ? CAL_SHARED_TOUR_API_VERSION : undefined
     );
     if (!result.ok) {
       console.error(`[cal] Reschedule failed for ${uid}: ${result.status}`, result.rawBody.slice(0, 500));

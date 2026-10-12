@@ -132,7 +132,7 @@ Dustin la guardó con $0 para apartar la fecha. Por eso a Laura le llegó un ema
 
 ## Fase 2 — después de esta entrega (no cuenta en el progreso)
 
-- [ ] 🟥 **Multi-bookings solo para los tours de Sanford** (pedido nuevo, para cuando termine esto)
+- [ ] 🟨 **Multi-bookings solo para los tours de Sanford** — en curso: `docs/plans/sanford-multi-booking.md` (incluye el inventario por rider)
 - [ ] 🟥 **Inventario de bicis por rider:** hoy el trigger (`check_inventory_before_booking`) y `countReservedOnDate` cuentan 1 bici por reserva aunque vengan varios riders. La reserva de Laura (3 riders, standard) ocupa 1 de 10 bicis. Hay que contar riders con bici y agregar bici por rider en el formulario manual. Toca el trigger de la base de datos: probarlo aparte.
 - [ ] 🟥 **Reprogramar reservas online:** Edit solo de fecha y hora para reservas pagadas por Stripe. También hay que mover `remaining_balance_due_at`, porque si no, el cron cobra el saldo en la fecha vieja. Los cambios de precio se siguen haciendo en Stripe.
 - [ ] 🟥 **Sincronizar cambios hechos en Cal.com:** webhook de Cal.com (`BOOKING_RESCHEDULED` / `BOOKING_CANCELLED`) que actualice la reserva si Dustin la mueve o la cancela desde la app de Cal.com.

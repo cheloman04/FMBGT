@@ -8,6 +8,7 @@ import { BookingStepActions } from '@/components/BookingStepActions';
 import { Button } from '@/components/ui/button';
 import { FLORIDA_TIME_ZONE_LABEL, formatFloridaCalendarDate, formatTourTime } from '@/lib/display-time';
 import { easternToday } from '@/lib/booking-datetime';
+import { bookingBikeCounts } from '@/lib/bike-counts';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -96,6 +97,11 @@ export function StepDateTime() {
     state.date ? startOfMonth(new Date(`${state.date}T00:00:00`)) : startOfMonth(minDate)
   );
   const missingBookingContext = !state.trail_type || !state.location_name;
+  // Rental bikes the group needs — dates without enough of them are hidden.
+  const bikesNeeded = useMemo(
+    () => bookingBikeCounts({ bike_rental: state.bike_rental, participant_info: state.additional_participants ?? [] }),
+    [state.bike_rental, state.additional_participants]
+  );
 
   useEffect(() => {
     if (missingBookingContext) return;
@@ -107,7 +113,7 @@ export function StepDateTime() {
 
     // Slots come back in Eastern time (the tours are in Florida) — that is what
     // gets stored as time_slot, so the browser's time zone is deliberately not sent.
-    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}`;
+    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}&bikes=${bikesNeeded.bikes}&electricBikes=${bikesNeeded.electric}`;
 
     fetch(url)
       .then((r) => r.json())
@@ -127,7 +133,7 @@ export function StepDateTime() {
         setError('Failed to load availability. Please try again.');
         setLoading(false);
       });
-  }, [dateFrom, dateTo, missingBookingContext, state.location_name, state.trail_type]);
+  }, [bikesNeeded, dateFrom, dateTo, missingBookingContext, state.location_name, state.trail_type]);
 
   const availableDates = useMemo(
     () =>
