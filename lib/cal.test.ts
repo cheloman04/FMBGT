@@ -243,6 +243,33 @@ describe('Cal.com availability', () => {
     ]);
   });
 
+  it('asks for slots the whole tour fits in when its length is known (paved: 2 h)', async () => {
+    vi.stubEnv('CAL_EVENT_TYPE_ID_PAVED_SANFORD', '5398819');
+    fetchMock.mockResolvedValueOnce(slotsResponse({ '2026-10-27': [{ start: '2026-10-27T10:00:00.000-04:00' }] }));
+    const { getAvailableSlots } = await loadCal();
+
+    const slots = await getAvailableSlots({
+      dateFrom: '2026-10-27',
+      dateTo: '2026-10-27',
+      trailType: 'paved',
+      locationName: 'Sanford Historic Riverfront Tour',
+      durationMinutes: 120,
+    });
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.searchParams.get('eventTypeId')).toBe('5398819');
+    expect(url.searchParams.get('duration')).toBe('120');
+    expect(slots).toEqual([{ date: '2026-10-27', time: '10:00', available: true }]);
+  });
+
+  it('leaves the length to Cal.com when it is not known yet (MTB)', async () => {
+    fetchMock.mockResolvedValueOnce(slotsResponse({}));
+
+    await getSlots();
+
+    expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.has('duration')).toBe(false);
+  });
+
   it('turns UTC slots into Eastern time_slots that book the same instant, across the DST switch', async () => {
     // 8 AM in Florida: 12:00Z while on EDT, 13:00Z once DST ends (Nov 1 2026).
     const offered = ['2026-10-27T12:00:00.000Z', '2026-11-03T13:00:00.000Z'];

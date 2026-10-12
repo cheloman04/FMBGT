@@ -1,6 +1,6 @@
 # Plan: multi-bookings para los tours de Sanford
 
-**Overall Progress:** `100%` (probado en el preview; falta el merge, con aprobación)
+**Overall Progress:** `100%` — en producción desde el 2026-10-11 (PR cheloman04/FMBGT#13, `847109e`)
 
 ## TLDR
 
@@ -56,3 +56,11 @@ De paso se arregla un problema que entró hoy a producción: al activar las dura
     - Borrar el grupo 2 canceló solo su evento: el del grupo 1 siguió `accepted`. Al borrar los dos, los slots del 16 volvieron a abrirse; la reserva de Laura no se tocó
     - Rastros: 2 reservas archivadas en Trash, 3 clientes `bizdev4uai+fmbgt-g1/g2/g3@gmail.com`, 2 filas en Fin Log de $0, 2 `booking.confirmed` entregados a Senzai y 1 email de confirmación al alias del grupo 1 (enviado por error)
     - Sin probar de punta a punta: el pago con Stripe en línea. Usa la misma detección (`sharedTourExists`) y tiene tests
+
+## Seguimiento: Sanford sale siempre a las 10:00
+
+Los tours de Sanford siempre salen a las 10:00 y duran 2 h. MTB y Blue Springs no cambian.
+
+- [ ] 🟥 Cal.com (aprobado por el usuario): el schedule `DTS Tours` (1467241) pasa de mar–vie 8–11 a **mar–vie 10:00–12:00**, con los mismos días bloqueados. Respaldo en el scratchpad de la sesión
+- [x] 🟩 `/api/availability` pide a Cal.com slots de 120 min para los tours paved (`duration=120`). Con el schedule nuevo, Sanford solo ofrece las 10:00 y el evento queda de 10:00 a 12:00 en vez de caer al de 1 h
+- [ ] 🟥 Preview: antes del cambio en Cal.com ofrece 8 y 9; después, solo 10. Luego merge y deploy
