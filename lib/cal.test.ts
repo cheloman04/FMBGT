@@ -7,6 +7,7 @@ import { easternLocalToUtcIso } from './booking-datetime';
 vi.mock('@/lib/location-meta', () => import('./location-meta'));
 vi.mock('@/lib/booking-datetime', () => import('./booking-datetime'));
 vi.mock('@/lib/cal', () => import('./cal'));
+vi.mock('@/lib/location-status', () => import('./location-status'));
 
 type CalModule = typeof import('./cal');
 

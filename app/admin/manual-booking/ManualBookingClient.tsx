@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { isLocationComingSoon } from '@/lib/location-status';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -373,7 +374,10 @@ export function ManualBookingClient({ initialLocations, initialBookings }: Props
               <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputCls}>
                 <option value="">{filteredLocations.length ? 'Select a location…' : 'No locations for this selection'}</option>
                 {filteredLocations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name}
+                    {isLocationComingSoon(loc.name) ? ' (coming soon — not bookable online)' : ''}
+                  </option>
                 ))}
               </select>
             </div>

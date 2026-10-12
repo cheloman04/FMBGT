@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAvailableSlots } from '@/lib/cal';
+import { isLocationComingSoon } from '@/lib/location-status';
 import type { TrailType } from '@/types/booking';
 
 export async function GET(req: NextRequest) {
@@ -22,6 +23,11 @@ export async function GET(req: NextRequest) {
     console.log(
       `[availability] dateFrom=${dateFrom} dateTo=${dateTo} trailType=${trailType} locationName="${locationName}"`
     );
+
+    // "Coming Soon" locations can't be booked, so they have no open slots.
+    if (isLocationComingSoon(locationName)) {
+      return NextResponse.json({ slots: [] });
+    }
 
     const slots = await getAvailableSlots({ dateFrom, dateTo, trailType, locationName });
 

@@ -94,6 +94,7 @@ export function SiteFooter({ wide = false }: { wide?: boolean }) {
             {PAVED_TRAILS.map((trail) => (
               <FooterLink key={trail.slug} href={`/trails/${trail.slug}`}>
                 {trail.name}
+                {trail.comingSoon && ' (coming soon)'}
               </FooterLink>
             ))}
           </FooterColumn>

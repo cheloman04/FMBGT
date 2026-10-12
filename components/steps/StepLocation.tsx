@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { ExternalLink, MapPin } from 'lucide-react';
 import { useBooking } from '@/context/BookingContext';
 import { getLocations } from '@/lib/supabase';
+import { isLocationComingSoon } from '@/lib/location-status';
 import type { Location } from '@/types/booking';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -128,6 +129,50 @@ interface TrailLocationCardProps {
   onSelect: () => void;
 }
 
+/** Shown but not selectable: the ride is announced, not bookable yet. */
+function ComingSoonLocationCard({ location }: { location: Location }) {
+  const meta =
+    LOCATION_CONTENT[location.name] ??
+    NORMALIZED_LOCATION_CONTENT[normalizeLocationKey(location.name)] ??
+    FALLBACK_META;
+  const displayName = normalizeLocationKey(location.name).replace(' (First Time)', '');
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-xl border border-dashed border-border bg-card/60">
+      <div className="relative aspect-[4/3] w-full select-none overflow-hidden">
+        <Image
+          src={meta.image}
+          alt={displayName}
+          fill
+          className="object-cover opacity-60 grayscale"
+          style={meta.imagePosition ? { objectPosition: meta.imagePosition } : undefined}
+        />
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/35">
+          <span className="rounded-full bg-amber-100 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-amber-900 shadow">
+            Coming Soon
+          </span>
+        </div>
+        <div className="absolute right-2 top-2 z-10">
+          <Badge variant="secondary" className="text-xs font-medium shadow">
+            {location.tour_type === 'paved' ? 'Paved' : 'MTB'}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <h3 className="text-sm font-semibold leading-snug text-muted-foreground">{displayName}</h3>
+        <p className="flex-1 text-xs leading-relaxed text-muted-foreground">{meta.description}</p>
+        <p className="text-xs font-medium text-foreground/80">
+          This ride isn&apos;t open for booking yet — check back soon.
+        </p>
+        <Button size="sm" variant="outline" className="w-full text-xs" disabled>
+          Coming Soon
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function TrailLocationCard({ location, onSelect }: TrailLocationCardProps) {
   const meta =
     LOCATION_CONTENT[location.name] ??
@@ -220,13 +265,16 @@ export function StepLocation() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = locations.filter((loc) => {
-    if (loc.tour_type !== state.trail_type) return false;
-    if (loc.skill_levels && state.skill_level) {
-      return loc.skill_levels.includes(state.skill_level);
-    }
-    return true;
-  });
+  const filtered = locations
+    .filter((loc) => {
+      if (loc.tour_type !== state.trail_type) return false;
+      if (loc.skill_levels && state.skill_level) {
+        return loc.skill_levels.includes(state.skill_level);
+      }
+      return true;
+    })
+    // Bookable rides first; "Coming Soon" ones go last.
+    .sort((a, b) => Number(isLocationComingSoon(a.name)) - Number(isLocationComingSoon(b.name)));
 
   const handleSelect = (location: Location) => {
     setLocation(location.id, location.name);
@@ -261,13 +309,17 @@ export function StepLocation() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {filtered.map((location) => (
-            <TrailLocationCard
-              key={location.id}
-              location={location}
-              onSelect={() => handleSelect(location)}
-            />
-          ))}
+          {filtered.map((location) =>
+            isLocationComingSoon(location.name) ? (
+              <ComingSoonLocationCard key={location.id} location={location} />
+            ) : (
+              <TrailLocationCard
+                key={location.id}
+                location={location}
+                onSelect={() => handleSelect(location)}
+              />
+            )
+          )}
         </div>
       )}
     </div>
