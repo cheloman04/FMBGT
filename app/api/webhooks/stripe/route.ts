@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { constructWebhookEvent, stripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
-import { alertCalendarFailure } from '@/lib/booking-calendar';
+import { alertCalendarFailure, cancelBookingCalendarEvent } from '@/lib/booking-calendar';
+import { recordStripeDashboardRefund } from '@/lib/booking-payments';
 import { sharedTourExists } from '@/lib/shared-tours';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
@@ -1044,20 +1045,46 @@ export async function POST(req: NextRequest) {
 
       // ── Refund ────────────────────────────────────────────────────────────
       case 'charge.refunded': {
-        const charge = event.data.object as { payment_intent?: string };
-        const paymentIntentId = charge.payment_intent;
+        const charge = event.data.object as {
+          id: string;
+          payment_intent?: string | { id: string } | null;
+          refunded?: boolean;
+        };
+        const paymentIntentId =
+          typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id ?? null;
         if (!paymentIntentId) break;
+
+        // The refund behind this event. Refunds started in /admin were already
+        // recorded there (lib/booking-payments.ts) and never cancel the booking.
+        const latestRefund = await stripe.refunds
+          .list({ charge: charge.id, limit: 1 })
+          .then((list) => list.data[0] ?? null)
+          .catch((err: Error) => {
+            console.error(`[stripe-webhook] Could not list refunds for charge ${charge.id}:`, err.message);
+            return null;
+          });
+        if (latestRefund?.metadata?.initiated_by === 'admin') {
+          console.log(`[stripe-webhook] Refund ${latestRefund.id} came from /admin — already recorded`);
+          break;
+        }
 
         const { data: matchingRefundBookings, error: refundLookupErr } = await supabase
           .from('bookings')
-          .select('id, lead_id')
+          .select('id, lead_id, cal_booking_uid')
           .or(`stripe_payment_intent_id.eq.${paymentIntentId},remaining_balance_payment_intent_id.eq.${paymentIntentId}`);
 
         if (refundLookupErr) {
           console.error(`[stripe-webhook] Failed to look up refunded booking for PI ${paymentIntentId}:`, refundLookupErr);
         }
 
-        const refundedBookingIds = (matchingRefundBookings ?? []).map((row) => row.id);
+        let refundedBookingIds = (matchingRefundBookings ?? []).map((row) => row.id);
+        // Extra charges made after an edit (charge_type 'adjustment') aren't on the
+        // booking row; their PaymentIntent names the booking.
+        const isAdjustmentCharge = refundedBookingIds.length === 0;
+        if (isAdjustmentCharge) {
+          const pi = await stripe.paymentIntents.retrieve(paymentIntentId).catch(() => null);
+          if (pi?.metadata?.booking_id) refundedBookingIds = [pi.metadata.booking_id];
+        }
         const refundedBookingId = refundedBookingIds.length === 1 ? refundedBookingIds[0] : null;
         // Only carry a lead_id when the refund maps to exactly one booking; a 0/many
         // match is ambiguous, so leave it null rather than guess an attribution.
@@ -1066,15 +1093,31 @@ export async function POST(req: NextRequest) {
             ? (matchingRefundBookings![0] as { lead_id: string | null }).lead_id ?? null
             : null;
 
-        // Match on either deposit or remaining balance PI
-        const { error: depositRefundErr } = await supabase
-          .from('bookings')
-          .update({ status: 'refunded' })
-          .or(`stripe_payment_intent_id.eq.${paymentIntentId},remaining_balance_payment_intent_id.eq.${paymentIntentId}`);
+        if (charge.refunded && !isAdjustmentCharge) {
+          // The deposit or balance charge was refunded in full: the booking is refunded.
+          const { error: depositRefundErr } = await supabase
+            .from('bookings')
+            .update({ status: 'refunded' })
+            .or(`stripe_payment_intent_id.eq.${paymentIntentId},remaining_balance_payment_intent_id.eq.${paymentIntentId}`);
 
-        if (depositRefundErr) {
-          console.error(`[stripe-webhook] Failed to mark refund for PI ${paymentIntentId}:`, depositRefundErr);
-          throw depositRefundErr;
+          if (depositRefundErr) {
+            console.error(`[stripe-webhook] Failed to mark refund for PI ${paymentIntentId}:`, depositRefundErr);
+            throw depositRefundErr;
+          }
+
+          // A refunded tour no longer happens — free its calendar slot.
+          for (const row of (matchingRefundBookings ?? []) as Array<{ id: string; cal_booking_uid: string | null }>) {
+            await cancelBookingCalendarEvent(row, 'Tour refunded by Florida Mountain Bike Guides');
+          }
+        } else if (refundedBookingId && latestRefund) {
+          // Partial refund made in the Stripe dashboard: count it, keep the booking.
+          await recordStripeDashboardRefund({
+            bookingId: refundedBookingId,
+            leadId: refundedLeadId,
+            refundId: latestRefund.id,
+            amountCents: latestRefund.amount,
+            paymentIntentId,
+          });
         }
 
         await queueSenzaiEvent({
@@ -1098,11 +1141,16 @@ export async function POST(req: NextRequest) {
             booking_match_count: refundedBookingIds.length,
             stripe_event_id: event.id,
             payment_intent_id: paymentIntentId,
+            refund_id: latestRefund?.id ?? null,
+            amount_refunded_cents: latestRefund?.amount ?? null,
+            partial: !charge.refunded || isAdjustmentCharge,
             charge_type: 'refund',
           },
         });
 
-        console.log(`[stripe-webhook] Booking refunded — PI ${paymentIntentId}`);
+        console.log(
+          `[stripe-webhook] ${charge.refunded && !isAdjustmentCharge ? 'Booking refunded' : 'Partial refund'} — PI ${paymentIntentId}`
+        );
         break;
       }
 

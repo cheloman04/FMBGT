@@ -13,7 +13,13 @@ import {
 } from '@/lib/manual-booking';
 import { getAppUrl } from '@/lib/app-url';
 
-const ParticipantSchema = z.object({ name: z.string().trim().min(1).max(120) });
+const BikeSchema = z.enum(['none', 'standard', 'electric']);
+const HeightSchema = z.number().int().min(36).max(90);
+const ParticipantSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  bike_rental: BikeSchema.optional(),
+  height_inches: HeightSchema.nullish(),
+});
 const PaymentMethodSchema = z.enum(['cash', 'zelle', 'venmo', 'other']);
 const CentsSchema = z.number().int().min(0).max(100_000_00);
 
@@ -54,6 +60,8 @@ const PatchSchema = z.discriminatedUnion('action', [
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
     time_slot: z.string().trim().min(1).max(20).optional(),
     duration_hours: z.number().int().min(1).max(8).optional(),
+    bike_rental: BikeSchema.optional(),
+    rider_height_inches: HeightSchema.nullish(),
     additional_participants: z.array(ParticipantSchema).max(20).optional(),
     total_cents: CentsSchema.optional(),
     payment_method: PaymentMethodSchema.optional(),
