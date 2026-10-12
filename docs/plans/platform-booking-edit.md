@@ -1,6 +1,6 @@
 # Plan: abrir y editar reservas de la plataforma (online)
 
-**Overall Progress:** `89%` (8 de 9 pasos; falta la verificación en preview y el deploy)
+**Overall Progress:** `95%` (probado en preview; falta el merge y el deploy)
 
 ## TLDR
 
@@ -52,6 +52,14 @@ Cada cambio actualiza lo que haga falta: el cobro automático del saldo (monto y
 
 - [x] 🟩 `tsc` y `next build` sin errores; `vitest` 62/62 (21 tests nuevos de dinero y cotización); `eslint` sin errores nuevos (el de `AdminClient.tsx` ya existía)
 - [x] 🟩 n8n `Booking Confirmation Email` actualizado en producción (compatible hacia atrás; backup en el scratchpad de la sesión)
-- [ ] 🟥 Aplicar la migración 034 en Supabase (el código nuevo lee las columnas: va **antes** del preview y del deploy)
-- [ ] 🟥 Preview con una reserva de prueba: editar (vista previa + guardar), Cal.com, waiver, email "updated", registrar pago y reembolso en efectivo
-- [ ] 🟥 Cobro y reembolso a la tarjeta: solo con un pago real (reserva live-test de $1)
+- [x] 🟩 Migración 034 aplicada en Supabase (SQL editor, 2026-10-11) y verificada por la API
+- [x] 🟩 PR cheloman04/FMBGT#18 + preview de Vercel, con una reserva "online" de prueba sin pago real (`5e501ab1…`, `bizdev4uai+edit@gmail.com`, Markham Woods, tarjeta ficticia y sin cliente de Stripe):
+  - "Retry calendar" → evento de Cal.com creado
+  - Edit 15 dic 8:00 → 16 dic 9:00 + un rider con bici: la vista previa mostró $297.46 → $499.69, cobro automático $148.73 → $350.96 el 15 dic, Cal.com se mueve, waiver para "Third Tester"; la vista previa no escribió nada. Al guardar: Cal.com reprogramado (evento viejo `cancelled` → nuevo `accepted` 9–11 ET), waiver reabierto con link, Fin Log `booking.edited`, email "Your booking was updated" enviado por n8n (ejecución 117565) con los cambios y el link del waiver
+  - Precio a mano $100 (< $148.73 cobrado): cobro automático anulado (`waived`) y "Refund owed $48.73"; "Record cash refund" → cobrado $100, pagado completo
+  - Precio a mano $180: el cobro volvió a `pending` por $80; "Record payment" $30 en efectivo → cobro a la tarjeta $50 (arreglo encontrado en la prueba, `d4e4d13`)
+  - Dashboard: botón "Open / Edit" y Revenue $739.87 = Laura $609.87 + prueba $130 neto
+  - Cancelada desde el dashboard: evento de Cal.com `cancelled`
+  - Rastros: reserva cancelada (se puede mandar a Trash), cliente `bizdev4uai+edit@gmail.com`, 6 filas en Fin Log, eventos de prueba en Senzai (`booking.rescheduled`, `payment.succeeded` $30 cash, `refund.processed` $48.73) y 1 email al alias
+- [ ] ⬜ Cobro y reembolso a la tarjeta: sin probar en vivo (requieren un pago real; decisión del usuario)
+- [ ] 🟥 Merge a `master` y deploy
