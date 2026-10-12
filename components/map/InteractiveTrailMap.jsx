@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { MapPin, ExternalLink } from 'lucide-react';
 import { TRAILS } from '@/data/trails';
 import { DIFFICULTY_STYLE, badgeLabel } from '@/components/map/difficulty';
+import { ComingSoonBadge } from '@/components/ComingSoonBadge';
 
 // ---------------------------------------------------------------------------
 // Data
@@ -125,6 +126,7 @@ export default function InteractiveTrailMap() {
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] ${DIFFICULTY_STYLE[trail.difficulty].badge}`}>
                       {badgeLabel(trail)}
                     </span>
+                    {trail.comingSoon && <ComingSoonBadge className="ml-1.5 align-top" />}
                     <h3 className="mt-2 text-sm font-bold leading-snug text-[#10261d]">{trail.name}</h3>
                     <p className="mt-0.5 text-xs text-[#6a7b73]">{trail.city}</p>
                     <p className="mt-2 text-xs leading-5 text-[#5b6b64]">{trail.description}</p>
@@ -138,12 +140,16 @@ export default function InteractiveTrailMap() {
                         Open in Maps
                         <ExternalLink className="h-3 w-3" />
                       </a>
-                      <a
-                        href="/booking"
-                        className="flex items-center gap-1 text-xs font-semibold text-[#1f5a43] transition hover:text-[#153a2c]"
-                      >
-                        Book Tour →
-                      </a>
+                      {trail.comingSoon ? (
+                        <span className="text-xs font-semibold text-[#8a947f]">Coming soon</span>
+                      ) : (
+                        <a
+                          href="/booking"
+                          className="flex items-center gap-1 text-xs font-semibold text-[#1f5a43] transition hover:text-[#153a2c]"
+                        >
+                          Book Tour →
+                        </a>
+                      )}
                     </div>
                   </div>
                 </Popup>

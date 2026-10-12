@@ -33,6 +33,7 @@ import {
   isStepActive,
   type StepId,
 } from '@/lib/steps';
+import { isLocationComingSoon } from '@/lib/location-status';
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
 
@@ -47,7 +48,22 @@ function loadPersisted(): Persisted {
   if (typeof window === 'undefined') return { booking: {}, stepId: DEFAULT_STEP_ID };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Persisted) : { booking: {}, stepId: DEFAULT_STEP_ID };
+    if (!raw) return { booking: {}, stepId: DEFAULT_STEP_ID };
+    const persisted = JSON.parse(raw) as Persisted;
+    // A saved flow on a location that is now "Coming Soon" goes back to picking one.
+    if (isLocationComingSoon(persisted.booking?.location_name)) {
+      return {
+        booking: {
+          ...persisted.booking,
+          location_id: undefined,
+          location_name: undefined,
+          date: undefined,
+          time_slot: undefined,
+        },
+        stepId: 'location',
+      };
+    }
+    return persisted;
   } catch {
     return { booking: {}, stepId: DEFAULT_STEP_ID };
   }

@@ -92,7 +92,7 @@ export function tourOffers() {
       '@type': 'Offer',
       name: 'Scenic Paved Trail Tour',
       description:
-        'Relaxed guided paved trail ride through historic Sanford, Blue Spring, and scenic Central Florida riverfront routes. Bike included.',
+        'Relaxed guided paved trail ride through historic Sanford and scenic Central Florida riverfront routes. Bike included.',
       url: `${SITE_URL}/booking`,
       price: dollars(PRICING.PAVED_FLAT),
       priceCurrency: 'USD',
@@ -181,24 +181,29 @@ export function trailTourSchema(trail: Trail) {
         longitude: trail.lng,
       },
     },
-    offers: isPaved
-      ? {
-          '@type': 'Offer',
-          url: `${SITE_URL}/booking`,
-          price: dollars(PRICING.PAVED_FLAT),
-          priceCurrency: 'USD',
-          availability: 'https://schema.org/InStock',
-        }
-      : {
-          '@type': 'Offer',
-          url: `${SITE_URL}/booking`,
-          priceSpecification: {
-            '@type': 'PriceSpecification',
-            minPrice: dollars(PRICING.BASE_NO_BIKE),
-            maxPrice: dollars(PRICING.BASE_WITH_BIKE),
-            priceCurrency: 'USD',
-          },
-          availability: 'https://schema.org/InStock',
-        },
+    // A "Coming soon" ride can't be bought yet, so it carries no offer.
+    ...(trail.comingSoon ? {} : { offers: trailOffer(isPaved) }),
   };
+}
+
+function trailOffer(isPaved: boolean) {
+  return isPaved
+    ? {
+        '@type': 'Offer',
+        url: `${SITE_URL}/booking`,
+        price: dollars(PRICING.PAVED_FLAT),
+        priceCurrency: 'USD',
+        availability: 'https://schema.org/InStock',
+      }
+    : {
+        '@type': 'Offer',
+        url: `${SITE_URL}/booking`,
+        priceSpecification: {
+          '@type': 'PriceSpecification',
+          minPrice: dollars(PRICING.BASE_NO_BIKE),
+          maxPrice: dollars(PRICING.BASE_WITH_BIKE),
+          priceCurrency: 'USD',
+        },
+        availability: 'https://schema.org/InStock',
+      };
 }

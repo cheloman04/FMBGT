@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ExternalLink, MapPin } from 'lucide-react';
 import { DIFFICULTY_ORDER, trailsByDifficulty } from '@/data/trails';
 import { DIFFICULTY_STYLE, badgeLabel } from '@/components/map/difficulty';
+import { ComingSoonBadge } from '@/components/ComingSoonBadge';
 
 /**
  * Trail cards under the map.
@@ -71,9 +72,12 @@ export function TrailCarousel() {
                 >
                   <MapPin className="h-4 w-4" aria-hidden="true" />
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${style.badge}`}>
-                  {badgeLabel(trail)}
-                </span>
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  {trail.comingSoon && <ComingSoonBadge />}
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${style.badge}`}>
+                    {badgeLabel(trail)}
+                  </span>
+                </div>
               </div>
               <div className="mt-3">
                 <h3 className="text-[14px] font-semibold leading-tight text-[var(--lp-text)]">

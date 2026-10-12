@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ExternalLink, MapPin } from 'lucide-react';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { ComingSoonBadge } from '@/components/ComingSoonBadge';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { CITIES } from '@/data/cities';
 import { DIFFICULTY_COPY, TRAILS, getTrail, trailsForCity } from '@/data/trails';
@@ -95,12 +96,28 @@ export default async function TrailPage({ params }: PageProps) {
 
           <p className="mt-6 text-lg leading-8 text-[var(--lp-text-body)]">{trail.description}</p>
 
-          <Link
-            href="/booking"
-            className="mt-8 inline-block rounded-full bg-[var(--lp-green)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--lp-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lp-green)] focus-visible:ring-offset-2"
-          >
-            Book a guided ride here
-          </Link>
+          {trail.comingSoon ? (
+            <div className="mt-8 rounded-2xl border border-dashed border-[var(--lp-border)] bg-[var(--lp-card-70)] p-6">
+              <ComingSoonBadge />
+              <p className="mt-3 text-sm leading-7 text-[var(--lp-text-body)]">
+                This ride isn&rsquo;t open for booking yet. Every other ride on the site can be
+                booked online today.
+              </p>
+              <Link
+                href="/booking"
+                className="mt-4 inline-block rounded-full border border-[var(--lp-border)] px-5 py-2.5 text-sm font-semibold text-[var(--lp-text)] transition hover:border-[var(--lp-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lp-green)]"
+              >
+                See the rides you can book now
+              </Link>
+            </div>
+          ) : (
+            <Link
+              href="/booking"
+              className="mt-8 inline-block rounded-full bg-[var(--lp-green)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--lp-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lp-green)] focus-visible:ring-offset-2"
+            >
+              Book a guided ride here
+            </Link>
+          )}
 
           {/* Facts we can actually stand behind */}
           <section className="mt-14">
@@ -174,7 +191,8 @@ export default async function TrailPage({ params }: PageProps) {
                       className="flex flex-wrap items-baseline justify-between gap-2 rounded-xl border border-[var(--lp-border)] bg-[var(--lp-card-70)] px-5 py-4 transition hover:border-[var(--lp-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lp-green)]"
                     >
                       <span className="font-semibold text-[var(--lp-text)]">{other.name}</span>
-                      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--lp-text-muted)]">
+                      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--lp-text-muted)]">
+                        {other.comingSoon && <ComingSoonBadge className="normal-case tracking-normal" />}
                         {other.city} &middot; {other.difficulty}
                       </span>
                     </Link>

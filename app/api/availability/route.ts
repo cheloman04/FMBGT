@@ -3,6 +3,7 @@ import { allowsSharedTours, getAvailableSlots } from '@/lib/cal';
 import { easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { lacksBikes, type BikeCounts } from '@/lib/bike-counts';
 import { getFleetUsage } from '@/lib/inventory';
+import { isLocationComingSoon } from '@/lib/location-status';
 import { getSharedTourSlots } from '@/lib/shared-tours';
 import type { AvailabilitySlot, TrailType } from '@/types/booking';
 
@@ -72,6 +73,11 @@ export async function GET(req: NextRequest) {
     console.log(
       `[availability] dateFrom=${dateFrom} dateTo=${dateTo} timeZone=${timeZone} trailType=${trailType} locationName="${locationName}" bikes=${needed.bikes} electric=${needed.electric}`
     );
+
+    // "Coming Soon" locations can't be booked, so they have no open slots.
+    if (isLocationComingSoon(locationName)) {
+      return NextResponse.json({ slots: [] });
+    }
 
     let slots = await getAvailableSlots({ dateFrom, dateTo, timeZone, trailType, locationName });
 
