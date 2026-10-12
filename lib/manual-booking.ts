@@ -625,12 +625,15 @@ export async function updateManualBooking(
     }
   }
 
-  // A new date needs rental inventory (the DB trigger only checks on INSERT).
-  if (changes.date) {
+  // A new date or more riders needs rental inventory (the DB trigger only checks
+  // on INSERT). Every rider rides the lead's bike; this booking's own bikes don't count.
+  if (changes.date || newRiders.length > oldRiders.length) {
     const inventory = await validateBookingInventory(
-      input.date as string,
+      (input.date ?? booking.date) as string,
       (booking.bike_rental ?? 'none') as BikeRental,
-      {}
+      {},
+      newRiders.map(() => ({})),
+      { excludeBookingId: booking.id }
     );
     if (!inventory.valid) return { ok: false, status: 409, error: inventory.errors[0] ?? 'No rental inventory for that date.' };
   }

@@ -10,6 +10,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
 import { alertCalendarFailure } from '@/lib/booking-calendar';
+import { sharedTourExists } from '@/lib/shared-tours';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
@@ -32,7 +33,7 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
       `id, lead_id, booking_session_id, waiver_session_id, date, time_slot, duration_hours,
        participant_count, participant_info, trail_type, skill_level, total_price,
        discount_code, discount_label, discount_amount_cents, total_after_discount_cents,
-       zip_code, marketing_source, gift_card_id, created_at,
+       zip_code, marketing_source, gift_card_id, created_at, location_id,
        customers(name, email, phone), locations(name)`
     )
     .eq('id', bookingId)
@@ -107,6 +108,14 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
         notes: `Florida MTB Tour (gift card) — ${locationName} — ${booking.date}`,
         trailType: booking.trail_type ?? null,
         locationName,
+        // Sanford: another group's tour already holds this time — book alongside it.
+        joinSharedTour: await sharedTourExists({
+          locationId: booking.location_id,
+          locationName,
+          date: booking.date,
+          time: booking.time_slot,
+          excludeBookingId: bookingId,
+        }),
       });
       calBooked = Boolean(cal.uid);
       await supabase

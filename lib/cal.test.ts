@@ -81,7 +81,7 @@ describe('Cal.com booking writes', () => {
   });
 
   it('reports the Cal.com error message when the slot is not available', async () => {
-    fetchMock.mockResolvedValueOnce(
+    fetchMock.mockImplementation(async () =>
       jsonResponse(409, JSON.stringify({ error: { message: 'User either already has booking at this time or is not available' } }))
     );
     const { createCalBooking } = await loadCal();
@@ -91,7 +91,72 @@ describe('Cal.com booking writes', () => {
     expect(result.uid).toBeNull();
     expect(result.status).toBe(409);
     expect(result.error).toContain('not available');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // One retry at the default length (see the next test), then it gives up.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to the default length when the tour runs past the end of the schedule', async () => {
+    // 10:00 + 2 h ends after the 8–11 AM schedule, so Cal.com refuses the real length.
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(409, JSON.stringify({ error: { message: 'User either already has booking at this time or is not available' } }))
+      )
+      .mockResolvedValueOnce(jsonResponse(200, JSON.stringify({ data: { uid: 'uid-short' } })));
+    const { createCalBooking } = await loadCal();
+
+    const result = await createCalBooking({
+      ...MTB_BOOKING,
+      startIso: '2026-10-27T14:00:00.000Z',
+      endIso: '2026-10-27T16:00:00.000Z',
+    });
+
+    expect(result).toEqual({ uid: 'uid-short', error: null });
+    expect(sentBody(0).lengthInMinutes).toBe(120);
+    expect(sentBody(1).lengthInMinutes).toBeUndefined();
+    expect(sentBody(1).start).toBe('2026-10-27T14:00:00.000Z');
+  });
+
+  it('books a normal tour without the shared-tour flags', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, JSON.stringify({ data: { uid: 'uid-3' } })));
+    const { createCalBooking } = await loadCal();
+
+    await createCalBooking(MTB_BOOKING);
+
+    expect(sentBody(0).allowConflicts).toBeUndefined();
+    expect(sentBody(0).skipBookingLimits).toBeUndefined();
+    expect(fetchMock.mock.calls[0][1].headers['cal-api-version']).toBe('2024-08-13');
+  });
+
+  it('joins a shared Sanford tour with the conflict and booking-limit bypass', async () => {
+    vi.stubEnv('CAL_EVENT_TYPE_ID_PAVED_SANFORD', '5398819');
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, JSON.stringify({ data: { uid: 'uid-group-2' } })));
+    const { createCalBooking } = await loadCal();
+
+    const result = await createCalBooking({
+      ...MTB_BOOKING,
+      trailType: 'paved',
+      locationName: 'Sanford Historic Riverfront Tour',
+      joinSharedTour: true,
+    });
+
+    expect(result).toEqual({ uid: 'uid-group-2', error: null });
+    expect(sentBody(0)).toMatchObject({ eventTypeId: 5398819, allowConflicts: true, skipBookingLimits: true });
+    // The bypass flags only exist from this API version on.
+    expect(fetchMock.mock.calls[0][1].headers['cal-api-version']).toBe('2026-02-25');
+  });
+
+  it('moves a booking into a shared Sanford tour with the bypass flags', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, JSON.stringify({ data: { uid: 'uid-moved' } })));
+    const { rescheduleCalBooking } = await loadCal();
+
+    await rescheduleCalBooking('uid-old', {
+      startIso: '2026-10-27T13:00:00.000Z',
+      endIso: '2026-10-27T15:00:00.000Z',
+      joinSharedTour: true,
+    });
+
+    expect(sentBody(0)).toMatchObject({ allowConflicts: true, skipBookingLimits: true });
+    expect(fetchMock.mock.calls[0][1].headers['cal-api-version']).toBe('2026-02-25');
   });
 
   it('reschedules to the new start and returns the new uid', async () => {
@@ -114,5 +179,17 @@ describe('Cal.com booking writes', () => {
 
     await expect(cancelCalBooking('uid-gone')).resolves.toEqual({ ok: true, error: null });
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.cal.com/v2/bookings/uid-gone/cancel');
+  });
+});
+
+describe('allowsSharedTours', () => {
+  it('lets only Sanford take several groups per time slot', async () => {
+    const { allowsSharedTours } = await loadCal();
+
+    expect(allowsSharedTours('Sanford Historic Riverfront Tour')).toBe(true);
+    expect(allowsSharedTours('  Sanford   Historic Riverfront Tour ')).toBe(true);
+    expect(allowsSharedTours('Spring to Spring Trail Tour – Blue Spring State Park')).toBe(false);
+    expect(allowsSharedTours('Markham Woods Trail, Lake Mary')).toBe(false);
+    expect(allowsSharedTours(null)).toBe(false);
   });
 });

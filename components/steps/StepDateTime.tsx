@@ -7,6 +7,7 @@ import type { AvailabilitySlot } from '@/types/booking';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { Button } from '@/components/ui/button';
 import { formatFloridaCalendarDate } from '@/lib/display-time';
+import { bookingBikeCounts } from '@/lib/bike-counts';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -101,6 +102,11 @@ export function StepDateTime() {
     state.date ? startOfMonth(new Date(`${state.date}T00:00:00`)) : startOfMonth(minDate)
   );
   const missingBookingContext = !state.trail_type || !state.location_name;
+  // Rental bikes the group needs — dates without enough of them are hidden.
+  const bikesNeeded = useMemo(
+    () => bookingBikeCounts({ bike_rental: state.bike_rental, participant_info: state.additional_participants ?? [] }),
+    [state.bike_rental, state.additional_participants]
+  );
 
   useEffect(() => {
     if (missingBookingContext) return;
@@ -111,7 +117,7 @@ export function StepDateTime() {
 
     if (!trailType || !locationName) return;
 
-    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}`;
+    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}&bikes=${bikesNeeded.bikes}&electricBikes=${bikesNeeded.electric}`;
 
     fetch(url)
       .then((r) => r.json())
@@ -131,7 +137,7 @@ export function StepDateTime() {
         setError('Failed to load availability. Please try again.');
         setLoading(false);
       });
-  }, [dateFrom, dateTo, missingBookingContext, state.location_name, state.trail_type]);
+  }, [bikesNeeded, dateFrom, dateTo, missingBookingContext, state.location_name, state.trail_type]);
 
   const availableDates = useMemo(
     () =>

@@ -12,6 +12,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { cancelCalBooking, createCalBooking, rescheduleCalBooking } from '@/lib/cal';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { notifySupportAlert } from '@/lib/n8n';
+import { sharedTourExists } from '@/lib/shared-tours';
 
 export type CalendarSyncResult = { ok: boolean; uid: string | null; error: string | null };
 
@@ -22,6 +23,7 @@ type CalendarBookingRow = {
   duration_hours: number | null;
   trail_type: 'paved' | 'mtb' | null;
   cal_booking_uid: string | null;
+  location_id: string | null;
   customers: { name?: string; email?: string } | null;
   locations: { name?: string } | null;
 };
@@ -63,7 +65,7 @@ export async function syncBookingCalendarEvent(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('bookings')
-    .select('id, date, time_slot, duration_hours, trail_type, cal_booking_uid, customers(name, email), locations(name)')
+    .select('id, date, time_slot, duration_hours, trail_type, cal_booking_uid, location_id, customers(name, email), locations(name)')
     .eq('id', bookingId)
     .maybeSingle();
 
@@ -80,9 +82,17 @@ export async function syncBookingCalendarEvent(
   const startIso = easternLocalToUtcIso(booking.date, booking.time_slot);
   const endIso = addHoursToIso(startIso, booking.duration_hours);
   const locationName = booking.locations?.name ?? null;
+  // Sanford: another group's tour already holds this time — book alongside it.
+  const joinSharedTour = await sharedTourExists({
+    locationId: booking.location_id,
+    locationName,
+    date: booking.date,
+    time: booking.time_slot,
+    excludeBookingId: booking.id,
+  });
 
   let result = booking.cal_booking_uid
-    ? await rescheduleCalBooking(booking.cal_booking_uid, { startIso, endIso, reason: opts.reason })
+    ? await rescheduleCalBooking(booking.cal_booking_uid, { startIso, endIso, reason: opts.reason, joinSharedTour })
     : null;
 
   // No event yet — or the old one is gone / was cancelled in Cal.com — so create
@@ -98,6 +108,7 @@ export async function syncBookingCalendarEvent(
       timeZone: 'America/New_York',
       trailType: booking.trail_type,
       locationName,
+      joinSharedTour,
     });
   }
 
