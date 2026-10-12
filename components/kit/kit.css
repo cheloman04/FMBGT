@@ -1,0 +1,103 @@
+/* =============================================================================
+   Kit de dashboards de Kigaru — capa de utilidades y base
+   =============================================================================
+   Se importa UNA vez desde el globals.css del proyecto, después de Tailwind:
+
+     @import "tailwindcss";
+     @import "../components/kit/kit.css";
+
+   Este fichero NO pone valores: solo nombra. Los valores los pone el tema del
+   cliente sobre el elemento `[data-kit]` (lo dibuja <KitRoot>), y por eso el
+   dashboard no pisa la paleta de la landing ni la del flujo de reserva
+   (KIGARU_DASHBOARD_STANDARD_V1.md §7.3).
+
+   🪤 Los nombres de utilidad NO coinciden con ninguno de shadcn (§7.4, D3):
+   `text-fg` y no `text-foreground`, `bg-surface` y no `bg-card`,
+   `border-hairline` y no `border-border`, `ac-*` y no `accent`. Así este
+   `@theme` convive con el de shadcn en el mismo proyecto sin romperlo.
+   ========================================================================== */
+
+@theme inline {
+  /* Lienzo y texto: los tres grises de §7.5, más el deshabilitado. */
+  --color-canvas: var(--background);
+  --color-fg: var(--foreground);
+  --color-fg-2: var(--fg-secondary);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-disabled: var(--fg-disabled);
+
+  /* Superficies y filetes. */
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-hairline: var(--surface-border);
+
+  /* El acento: rampa en tripletas RGB para que admita opacidad (`ring-ac-500/60`). */
+  --color-ac-50: rgb(var(--a50));
+  --color-ac-100: rgb(var(--a100));
+  --color-ac-200: rgb(var(--a200));
+  --color-ac-300: rgb(var(--a300));
+  --color-ac-400: rgb(var(--a400));
+  --color-ac-500: rgb(var(--a500));
+  --color-ac-600: rgb(var(--a600));
+  --color-ac-700: rgb(var(--a700));
+  --color-ac-800: rgb(var(--a800));
+  --color-ac-900: rgb(var(--a900));
+  --color-ac-contrast: rgb(var(--a-contrast));
+
+  /* El menú lateral (AppShell). `nav-*` y no `sidebar-*`: ese nombre es de shadcn. */
+  --color-nav-bg: rgb(var(--s-bg));
+  --color-nav-border: rgb(var(--s-bdr));
+  --color-nav-text: rgb(var(--s-text));
+  --color-nav-hi: rgb(var(--s-hi));
+  --color-nav-hover: rgb(var(--s-hov));
+
+  /* Tonos de estado (§6.2). Solo en badges, deltas y la cifra de un KPI. */
+  --color-tone-gray: rgb(var(--tone-gray));
+  --color-tone-blue: rgb(var(--tone-blue));
+  --color-tone-green: rgb(var(--tone-green));
+  --color-tone-amber: rgb(var(--tone-amber));
+  --color-tone-yellow: rgb(var(--tone-yellow));
+  --color-tone-red: rgb(var(--tone-red));
+}
+
+@layer base {
+  [data-kit] {
+    /* Un esquema por dashboard (§7.2): los controles nativos (scrollbars,
+       casillas, el desplegable de un <select>) siguen al tema, no al sistema. */
+    color-scheme: var(--scheme, normal);
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  [data-kit] :where(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--font-display, inherit);
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  /* La micro-etiqueta de página, encima del título (`<PageHeader eyebrow>`).
+     `--fg-eyebrow` es opcional: Kigaru la pinta en Sand; sin él, el gris apagado. */
+  .kit-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--fg-eyebrow, var(--fg-muted));
+  }
+
+  /* La única superficie que proyecta sombra: lo que FLOTA (modal, dropdown,
+     popover). Mismo relleno que el lienzo; lo que dice que flota es la veladura,
+     el filete y la sombra, nunca un relleno más claro (§7.6).
+     `--shadow-elevated` es opcional; por defecto la sombra oscurece hacia el
+     propio lienzo, que en un tema oscuro es lo correcto. Un tema claro la define. */
+  .kit-elevated {
+    background-color: var(--background);
+    border: 1px solid var(--surface-border);
+    border-radius: 0.875rem;
+    box-shadow: var(
+      --shadow-elevated,
+      0 14px 34px -18px color-mix(in srgb, var(--background) 50%, transparent),
+      0 28px 64px -32px color-mix(in srgb, var(--background) 60%, transparent)
+    );
+  }
+}

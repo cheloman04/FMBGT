@@ -65,6 +65,23 @@ Run `supabase/schema.sql` in the Supabase SQL editor. This creates:
 | `/api/availability` | GET | Fetches Cal.com availability slots |
 | `/api/webhooks/stripe` | POST | Handles Stripe payment events |
 
+## Admin dashboard (`/admin`)
+
+The admin is being migrated, route by route, onto the shared dashboard kit
+(`KIGARU_DASHBOARD_STANDARD_V1.md` in `senzai-skills`).
+
+- `components/kit/` is a **synced copy** of `senzai-skills/kit/dashboard`. Never edit it:
+  `npm run kit:check` (also in CI) fails on any hand edit. To update it, change the kit in
+  `senzai-skills` by PR and, with that repo on `main`, run from this repo's root:
+  `node <path-to-senzai-skills>/kit/dashboard/scripts/sync.mjs`.
+- `app/admin/theme.css` holds the admin's dark theme (one scheme, no toggle); its contrasts are
+  tested in `app/admin/theme.test.ts`.
+- `app/admin/(panel)/` is guarded by its layout (`requireOperator()`) and drawn inside the kit's
+  shell; `app/admin/(auth)/` holds the sign-in pages, outside the guard.
+- Pages not migrated yet sit inside `<LegacyArea>`. Migrating one means removing that wrapper and
+  adding its folder to `kitLint({ files })` in `eslint.config.mjs`; `npm run lint:dashboard`
+  checks everything under the standard.
+
 ## Integrations
 
 ### Stripe

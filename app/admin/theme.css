@@ -1,0 +1,117 @@
+/* =============================================================================
+   The /admin theme — dark, with FMBGT's brand
+   =============================================================================
+   The NAMES are the kit's contract (KIGARU_DASHBOARD_STANDARD_V1.md §7.1, from
+   `themes/kigaru.css` in senzai-skills); the VALUES are FMBGT's. One scheme, no
+   toggle (D2, §7.2): the landing and the booking flow keep their light/dark
+   toggle; the admin is always dark.
+
+   Where the values come from: the dark palette the landing already has
+   (`--lp-*` in globals.css), with two measured changes:
+     · the landing's faint grey (#4a6458) is 3:1 on the canvas; `--fg-muted`
+       goes up until it passes AA (>= 4.5:1) on the canvas AND on a surface;
+     · the accent ramp is generated in OKLCH around the landing's green
+       (#3daa72 = `--a500`, L 0.661 · C 0.130 · h 157°).
+   `app/admin/theme.test.ts` measures the contrasts again: change a value so a
+   pair drops below AA and the test says so.
+
+   The selector is `[data-kit]`, the element <KitRoot> draws in
+   app/admin/layout.tsx: the theme only applies inside /admin (§7.3).
+   ========================================================================== */
+
+[data-kit] {
+  --scheme: dark;
+
+  /* Canvas and text. */
+  --background: #0d1812; /* the landing's dark canvas */
+  --foreground: #d9e8dd;
+  --fg-secondary: #a9bfb1;
+  --fg-muted: #87a293;
+  --fg-disabled: #55705f;
+  --fg-eyebrow: #c9a07a; /* the tan of the landing's badges */
+
+  /* Surfaces and hairlines, with the canvas' green tint. */
+  --surface: #152219;
+  --surface-muted: rgb(17 28 22 / 0.72);
+  --surface-border: rgb(122 168 140 / 0.16);
+
+  /* The accent, as RGB triplets: the landing's green at 500. */
+  --a50: 231 253 239;
+  --a100: 210 248 224;
+  --a200: 178 239 201;
+  --a300: 128 223 168;
+  --a400: 67 199 132;
+  --a500: 61 170 114; /* #3daa72 */
+  --a600: 12 138 85;
+  --a700: 4 109 65;
+  --a800: 5 83 49;
+  --a900: 1 56 31;
+  --a-contrast: 5 22 13; /* ink on an accent fill */
+
+  /* Sidebar (only AppShell reads these). */
+  --s-bg: 9 18 13;
+  --s-bdr: 30 50 40;
+  --s-text: 135 160 146;
+  --s-hi: 217 232 221;
+  --s-hov: 21 34 25;
+
+  /* Status tones, tuned for this background. The grey carries the green tint. */
+  --tone-gray: 135 160 146;
+  --tone-blue: 96 165 250;
+  --tone-green: 74 222 128;
+  --tone-amber: 251 191 36;
+  --tone-yellow: 250 204 21;
+  --tone-red: 248 113 113;
+}
+
+/* The page behind the area too. The site keeps its light/dark toggle, so a
+   visitor who left the landing in light mode has a light <body>: without this,
+   the scroll bounce on macOS/iOS shows it around the dark admin. Same value as
+   `--background` above (the body can't read a token scoped to [data-kit]). */
+body:has([data-kit]) {
+  background-color: #0d1812;
+}
+
+/* =============================================================================
+   TEMPORARY BRIDGE — delete it when the last page is migrated (phase 2, step 4)
+   =============================================================================
+   Pages not yet migrated to the kit are written with shadcn utilities
+   (`bg-card`, `text-muted-foreground`, `border-border`…) and `dark:` variants.
+   They sit inside <LegacyArea> (`.dark.admin-legacy`): `dark` turns their dark
+   variants on, and this block points the shadcn variables at the tokens above.
+   Without it they'd render in the neutral grey of shadcn's `.dark` inside the
+   green shell.
+
+   Gotcha: `.dark` also sets `--background` and `--foreground` on that same
+   element; `inherit` takes the theme's back. And `[data-kit] .admin-legacy`
+   beats `.dark` on specificity, not on source order.
+
+   The same map applies on `[data-kit]`, so a shadcn component still left in
+   the area (the `components/ui` ones on the sign-in pages) reads the admin's
+   brand.
+   ========================================================================== */
+
+[data-kit],
+[data-kit] .admin-legacy {
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --primary: rgb(var(--a500));
+  --primary-foreground: rgb(var(--a-contrast));
+  --secondary: var(--surface-muted);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--fg-muted);
+  --accent: var(--surface-muted);
+  --accent-foreground: var(--foreground);
+  --destructive: rgb(var(--tone-red));
+  --border: var(--surface-border);
+  --input: var(--surface-border);
+  --ring: rgb(var(--a500));
+}
+
+[data-kit] .admin-legacy {
+  --background: inherit;
+  --foreground: inherit;
+}
