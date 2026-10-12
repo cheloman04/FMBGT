@@ -1,6 +1,6 @@
 # Plan: multi-bookings para los tours de Sanford
 
-**Overall Progress:** `92%` (falta la prueba de punta a punta en el preview de Vercel)
+**Overall Progress:** `100%` (probado en el preview; falta el merge, con aprobación)
 
 ## TLDR
 
@@ -49,4 +49,10 @@ De paso se arregla un problema que entró hoy a producción: al activar las dura
     - 10:00 de 2 h → **409 "not available"** (el bug de producción es real); el reintento sin `lengthInMinutes` → 201, evento de 60 min
     - Cancelar solo el grupo 2 dejó al grupo 1 `accepted`. Se cancelaron los 3 y los slots del 16 y 17 volvieron a abrirse
   - [x] 🟩 Migración 033 aplicada en Supabase (SQL editor). Verificado: el trigger `enforce_inventory_on_booking` está activo y usa `booking_bike_counts`; la reserva de Laura cuenta 3 bicis (antes 1); ninguna fecha futura supera la flota
-  - [ ] 🟥 PR + preview de Vercel: reserva de Sanford con 2 grupos de punta a punta
+  - [x] 🟩 PR cheloman04/FMBGT#13 + preview de Vercel (2026-10-11). Reservas manuales de prueba en Sanford, 16 dic 9:00, $0:
+    - Grupo 1 (2 riders): evento normal en Cal.com (120 min). `/api/availability`: Cal.com cerró el día, pero las 9:00 siguen ofrecidas; con 8 bicis aparece y con 9 no
+    - Grupo 2 (3 riders) a la misma hora: **su propio evento en Cal.com** (2 eventos `accepted` a las 9:00). Con 5 bicis aparece y con 6 no; 2 e-bikes sí y 3 no
+    - Grupo 3 (6 riders, 11 de 10 bicis): rechazado por el trigger 033 con "No rental inventory available: standard_bike is fully booked"
+    - Borrar el grupo 2 canceló solo su evento: el del grupo 1 siguió `accepted`. Al borrar los dos, los slots del 16 volvieron a abrirse; la reserva de Laura no se tocó
+    - Rastros: 2 reservas archivadas en Trash, 3 clientes `bizdev4uai+fmbgt-g1/g2/g3@gmail.com`, 2 filas en Fin Log de $0, 2 `booking.confirmed` entregados a Senzai y 1 email de confirmación al alias del grupo 1 (enviado por error)
+    - Sin probar de punta a punta: el pago con Stripe en línea. Usa la misma detección (`sharedTourExists`) y tiene tests
