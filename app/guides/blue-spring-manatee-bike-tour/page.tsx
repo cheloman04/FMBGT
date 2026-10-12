@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { ComingSoonBadge } from '@/components/ComingSoonBadge';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { getTrail } from '@/data/trails';
 import {
@@ -65,6 +66,7 @@ const FAQS = [
 
 export default function BlueSpringGuidePage() {
   const trail = getTrail('spring-to-spring-blue-spring');
+  const comingSoon = Boolean(trail?.comingSoon);
 
   return (
     <>
@@ -86,6 +88,13 @@ export default function BlueSpringGuidePage() {
           <h1 className="text-3xl font-bold tracking-tight text-[var(--lp-text)] sm:text-4xl lg:text-5xl">
             Blue Spring manatee season, by bike
           </h1>
+
+          {comingSoon && (
+            <p className="mt-4 flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--lp-text-body)]">
+              <ComingSoonBadge />
+              We&rsquo;re getting this ride ready &mdash; it isn&rsquo;t open for booking yet.
+            </p>
+          )}
 
           <div className="mt-6 flex flex-col gap-4 text-base leading-8 text-[var(--lp-text-body)] sm:text-lg">
             <p>
@@ -174,17 +183,39 @@ export default function BlueSpringGuidePage() {
           </section>
 
           <section className="mt-14 rounded-2xl border border-[var(--lp-border)] bg-[var(--lp-card-70)] p-7">
-            <h2 className="text-xl font-bold text-[var(--lp-text)]">Ride it this season</h2>
-            <p className="mt-2 text-sm leading-7 text-[var(--lp-text-body)]">
-              Pick a date and we will tell you honestly what the spring has been like that week.
-            </p>
+            {comingSoon ? (
+              <>
+                <h2 className="text-xl font-bold text-[var(--lp-text)]">Coming soon</h2>
+                <p className="mt-2 text-sm leading-7 text-[var(--lp-text-body)]">
+                  The Blue Spring ride isn&rsquo;t open for booking yet. In the meantime, the
+                  Sanford paved tour rides at the same relaxed pace through a historic downtown
+                  and riverfront.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-xl font-bold text-[var(--lp-text)]">Ride it this season</h2>
+                <p className="mt-2 text-sm leading-7 text-[var(--lp-text-body)]">
+                  Pick a date and we will tell you honestly what the spring has been like that week.
+                </p>
+              </>
+            )}
             <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href="/booking"
-                className="rounded-full bg-[var(--lp-green)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--lp-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lp-green)] focus-visible:ring-offset-2"
-              >
-                Book the Blue Spring ride
-              </Link>
+              {comingSoon ? (
+                <Link
+                  href="/trails/sanford-historic-riverfront"
+                  className="rounded-full bg-[var(--lp-green)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--lp-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lp-green)] focus-visible:ring-offset-2"
+                >
+                  See the Sanford paved ride
+                </Link>
+              ) : (
+                <Link
+                  href="/booking"
+                  className="rounded-full bg-[var(--lp-green)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--lp-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lp-green)] focus-visible:ring-offset-2"
+                >
+                  Book the Blue Spring ride
+                </Link>
+              )}
               <Link
                 href="/tours/deland"
                 className="rounded-full border border-[var(--lp-border)] px-6 py-3 text-sm font-semibold text-[var(--lp-text)] transition hover:border-[var(--lp-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--lp-green)]"

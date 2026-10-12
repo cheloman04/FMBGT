@@ -30,6 +30,11 @@ export interface Trail {
   mapsUrl: string;
   meetingPointName: string;
   meetingPointAddress: string;
+  /**
+   * Announced but not bookable yet: pages show "Coming soon" instead of a
+   * booking link. The booking flow reads lib/location-status.ts — keep in step.
+   */
+  comingSoon?: boolean;
 }
 
 export const DIFFICULTY_ORDER: Difficulty[] = [
@@ -235,6 +240,7 @@ export const TRAILS: Trail[] = [
       'https://www.google.com/maps/search/?api=1&query=Spring+to+Spring%2C+Blue+Springs+State+Park+-+Lake+Beresford+Park%2C+2100+Fatio+Rd%2C+DeLand%2C+FL+32720',
     meetingPointName: 'Lake Beresford Park, Spring to Spring Trail',
     meetingPointAddress: '2100 Fatio Rd, DeLand, FL 32720',
+    comingSoon: true,
   },
 ];
 

@@ -150,12 +150,12 @@ const tours = [
     title: "Scenic Paved Trail Tours",
     badge: "Relaxed Adventure",
     description:
-      "A laid-back way to explore Central Florida through smooth scenic paved trails, historic Sanford, riverfront views, Blue Spring, and seasonal manatee stops.",
+      "A laid-back way to explore Central Florida on smooth scenic paved trails through historic Sanford and its riverfront views. Blue Spring rides are coming soon.",
     icon: Waves,
     duration: "2–3 hour guided tour",
     price: "From $115 / rider",
     includes: ["Bike & helmet", "Local guide", "All ages welcome"],
-    points: ["Historic Sanford", "Blue Spring rides", "All ages & levels"],
+    points: ["Historic Sanford", "Blue Spring — coming soon", "All ages & levels"],
     cta: "Book This Tour",
     image: "/images/rev-pics-update/booking-paved-blue.png",
     alt: "Scenic paved trail ride near Florida springs with water and nature views",
@@ -716,7 +716,7 @@ export default function FloridaMountainBikeGuidesLanding() {
                       <div className="rounded-3xl border border-white/60 bg-[var(--lp-card-70)] p-4">
                         <div className="flex items-center gap-3 text-sm text-[var(--lp-text-dark)]">
                           <MapPin className="h-4 w-4 text-[var(--lp-green)]" />
-                          Sanford, Blue Spring, riverfront routes, and trail access points.
+                          Sanford, riverfront routes, and trail access points.
                         </div>
                       </div>
                       <div className="rounded-3xl border border-white/60 bg-[var(--lp-card-70)] p-4">
