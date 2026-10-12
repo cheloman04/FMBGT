@@ -12,6 +12,7 @@ import {
 } from '@/lib/display-time';
 import type { SkillLevel, TrailType } from '@/types/booking';
 import { AdminTopBar } from './AdminTopBar';
+import { SANFORD_MAX_RIDERS, isSanfordLocation } from '@/lib/sanford';
 
 interface WaiverRecord {
   id: string;
@@ -828,6 +829,18 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
           .some((value) => String(value).toLowerCase().includes(normalizedSearch))
       )
     : localBookings;
+  // Sanford groups share a departure: riders on each one across its confirmed groups.
+  const sanfordDepartureRiders = new Map<string, number>();
+  for (const booking of localBookings) {
+    if (booking.status !== 'confirmed' || !isSanfordLocation(booking.location_name)) continue;
+    const key = `${booking.date}|${booking.time_slot}`;
+    sanfordDepartureRiders.set(key, (sanfordDepartureRiders.get(key) ?? 0) + (booking.participant_count ?? 1));
+  }
+  const departureLabel = (booking: Booking): string | null => {
+    if (!isSanfordLocation(booking.location_name)) return null;
+    const riders = sanfordDepartureRiders.get(`${booking.date}|${booking.time_slot}`);
+    return riders ? `Departure ${riders}/${SANFORD_MAX_RIDERS} riders` : null;
+  };
   const nearestBooking = isLeadsView ? null : getNearestUpcomingBooking(localBookings);
   const selectedMobileBooking =
     filteredBookings.find((booking) => booking.id === selectedMobileBookingId) ??
@@ -1467,6 +1480,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Ride</p>
                       <p className="text-sm leading-5 text-foreground">{selectedMobileBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} - {selectedMobileBooking.duration_hours}hr</p>
                       <p className="text-sm text-muted-foreground">{summarizeBikeMix(selectedMobileBookingRiders)}</p>
+                      {departureLabel(selectedMobileBooking) && (
+                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{departureLabel(selectedMobileBooking)}</p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Date</p>
@@ -2197,6 +2213,11 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                             <div className="mt-1 text-xs text-muted-foreground">
                               {summarizeBikeMix(buildRiderDetails(booking))}
                             </div>
+                            {departureLabel(booking) && (
+                              <div className="mt-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                                {departureLabel(booking)}
+                              </div>
+                            )}
                             <div className="mt-2 space-y-1">
                               {buildRiderDetails(booking).map((rider) => (
                                 <div key={rider.id} className="flex flex-wrap items-center gap-1.5 text-xs">

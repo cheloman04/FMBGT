@@ -12,6 +12,8 @@ import {
   updateManualBooking,
 } from '@/lib/manual-booking';
 import { getAppUrl } from '@/lib/app-url';
+import { isSanfordLocation } from '@/lib/sanford';
+import { getSanfordSeatsLeft, sanfordSeatsMessage } from '@/lib/sanford-departures';
 
 const ParticipantSchema = z.object({ name: z.string().trim().min(1).max(120) });
 const PaymentMethodSchema = z.enum(['cash', 'zelle', 'venmo', 'other']);
@@ -98,6 +100,20 @@ export async function POST(req: NextRequest) {
     }
     const d = parsed.data;
     const supabase = getSupabaseAdmin();
+
+    // Sanford departures are shared: the group has to fit in the seats left.
+    const { data: locationRow } = await supabase
+      .from('locations')
+      .select('name')
+      .eq('id', d.location_id)
+      .maybeSingle();
+    if (d.trail_type === 'paved' && isSanfordLocation((locationRow as { name: string } | null)?.name)) {
+      const riders = 1 + (d.additional_participants?.length ?? 0);
+      const seatsLeft = await getSanfordSeatsLeft(d.date, d.time_slot);
+      if (riders > seatsLeft) {
+        return NextResponse.json({ error: sanfordSeatsMessage(seatsLeft, riders) }, { status: 409 });
+      }
+    }
 
     // Upsert the customer (email is the conflict key).
     const { data: customerData, error: customerError } = await supabase

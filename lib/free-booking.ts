@@ -9,7 +9,7 @@
 
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
-import { alertCalendarFailure } from '@/lib/booking-calendar';
+import { alertCalendarFailure, joinSharedDepartureEvent } from '@/lib/booking-calendar';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
@@ -92,9 +92,17 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
     }
   }
 
-  // 3. Cal.com booking (guide's calendar event).
+  // 3. Cal.com booking (guide's calendar event). A group joining a shared
+  //    departure (Sanford) goes onto that departure's existing event.
   let calBooked = false;
-  if (booking.date && booking.time_slot && booking.duration_hours) {
+  const joinedDeparture = await joinSharedDepartureEvent(bookingId, { source: '/api/create-checkout (free)' }).catch(
+    (e: Error) => {
+      console.error('[free-booking] shared departure join failed:', e.message);
+      return null;
+    }
+  );
+  if (joinedDeparture) calBooked = joinedDeparture.ok;
+  if (!joinedDeparture && booking.date && booking.time_slot && booking.duration_hours) {
     try {
       const startIso = easternLocalToUtcIso(booking.date, booking.time_slot);
       const endIso = addHoursToIso(startIso, booking.duration_hours);

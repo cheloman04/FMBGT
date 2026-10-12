@@ -152,8 +152,8 @@ const tours = [
     description:
       "A laid-back way to explore Central Florida on smooth scenic paved trails through historic Sanford and its riverfront views. Blue Spring rides are coming soon.",
     icon: Waves,
-    duration: "2–3 hour guided tour",
-    price: "From $115 / rider",
+    duration: "2-hour guided tour, 10:00 AM",
+    price: "From $99 / group",
     includes: ["Bike & helmet", "Local guide", "All ages welcome"],
     points: ["Historic Sanford", "Blue Spring — coming soon", "All ages & levels"],
     cta: "Book This Tour",

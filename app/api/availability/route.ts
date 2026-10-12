@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAvailableSlots } from '@/lib/cal';
 import { isLocationComingSoon } from '@/lib/location-status';
+import { SANFORD_MAX_RIDERS, buildSanfordSlots, isSanfordLocation } from '@/lib/sanford';
+import { getSanfordRidersBooked } from '@/lib/sanford-departures';
 import type { TrailType } from '@/types/booking';
 
 export async function GET(req: NextRequest) {
@@ -26,6 +28,20 @@ export async function GET(req: NextRequest) {
     // "Coming Soon" locations can't be booked, so they have no open slots.
     if (isLocationComingSoon(locationName)) {
       return NextResponse.json({ slots: [] });
+    }
+
+    // Sanford: one shared 10:00 departure a day. Seats change with every booking,
+    // so this response is never cached.
+    if (trailType === 'paved' && isSanfordLocation(locationName)) {
+      const riders = Math.min(SANFORD_MAX_RIDERS, Math.max(1, Number(searchParams.get('riders')) || 1));
+      const [calSlots, ridersBooked] = await Promise.all([
+        // Eastern time, so the departure reads 10:00 for every visitor.
+        getAvailableSlots({ dateFrom, dateTo, timeZone: 'America/New_York', trailType, locationName }),
+        getSanfordRidersBooked(dateFrom, dateTo),
+      ]);
+      const slots = buildSanfordSlots({ calSlots, ridersBooked, riders, dateFrom, dateTo });
+      console.log(`[availability] Sanford: ${slots.length} departure(s) for ${riders} rider(s)`);
+      return NextResponse.json({ slots }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     const slots = await getAvailableSlots({ dateFrom, dateTo, timeZone, trailType, locationName });

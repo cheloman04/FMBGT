@@ -1,11 +1,15 @@
 import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParticipant } from '@/types/booking';
 import { resolveFamDiscount, calcDiscountAmount } from '@/lib/discounts';
+import { isSanfordLocation } from '@/lib/sanford';
 
 // All prices in cents (USD)
 export const PRICING = {
   FLORIDA_STATE_TAX_RATE: 0.07,
   LIVE_TEST_TOTAL: 100,      // $1.00 total all-in for internal live payment verification
-  PAVED_FLAT: 11500,         // $115.00 per rider - paved 2hr tour, bike always included
+  PAVED_FLAT: 11500,         // $115.00 per rider - paved 2hr tour, bike always included (non-Sanford paved)
+  // Sanford paved tour: priced per GROUP (one booking), 2 hours, bike included.
+  SANFORD_GROUP: [9900, 16000, 23000, 30000], // 1, 2, 3 and 4 riders
+  SANFORD_EXTRA_RIDER: 5999, // each rider after the 4th, in the same group
   BASE_NO_BIKE: 8900,        // $89.00 - MTB 2hr tour, BYOB (no bike)
   BASE_WITH_BIKE: 18900,     // $189.00 - MTB 2hr tour, standard bike included
   ADDITIONAL_HOUR: 5000,     // $50.00 per additional hour (MTB only)
@@ -27,6 +31,8 @@ export const PRICING = {
 interface PricingOptions {
   liveTestMode?: boolean;
   discountCode?: string | null;
+  /** Booking location — Sanford paved tours are priced per group. */
+  locationName?: string | null;
 }
 
 function buildLiveTestBreakdown(participantCount: number): PriceBreakdown {
@@ -41,6 +47,14 @@ function buildLiveTestBreakdown(participantCount: number): PriceBreakdown {
     participant_count: participantCount,
     is_live_test_mode: true,
   };
+}
+
+/** Sanford group price (pre-tax, bikes included) for a group of `riders`. */
+export function calculateSanfordGroupPrice(riders: number): number {
+  const tiers = PRICING.SANFORD_GROUP;
+  const count = Math.max(1, Math.floor(riders));
+  if (count <= tiers.length) return tiers[count - 1];
+  return tiers[tiers.length - 1] + (count - tiers.length) * PRICING.SANFORD_EXTRA_RIDER;
 }
 
 export function calculateFloridaStateTax(subtotal: number): number {
@@ -89,9 +103,12 @@ export function calculatePriceBreakdown(
 
   const discount = resolveFamDiscount(options.discountCode);
 
-  // Paved tours: $115 per rider, bike always included, no duration surcharge
+  // Paved tours: bike always included, no duration surcharge. Sanford is priced
+  // per group; any other paved route is $115 per rider.
   if (trailType === 'paved') {
-    const base_price = PRICING.PAVED_FLAT * participantCount;
+    const base_price = isSanfordLocation(options.locationName)
+      ? calculateSanfordGroupPrice(participantCount)
+      : PRICING.PAVED_FLAT * participantCount;
     const gopro_price = addons.gopro ? PRICING.ADDONS.gopro * participantCount : 0;
     const pickup_price = addons.pickup_dropoff ? PRICING.ADDONS.pickup_dropoff * participantCount : 0;
     // Electric upgrades: count per-rider selections from bike_rental fields
@@ -195,7 +212,12 @@ export function getPriceLineItems(
     ];
   }
 
-  if (trailType === 'paved') {
+  if (trailType === 'paved' && isSanfordLocation(options.locationName)) {
+    items.push({
+      label: `Sanford group tour - 2 hours, bikes included (${participantCount} rider${participantCount > 1 ? 's' : ''})`,
+      amount: calculateSanfordGroupPrice(participantCount),
+    });
+  } else if (trailType === 'paved') {
     items.push({
       label: `Guided Paved Tour - 2 hours (bike included)${countLabel}`,
       amount: PRICING.PAVED_FLAT * participantCount,

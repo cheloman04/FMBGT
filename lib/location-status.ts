@@ -8,7 +8,7 @@
 const COMING_SOON_LOCATIONS = ['Spring to Spring Trail Tour - Blue Spring State Park'];
 
 // Location names have been stored with both "-" and "–" (see lib/cal.ts).
-function normalizeLocationName(name: string): string {
+export function normalizeLocationName(name: string): string {
   return name.normalize('NFKC').replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 

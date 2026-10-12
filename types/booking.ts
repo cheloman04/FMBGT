@@ -238,6 +238,8 @@ export interface AvailabilitySlot {
   date: string;
   time: string;
   available: boolean;
+  /** Shared departures (Sanford): riders that can still join this departure. */
+  seats_left?: number;
 }
 
 export interface AvailabilityResponse {

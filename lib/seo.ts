@@ -6,7 +6,8 @@
  * on a crawler's first pass.
  */
 
-import { PRICING } from '@/lib/pricing';
+import { PRICING, calculateSanfordGroupPrice } from '@/lib/pricing';
+import { SANFORD_MAX_RIDERS } from '@/lib/sanford';
 import { getSiteUrl } from '@/lib/site-url';
 import type { FaqItem } from '@/data/faqs';
 import type { Trail } from '@/data/trails';
@@ -24,6 +25,18 @@ export const SOCIAL_PROFILES = [
 ];
 
 const dollars = (cents: number) => (cents / 100).toFixed(2);
+
+const SANFORD_TRAIL_SLUG = 'sanford-historic-riverfront';
+
+/** Sanford is priced per group: one rider up to a full departure. */
+function sanfordPriceSpecification() {
+  return {
+    '@type': 'PriceSpecification',
+    minPrice: dollars(calculateSanfordGroupPrice(1)),
+    maxPrice: dollars(calculateSanfordGroupPrice(SANFORD_MAX_RIDERS)),
+    priceCurrency: 'USD',
+  };
+}
 
 /**
  * Serialize a schema object for dangerouslySetInnerHTML.
@@ -92,10 +105,9 @@ export function tourOffers() {
       '@type': 'Offer',
       name: 'Scenic Paved Trail Tour',
       description:
-        'Relaxed guided paved trail ride through historic Sanford and scenic Central Florida riverfront routes. Bike included.',
+        'Relaxed guided paved trail ride through historic Sanford and scenic Central Florida riverfront routes. Bike included, priced per group.',
       url: `${SITE_URL}/booking`,
-      price: dollars(PRICING.PAVED_FLAT),
-      priceCurrency: 'USD',
+      priceSpecification: sanfordPriceSpecification(),
       availability: 'https://schema.org/InStock',
     },
   ];
@@ -182,12 +194,20 @@ export function trailTourSchema(trail: Trail) {
       },
     },
     // A "Coming soon" ride can't be bought yet, so it carries no offer.
-    ...(trail.comingSoon ? {} : { offers: trailOffer(isPaved) }),
+    ...(trail.comingSoon ? {} : { offers: trailOffer(trail) }),
   };
 }
 
-function trailOffer(isPaved: boolean) {
-  return isPaved
+function trailOffer(trail: Trail) {
+  if (trail.slug === SANFORD_TRAIL_SLUG) {
+    return {
+      '@type': 'Offer',
+      url: `${SITE_URL}/booking`,
+      priceSpecification: sanfordPriceSpecification(),
+      availability: 'https://schema.org/InStock',
+    };
+  }
+  return trail.terrain === 'paved'
     ? {
         '@type': 'Offer',
         url: `${SITE_URL}/booking`,

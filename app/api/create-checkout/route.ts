@@ -16,6 +16,14 @@ import { calcGiftCardApplied, GIFT_CARD_LABEL } from '@/lib/gift-cards';
 import { finalizeFreeBooking } from '@/lib/free-booking';
 import { COMING_SOON_MESSAGE, isLocationComingSoon } from '@/lib/location-status';
 import {
+  SANFORD_DEPARTURE_TIME,
+  SANFORD_LOCATION_NAME,
+  SANFORD_MAX_EBIKES,
+  SANFORD_MAX_RIDERS,
+  isSanfordLocation,
+} from '@/lib/sanford';
+import { getSanfordSeatsLeft, sanfordSeatsMessage } from '@/lib/sanford-departures';
+import {
   buildMetaUserData,
   getClientIpFromHeaders,
   getEventSourceUrlFromHeaders,
@@ -51,7 +59,8 @@ const BookingStateSchema = z.object({
   location_name: z.string(),
   bike_rental: z.enum(['none', 'standard', 'electric']),
   rider_height_inches: z.number().optional(),
-  participant_count: z.number().min(1).max(6).default(1),
+  // Per-location limits are checked below; Sanford groups go up to 7.
+  participant_count: z.number().min(1).max(7).default(1),
   additional_participants: z.array(AdditionalParticipantSchema).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time_slot: z.string(),
@@ -83,7 +92,7 @@ const BookingStateSchema = z.object({
 // Max participants per paved location
 const PAVED_MAX_PARTICIPANTS: Record<string, number> = {
   'Blue Spring State Park': 4,
-  'Sanford Historic Riverfront Tour': 6,
+  [SANFORD_LOCATION_NAME]: SANFORD_MAX_RIDERS,
 };
 const MTB_MAX_PARTICIPANTS = 6;
 
@@ -280,9 +289,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fleet cap
-    const hasFleetCap = state.trail_type === 'mtb' ||
-      (state.trail_type === 'paved' && state.location_name === 'Sanford Historic Riverfront Tour');
+    // Fleet cap. Sanford: bikes are included for every rider of a departure, with
+    // up to 2 e-bikes; elsewhere a booking can rent up to 4 standard + 2 e-bikes.
+    const isSanford = state.trail_type === 'paved' && isSanfordLocation(state.location_name);
+    const hasFleetCap = state.trail_type === 'mtb' || isSanford;
     if (hasFleetCap) {
       const allParticipants = [
         { bike_rental: state.bike_rental },
@@ -290,11 +300,13 @@ export async function POST(req: NextRequest) {
       ];
       const electricCount = allParticipants.filter(p => p.bike_rental === 'electric').length;
       const standardCount = allParticipants.filter(p => p.bike_rental === 'standard').length;
-      if (electricCount > 2) {
-        return NextResponse.json({ error: 'Only 2 electric bikes are available per booking.' }, { status: 400 });
+      const maxElectric = isSanford ? SANFORD_MAX_EBIKES : 2;
+      const maxStandard = isSanford ? SANFORD_MAX_RIDERS : 4;
+      if (electricCount > maxElectric) {
+        return NextResponse.json({ error: `Only ${maxElectric} electric bikes are available per booking.` }, { status: 400 });
       }
-      if (standardCount > 4) {
-        return NextResponse.json({ error: 'Only 4 standard rental bikes are available per booking.' }, { status: 400 });
+      if (standardCount > maxStandard) {
+        return NextResponse.json({ error: `Only ${maxStandard} standard rental bikes are available per booking.` }, { status: 400 });
       }
     }
 
@@ -322,6 +334,21 @@ export async function POST(req: NextRequest) {
     const storedLocationName = (locationRow as { name: string } | null)?.name ?? null;
     if (isLocationComingSoon(storedLocationName) || isLocationComingSoon(state.location_name)) {
       return NextResponse.json({ error: COMING_SOON_MESSAGE }, { status: 400 });
+    }
+    const pricingLocationName = storedLocationName ?? state.location_name;
+
+    // Sanford runs one shared departure a day: the group has to fit in its seats.
+    if (state.trail_type === 'paved' && isSanfordLocation(pricingLocationName)) {
+      if (state.time_slot !== SANFORD_DEPARTURE_TIME) {
+        return NextResponse.json({ error: 'Sanford tours depart at 10:00 AM.' }, { status: 400 });
+      }
+      const seatsLeft = await getSanfordSeatsLeft(state.date, state.time_slot);
+      if (state.participant_count > seatsLeft) {
+        return NextResponse.json(
+          { error: sanfordSeatsMessage(seatsLeft, state.participant_count) },
+          { status: 409 }
+        );
+      }
     }
 
     const reconciledLead = await resolveCheckoutLead(supabase, {
@@ -435,7 +462,7 @@ export async function POST(req: NextRequest) {
       state.addons,
       state.trail_type,
       state.additional_participants,
-      { liveTestMode }
+      { liveTestMode, locationName: pricingLocationName }
     );
 
     // Apply the code server-side (after tax). Percentage discount OR fixed-amount gift card.

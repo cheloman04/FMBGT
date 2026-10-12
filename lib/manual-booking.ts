@@ -28,6 +28,8 @@ import { recordFinancialEvent } from '@/lib/financial-log';
 import { notifySupportAlert, triggerN8nEvent } from '@/lib/n8n';
 import { syncBookingCalendarEvent, type CalendarSyncResult } from '@/lib/booking-calendar';
 import { validateBookingInventory } from '@/lib/inventory';
+import { isSanfordLocation } from '@/lib/sanford';
+import { getSanfordSeatsLeft, sanfordSeatsMessage } from '@/lib/sanford-departures';
 import type { BikeRental } from '@/types/booking';
 
 export const MANUAL_BOOKING_LIST_COLUMNS =
@@ -539,7 +541,7 @@ export async function updateManualBooking(
     .select(
       'id, status, customer_id, lead_id, date, time_slot, duration_hours, bike_rental, participant_info, ' +
         'total_price, deposit_paid_cents, payment_method, admin_notes, waiver_accepted, cal_booking_status, ' +
-        'customers(name, email, phone)'
+        'trail_type, customers(name, email, phone), locations(name)'
     )
     .eq('id', input.id)
     .eq('booking_source', 'manual')
@@ -623,6 +625,22 @@ export async function updateManualBooking(
       changes.admin_notes = { from: booking.admin_notes ?? null, to: notes };
       bookingPatch.admin_notes = notes;
     }
+  }
+
+  // A Sanford group that moves departure or grows has to fit in the seats left.
+  const locationName = (booking.locations as { name?: string } | null)?.name;
+  if (
+    booking.trail_type === 'paved' &&
+    isSanfordLocation(locationName) &&
+    (changes.date || changes.time_slot || changes.riders)
+  ) {
+    const riders = 1 + newRiders.length;
+    const seatsLeft = await getSanfordSeatsLeft(
+      (input.date ?? booking.date) as string,
+      (input.time_slot ?? booking.time_slot) as string,
+      { excludeBookingId: input.id }
+    );
+    if (riders > seatsLeft) return { ok: false, status: 409, error: sanfordSeatsMessage(seatsLeft, riders) };
   }
 
   // A new date needs rental inventory (the DB trigger only checks on INSERT).

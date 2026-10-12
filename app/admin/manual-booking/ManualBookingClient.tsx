@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { isLocationComingSoon } from '@/lib/location-status';
+import { SANFORD_DEPARTURE_TIME, isSanfordLocation } from '@/lib/sanford';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -371,7 +372,16 @@ export function ManualBookingClient({ initialLocations, initialBookings }: Props
             )}
             <div className={trailType === 'mtb' ? 'sm:col-span-2' : ''}>
               <Label className="mb-1 block text-xs text-muted-foreground">Location *</Label>
-              <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputCls}>
+              <select
+                value={locationId}
+                onChange={(e) => {
+                  setLocationId(e.target.value);
+                  // Sanford's shared departure leaves at 10:00 — groups join that tour.
+                  const picked = filteredLocations.find((loc) => loc.id === e.target.value);
+                  if (isSanfordLocation(picked?.name)) setTimeSlot(SANFORD_DEPARTURE_TIME);
+                }}
+                className={inputCls}
+              >
                 <option value="">{filteredLocations.length ? 'Select a location…' : 'No locations for this selection'}</option>
                 {filteredLocations.map((loc) => (
                   <option key={loc.id} value={loc.id}>

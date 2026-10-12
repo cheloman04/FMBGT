@@ -4,14 +4,20 @@
 //
 // Used by the manual-booking flow, the admin "Retry calendar" button, booking
 // edits, and cancel/delete. The Stripe webhook and gift-card flows keep their own
-// inline create call (live paid path) and only reuse alertCalendarFailure.
+// inline create call (live paid path) and reuse joinSharedDepartureEvent and
+// alertCalendarFailure.
+//
+// Shared departures (Sanford, lib/sanford.ts): every group on a departure rides
+// on ONE Cal.com event — the first group's. Later groups are added to it as
+// guests, and the event is only cancelled when its last group leaves.
 
 import 'server-only';
 
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { cancelCalBooking, createCalBooking, rescheduleCalBooking } from '@/lib/cal';
+import { addCalBookingGuests, cancelCalBooking, createCalBooking, rescheduleCalBooking } from '@/lib/cal';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { notifySupportAlert } from '@/lib/n8n';
+import { isSanfordLocation } from '@/lib/sanford';
 
 export type CalendarSyncResult = { ok: boolean; uid: string | null; error: string | null };
 
@@ -21,10 +27,112 @@ type CalendarBookingRow = {
   time_slot: string | null;
   duration_hours: number | null;
   trail_type: 'paved' | 'mtb' | null;
+  location_id: string | null;
   cal_booking_uid: string | null;
   customers: { name?: string; email?: string } | null;
   locations: { name?: string } | null;
 };
+
+async function loadCalendarBooking(bookingId: string): Promise<CalendarBookingRow | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (getSupabaseAdmin() as any)
+    .from('bookings')
+    .select(
+      'id, date, time_slot, duration_hours, trail_type, location_id, cal_booking_uid, customers(name, email), locations(name)'
+    )
+    .eq('id', bookingId)
+    .maybeSingle();
+  if (error || !data) {
+    console.error('[booking-calendar] booking not found:', bookingId, error?.message);
+    return null;
+  }
+  return data as CalendarBookingRow;
+}
+
+function isSharedDepartureTour(booking: CalendarBookingRow): boolean {
+  return booking.trail_type === 'paved' && isSanfordLocation(booking.locations?.name);
+}
+
+/** The calendar event of another confirmed group already on the same departure. */
+async function findDepartureEvent(booking: CalendarBookingRow): Promise<string | null> {
+  if (!booking.location_id || !booking.date || !booking.time_slot) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (getSupabaseAdmin() as any)
+    .from('bookings')
+    .select('cal_booking_uid')
+    .eq('location_id', booking.location_id)
+    .eq('date', booking.date)
+    .eq('time_slot', booking.time_slot)
+    .eq('status', 'confirmed')
+    .eq('cal_booking_status', 'created')
+    .not('cal_booking_uid', 'is', null)
+    .is('deleted_at', null)
+    .neq('id', booking.id)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  return (data?.[0] as { cal_booking_uid: string } | undefined)?.cal_booking_uid ?? null;
+}
+
+/** Other active bookings riding on a calendar event (shared departures). */
+async function countOtherGroupsOnEvent(uid: string, bookingId: string): Promise<number> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count } = await (getSupabaseAdmin() as any)
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('cal_booking_uid', uid)
+    .neq('id', bookingId)
+    .in('status', ['pending', 'confirmed'])
+    .is('deleted_at', null);
+  return count ?? 0;
+}
+
+async function joinDepartureEvent(
+  booking: CalendarBookingRow,
+  eventUid: string,
+  opts: { source: string }
+): Promise<CalendarSyncResult> {
+  if (booking.cal_booking_uid !== eventUid) {
+    // Leave the group's own event first, unless other groups still ride on it.
+    if (booking.cal_booking_uid && (await countOtherGroupsOnEvent(booking.cal_booking_uid, booking.id)) === 0) {
+      const cancelled = await cancelCalBooking(booking.cal_booking_uid, 'Group moved to a shared departure');
+      if (!cancelled.ok) {
+        console.error(`[booking-calendar] could not cancel the old event of ${booking.id}:`, cancelled.error);
+      }
+    }
+    // The slot is already blocked; the guest entry only shows the group on the event.
+    if (booking.customers?.email) {
+      const added = await addCalBookingGuests(eventUid, [
+        { email: booking.customers.email, name: booking.customers.name ?? undefined },
+      ]);
+      if (!added.ok) {
+        console.warn(`[booking-calendar] ${booking.id} joined ${eventUid} but is not listed as a guest:`, added.error);
+      }
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (getSupabaseAdmin() as any)
+    .from('bookings')
+    .update({ cal_booking_uid: eventUid, cal_booking_status: 'created' })
+    .eq('id', booking.id);
+  console.log(`[booking-calendar] ${booking.id} is on shared departure event ${eventUid} (${opts.source})`);
+  return { ok: true, uid: eventUid, error: null };
+}
+
+/**
+ * Shared departures: when another group already holds the departure's calendar
+ * event, put this booking on it instead of creating a second event. Returns null
+ * when there is nothing to join — the caller creates the event as usual.
+ */
+export async function joinSharedDepartureEvent(
+  bookingId: string,
+  opts: { source: string }
+): Promise<CalendarSyncResult | null> {
+  const booking = await loadCalendarBooking(bookingId);
+  if (!booking || !isSharedDepartureTour(booking)) return null;
+  const eventUid = await findDepartureEvent(booking);
+  return eventUid ? joinDepartureEvent(booking, eventUid, opts) : null;
+}
 
 export async function alertCalendarFailure(input: {
   bookingId: string;
@@ -52,7 +160,8 @@ export async function alertCalendarFailure(input: {
 /**
  * Make the booking's Cal.com event match its current date/time/duration:
  * reschedule the existing event if there is one, otherwise create it. Saves the
- * resulting uid + cal_booking_status and alerts on failure.
+ * resulting uid + cal_booking_status and alerts on failure. On a shared
+ * departure, the booking joins the departure's event instead.
  */
 export async function syncBookingCalendarEvent(
   bookingId: string,
@@ -60,29 +169,27 @@ export async function syncBookingCalendarEvent(
 ): Promise<CalendarSyncResult> {
   const supabase = getSupabaseAdmin();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('bookings')
-    .select('id, date, time_slot, duration_hours, trail_type, cal_booking_uid, customers(name, email), locations(name)')
-    .eq('id', bookingId)
-    .maybeSingle();
-
-  if (error || !data) {
-    console.error('[booking-calendar] booking not found:', bookingId, error?.message);
-    return { ok: false, uid: null, error: 'Booking not found' };
-  }
-
-  const booking = data as CalendarBookingRow;
+  const booking = await loadCalendarBooking(bookingId);
+  if (!booking) return { ok: false, uid: null, error: 'Booking not found' };
   if (!booking.date || !booking.time_slot || !booking.duration_hours) {
     return { ok: false, uid: null, error: 'Booking has no date, time or duration' };
+  }
+
+  let ownUid = booking.cal_booking_uid;
+  if (isSharedDepartureTour(booking)) {
+    const eventUid = await findDepartureEvent(booking);
+    if (eventUid) return joinDepartureEvent(booking, eventUid, opts);
+    // Moving the event would move the other groups too: leave it to them and
+    // give this booking a new event.
+    if (ownUid && (await countOtherGroupsOnEvent(ownUid, booking.id)) > 0) ownUid = null;
   }
 
   const startIso = easternLocalToUtcIso(booking.date, booking.time_slot);
   const endIso = addHoursToIso(startIso, booking.duration_hours);
   const locationName = booking.locations?.name ?? null;
 
-  let result = booking.cal_booking_uid
-    ? await rescheduleCalBooking(booking.cal_booking_uid, { startIso, endIso, reason: opts.reason })
+  let result = ownUid
+    ? await rescheduleCalBooking(ownUid, { startIso, endIso, reason: opts.reason })
     : null;
 
   // No event yet — or the old one is gone / was cancelled in Cal.com — so create
@@ -121,12 +228,25 @@ export async function syncBookingCalendarEvent(
   return { ok: Boolean(result.uid), uid: result.uid, error: result.error };
 }
 
-/** Release the booking's Cal.com event (cancel / refund / delete). No-op without one. */
+/**
+ * Release the booking's Cal.com event (cancel / refund / delete). No-op without
+ * one. On a shared departure the event stays while other groups still ride on it.
+ */
 export async function cancelBookingCalendarEvent(
   booking: { id: string; cal_booking_uid: string | null },
   reason: string
 ): Promise<void> {
   if (!booking.cal_booking_uid) return;
+
+  if ((await countOtherGroupsOnEvent(booking.cal_booking_uid, booking.id)) > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (getSupabaseAdmin() as any)
+      .from('bookings')
+      .update({ cal_booking_status: 'cancelled' })
+      .eq('id', booking.id);
+    console.log(`[booking-calendar] ${booking.id} left shared event ${booking.cal_booking_uid}; other groups keep it`);
+    return;
+  }
 
   const result = await cancelCalBooking(booking.cal_booking_uid, reason);
   if (!result.ok) {

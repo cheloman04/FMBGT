@@ -37,7 +37,7 @@ export function StepDuration() {
         state.addons ?? {},
         state.trail_type,
         state.additional_participants,
-        { liveTestMode: state.live_test_mode }
+        { liveTestMode: state.live_test_mode, locationName: state.location_name }
       );
       setPriceBreakdown(breakdown);
     }

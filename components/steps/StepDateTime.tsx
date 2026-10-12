@@ -7,8 +7,17 @@ import type { AvailabilitySlot } from '@/types/booking';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { Button } from '@/components/ui/button';
 import { formatFloridaCalendarDate } from '@/lib/display-time';
+import { SANFORD_MAX_RIDERS, isSanfordLocation } from '@/lib/sanford';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Shared departures: how full the departure is, from this group's point of view. */
+function seatsLabel(slot: AvailabilitySlot): string {
+  const seats = slot.seats_left ?? 0;
+  if (seats <= 0) return 'Full';
+  if (!slot.available) return `Only ${seats} spot${seats === 1 ? '' : 's'} left`;
+  return `${seats} of ${SANFORD_MAX_RIDERS} spots left`;
+}
 
 function formatDate(dateStr: string): string {
   return formatFloridaCalendarDate(dateStr, {
@@ -101,6 +110,9 @@ export function StepDateTime() {
     state.date ? startOfMonth(new Date(`${state.date}T00:00:00`)) : startOfMonth(minDate)
   );
   const missingBookingContext = !state.trail_type || !state.location_name;
+  // Sanford departures are shared, so what's bookable depends on the group size.
+  const isSanford = state.trail_type === 'paved' && isSanfordLocation(state.location_name);
+  const riders = state.participant_count ?? 1;
 
   useEffect(() => {
     if (missingBookingContext) return;
@@ -111,7 +123,9 @@ export function StepDateTime() {
 
     if (!trailType || !locationName) return;
 
-    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}`;
+    const url =
+      `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}` +
+      (isSanford ? `&riders=${riders}` : '');
 
     fetch(url)
       .then((r) => r.json())
@@ -131,7 +145,7 @@ export function StepDateTime() {
         setError('Failed to load availability. Please try again.');
         setLoading(false);
       });
-  }, [dateFrom, dateTo, missingBookingContext, state.location_name, state.trail_type]);
+  }, [dateFrom, dateTo, isSanford, missingBookingContext, riders, state.location_name, state.trail_type]);
 
   const availableDates = useMemo(
     () =>
@@ -167,7 +181,11 @@ export function StepDateTime() {
     <div>
       <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Select Date &amp; Time</h2>
-        <p className="mt-1 text-muted-foreground">Choose when you&apos;d like to ride.</p>
+        <p className="mt-1 text-muted-foreground">
+          {isSanford
+            ? `Sanford tours depart at 10:00 AM. Groups share the tour, up to ${SANFORD_MAX_RIDERS} riders.`
+            : 'Choose when you’d like to ride.'}
+        </p>
       </div>
 
       <BookingStepActions onBack={goPrev} />
@@ -298,7 +316,11 @@ export function StepDateTime() {
                     }`}
                   >
                     {formatTime(slot.time)}
-                    {!slot.available && <div className="mt-0.5 text-xs">Booked</div>}
+                    {slot.seats_left !== undefined ? (
+                      <div className="mt-0.5 text-xs">{seatsLabel(slot)}</div>
+                    ) : (
+                      !slot.available && <div className="mt-0.5 text-xs">Booked</div>
+                    )}
                   </button>
                 ))}
               </div>

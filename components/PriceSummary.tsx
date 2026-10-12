@@ -38,7 +38,7 @@ export function PriceSummary({
     effectiveAddons,
     effectiveTrailType,
     effectiveAdditionalParticipants,
-    { liveTestMode: state.live_test_mode }
+    { liveTestMode: state.live_test_mode, locationName: state.location_name }
   );
   const breakdown = calculatePriceBreakdown(
     effectiveBikeRental,
@@ -46,7 +46,7 @@ export function PriceSummary({
     effectiveAddons,
     effectiveTrailType,
     effectiveAdditionalParticipants,
-    { liveTestMode: state.live_test_mode }
+    { liveTestMode: state.live_test_mode, locationName: state.location_name }
   );
 
   const discount = appliedDiscount ?? null;

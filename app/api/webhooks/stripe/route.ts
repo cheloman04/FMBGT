@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { constructWebhookEvent, stripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { createCalBooking } from '@/lib/cal';
-import { alertCalendarFailure } from '@/lib/booking-calendar';
+import { alertCalendarFailure, joinSharedDepartureEvent } from '@/lib/booking-calendar';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
@@ -261,8 +261,15 @@ export async function POST(req: NextRequest) {
           .eq('id', bookingId)
           .single();
 
-        // Cal.com booking
-        if (confirmedBooking?.date && confirmedBooking?.time_slot && confirmedBooking?.duration_hours) {
+        // Cal.com booking. A group joining a shared departure (Sanford) goes onto
+        // that departure's existing event instead of creating another one.
+        const joinedDeparture = await joinSharedDepartureEvent(bookingId, { source: '/api/webhooks/stripe' }).catch(
+          (e: Error) => {
+            console.error(`[stripe-webhook] shared departure join failed for ${bookingId}:`, e.message);
+            return null;
+          }
+        );
+        if (!joinedDeparture && confirmedBooking?.date && confirmedBooking?.time_slot && confirmedBooking?.duration_hours) {
           // Build start in UTC using DST-aware Eastern time conversion.
           // Hardcoding -05:00 (EST) is wrong for March–November when Florida
           // observes EDT (UTC-4). This caused off-by-one-hour bookings in Cal.com.

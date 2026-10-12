@@ -8,12 +8,18 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { formatPrice, PRICING, calculatePriceBreakdown } from '@/lib/pricing';
+import { formatPrice, PRICING, calculatePriceBreakdown, calculateSanfordGroupPrice } from '@/lib/pricing';
+import {
+  SANFORD_LOCATION_NAME,
+  SANFORD_MAX_EBIKES,
+  SANFORD_MAX_RIDERS,
+  isSanfordLocation,
+} from '@/lib/sanford';
 
 // ── Business rules ────────────────────────────────────────────────────────────
 const MAX_PARTICIPANTS: Record<string, number> = {
   'Blue Spring State Park': 4,
-  'Sanford Historic Riverfront Tour': 6,
+  [SANFORD_LOCATION_NAME]: SANFORD_MAX_RIDERS,
 };
 const NO_ELECTRIC_LOCATIONS = new Set(['Blue Spring State Park']);
 // Fleet cap applies to both Sanford (paved) and all MTB locations
@@ -151,7 +157,10 @@ function SanfordBikeSelector({
 export function StepBike() {
   const { state, setBikeRental, setRiderHeight, setParticipants, setCustomer, setPriceBreakdown, goNext, goPrev } = useBooking();
   const isPaved   = state.trail_type === 'paved';
-  const isSanford = state.location_name === 'Sanford Historic Riverfront Tour';
+  const isSanford = isSanfordLocation(state.location_name);
+  // Sanford includes a bike for every rider of a departure (up to 2 e-bikes).
+  const maxStandard = isSanford ? SANFORD_MAX_RIDERS : FLEET_MAX_STANDARD;
+  const maxElectric = isSanford ? SANFORD_MAX_EBIKES : FLEET_MAX_ELECTRIC;
   const electricAllowed = !NO_ELECTRIC_LOCATIONS.has(state.location_name ?? '');
   const maxCount  = getMaxParticipants(state.location_name ?? '', state.trail_type ?? 'mtb');
 
@@ -195,10 +204,10 @@ export function StepBike() {
   // Fleet cap applies to both Sanford paved and all MTB locations
   const hasFleetCap = isSanford || !isPaved;
   function isStandardDisabled(currentBike: BikeRental | undefined) {
-    return hasFleetCap && standardCount >= FLEET_MAX_STANDARD && currentBike !== 'standard';
+    return hasFleetCap && standardCount >= maxStandard && currentBike !== 'standard';
   }
   function isElectricDisabled(currentBike: BikeRental | undefined) {
-    return hasFleetCap && electricCount >= FLEET_MAX_ELECTRIC && currentBike !== 'electric';
+    return hasFleetCap && electricCount >= maxElectric && currentBike !== 'electric';
   }
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -243,7 +252,7 @@ export function StepBike() {
       state.addons ?? { gopro: false, pickup_dropoff: false, electric_upgrade: false },
       state.trail_type,
       additionals,
-      { liveTestMode: state.live_test_mode }
+      { liveTestMode: state.live_test_mode, locationName: state.location_name }
     );
     setPriceBreakdown(breakdown);
 
@@ -282,27 +291,47 @@ export function StepBike() {
           <h2 className="text-2xl font-bold text-foreground">Riders &amp; Bikes</h2>
           <p className="text-muted-foreground mt-1">
             {isSanford
-              ? 'Choose a bike type for each rider. 4 standard bikes and 2 e-bikes available.'
+              ? `Bikes are included for every rider — choose standard or e-bike (${SANFORD_MAX_EBIKES} e-bikes available).`
               : 'Bikes are included. We need each rider\'s height for sizing.'}
           </p>
         </div>
 
         <BookingStepActions onBack={goPrev} />
 
-        <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
-          <p className="text-sm font-medium text-green-800 dark:text-green-300">
-            ✓ Bike included — {formatPrice(PRICING.PAVED_FLAT)} per rider · 2-hour guided tour
-            {isSanford && ` · E-bike upgrade +${formatPrice(PRICING.ADDONS.electric_upgrade)}/rider`}
-          </p>
-        </div>
+        {isSanford ? (
+          <div className="mb-4 space-y-1.5 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+            <p className="text-sm font-medium text-green-800 dark:text-green-300">
+              ✓ Bikes included · 2-hour guided tour · departs 10:00 AM
+            </p>
+            <p className="text-sm text-green-800 dark:text-green-300">
+              Group price: 1 rider {formatPrice(calculateSanfordGroupPrice(1))} · 2 riders{' '}
+              {formatPrice(calculateSanfordGroupPrice(2))} · 3 riders {formatPrice(calculateSanfordGroupPrice(3))} · 4
+              riders {formatPrice(calculateSanfordGroupPrice(4))} · +{formatPrice(PRICING.SANFORD_EXTRA_RIDER)} per
+              extra rider (up to {SANFORD_MAX_RIDERS}) · plus tax · E-bike upgrade +
+              {formatPrice(PRICING.ADDONS.electric_upgrade)}/rider
+            </p>
+            <p className="text-sm font-semibold text-green-900 dark:text-green-200">
+              Your group of {count}: {formatPrice(calculateSanfordGroupPrice(count))} + tax
+            </p>
+            <p className="text-xs text-green-800/80 dark:text-green-300/80">
+              Shared tour: other small groups can join the same departure, up to {SANFORD_MAX_RIDERS} riders in total.
+            </p>
+          </div>
+        ) : (
+          <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+            <p className="text-sm font-medium text-green-800 dark:text-green-300">
+              ✓ Bike included — {formatPrice(PRICING.PAVED_FLAT)} per rider · 2-hour guided tour
+            </p>
+          </div>
+        )}
 
         {isSanford && count > 1 && (
           <div className="mb-4 flex gap-4 text-sm">
             <span className="text-muted-foreground">
-              Standard: <span className={`font-semibold ${standardCount > FLEET_MAX_STANDARD ? 'text-destructive' : 'text-foreground'}`}>{standardCount}/{FLEET_MAX_STANDARD}</span>
+              Standard: <span className={`font-semibold ${standardCount > maxStandard ? 'text-destructive' : 'text-foreground'}`}>{standardCount}</span>
             </span>
             <span className="text-muted-foreground">
-              E-bikes: <span className={`font-semibold ${electricCount > FLEET_MAX_ELECTRIC ? 'text-destructive' : 'text-foreground'}`}>{electricCount}/{FLEET_MAX_ELECTRIC}</span>
+              E-bikes: <span className={`font-semibold ${electricCount > maxElectric ? 'text-destructive' : 'text-foreground'}`}>{electricCount}/{maxElectric}</span>
             </span>
           </div>
         )}

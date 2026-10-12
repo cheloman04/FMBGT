@@ -448,6 +448,27 @@ export async function rescheduleCalBooking(
   }
 }
 
+/**
+ * Add people to an existing Cal.com booking as guests — used when another group
+ * joins a shared departure, so the guide's one event lists every group.
+ */
+export async function addCalBookingGuests(
+  uid: string,
+  guests: Array<{ email: string; name?: string }>
+): Promise<{ ok: boolean; error: string | null }> {
+  if (!CAL_API_KEY) return { ok: false, error: 'Cal.com is not configured (missing CAL_API_KEY)' };
+
+  try {
+    const result = await postCal(`/bookings/${encodeURIComponent(uid)}/guests`, { guests }, 'Add guests');
+    if (result.ok) return { ok: true, error: null };
+    console.error(`[cal] Adding guests failed for ${uid}: ${result.status}`, result.rawBody.slice(0, 500));
+    return { ok: false, error: calErrorMessage(result) };
+  } catch (error) {
+    console.error('[cal] addCalBookingGuests error:', error);
+    return { ok: false, error: (error as Error).message };
+  }
+}
+
 /** Cancel a Cal.com booking so the slot opens up again. A 404 counts as done. */
 export async function cancelCalBooking(
   uid: string,
