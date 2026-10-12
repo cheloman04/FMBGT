@@ -54,7 +54,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
-    const timeZone = searchParams.get('timeZone') ?? 'America/New_York';
+    // Any `timeZone` param (older clients sent the browser's) is ignored: slots
+    // are always Eastern, since that is what bookings.time_slot stores.
     const trailType = searchParams.get('trailType') as TrailType | null;
     const locationName = searchParams.get('locationName');
     // Rental bikes the group needs (optional — set once riders are chosen).
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
     }
 
     console.log(
-      `[availability] dateFrom=${dateFrom} dateTo=${dateTo} timeZone=${timeZone} trailType=${trailType} locationName="${locationName}" bikes=${needed.bikes} electric=${needed.electric}`
+      `[availability] dateFrom=${dateFrom} dateTo=${dateTo} trailType=${trailType} locationName="${locationName}" bikes=${needed.bikes} electric=${needed.electric}`
     );
 
     // "Coming Soon" locations can't be booked, so they have no open slots.
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ slots: [] });
     }
 
-    let slots = await getAvailableSlots({ dateFrom, dateTo, timeZone, trailType, locationName });
+    let slots = await getAvailableSlots({ dateFrom, dateTo, trailType, locationName });
 
     if (allowsSharedTours(locationName)) {
       slots = await addSharedTourSlots(slots, { locationName, dateFrom, dateTo });

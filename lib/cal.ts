@@ -1,7 +1,11 @@
 import type { AvailabilitySlot, TrailType } from '@/types/booking';
 import { getBookingLocationMeta } from '@/lib/location-meta';
+import { utcIsoToEasternLocal } from '@/lib/booking-datetime';
 
 const CAL_API_BASE = 'https://api.cal.com/v2';
+// Tours run in Florida: slots are shown and stored (bookings.time_slot) as
+// Eastern wall-clock time, whatever the visitor's browser time zone is.
+const TOUR_TIME_ZONE = 'America/New_York';
 const CAL_API_KEY = process.env.CAL_API_KEY;
 const CAL_USERNAME = process.env.CAL_USERNAME;
 const CAL_EVENT_TYPE_ID = process.env.CAL_EVENT_TYPE_ID;
@@ -79,9 +83,8 @@ function calHeaders(apiVersion = CAL_WRITE_API_VERSION): HeadersInit {
 }
 
 export interface CalAvailabilityParams {
-  dateFrom: string; // YYYY-MM-DD (local date in the target timezone)
+  dateFrom: string; // YYYY-MM-DD (Eastern calendar date)
   dateTo: string;   // YYYY-MM-DD
-  timeZone?: string;
   trailType?: TrailType | null;
   locationName?: string | null;
 }
@@ -103,8 +106,6 @@ export async function getAvailableSlots(
     return getMockAvailability(params.dateFrom, params.dateTo);
   }
 
-  const tz = params.timeZone ?? 'America/New_York';
-
   try {
     // Extend the UTC range by 1 day on each side so no slot is missed due to
     // the timezone offset between the local date and UTC midnight.
@@ -118,6 +119,7 @@ export async function getAvailableSlots(
     url.searchParams.set('eventTypeId', eventTypeId);
     url.searchParams.set('start', startDate.toISOString());
     url.searchParams.set('end', endDate.toISOString());
+    url.searchParams.set('timeZone', TOUR_TIME_ZONE);
 
     console.log(
       `[cal] Resolved event type ${eventTypeId} for trail=${params.trailType ?? 'unknown'} location="${params.locationName ?? 'unknown'}"`
@@ -144,7 +146,7 @@ export async function getAvailableSlots(
       throw new Error(`Cal.com returned non-JSON: ${rawBody.slice(0, 200)}`);
     }
 
-    const slots = transformCalV2Response(data, tz);
+    const slots = transformCalV2Response(data, params.dateFrom, params.dateTo);
     console.log(`[cal] Transformed ${slots.length} slot(s)`);
     if (slots.length > 0) {
       console.log('[cal] First slot:', slots[0]);
@@ -164,13 +166,23 @@ export async function getAvailableSlots(
 // Actual v2 response shape (confirmed from live API):
 // {
 //   "data": {
-//     "YYYY-MM-DD": [{ "start": "<ISO UTC>" }, ...],
+//     "YYYY-MM-DD": [{ "start": "<ISO>" }, ...],
 //     ...
 //   }
 // }
+//
+// `start` is "2026-10-27T08:00:00.000-04:00" when timeZone is sent, or UTC
+// ("2026-10-27T12:00:00.000Z") without it. Either way the slot's date and time
+// are re-derived in Eastern from the instant itself — the map key is not
+// trusted, so a slot can never land on the wrong day — and slots outside the
+// requested dates (the query window is padded by a day) are dropped.
 // ---------------------------------------------------------------------------
 
-function transformCalV2Response(data: unknown, timeZone: string): AvailabilitySlot[] {
+function transformCalV2Response(
+  data: unknown,
+  dateFrom: string,
+  dateTo: string
+): AvailabilitySlot[] {
   const slots: AvailabilitySlot[] = [];
   const wrapper = data as { data?: Record<string, Array<{ start?: string }>> };
 
@@ -180,59 +192,16 @@ function transformCalV2Response(data: unknown, timeZone: string): AvailabilitySl
     return slots;
   }
 
-  for (const [date, timeSlots] of Object.entries(slotsMap)) {
+  for (const timeSlots of Object.values(slotsMap)) {
     if (!Array.isArray(timeSlots)) continue;
     for (const slot of timeSlots) {
-      const isoTime = slot.start ?? '';
-      if (!isoTime) continue;
-
-      const time = extractLocalTime(isoTime, timeZone);
-      if (time) {
-        slots.push({ date, time, available: true });
-      }
+      const local = slot.start ? utcIsoToEasternLocal(slot.start) : null;
+      if (!local || local.date < dateFrom || local.date > dateTo) continue;
+      slots.push({ date: local.date, time: local.time, available: true });
     }
   }
 
   return slots;
-}
-
-// ---------------------------------------------------------------------------
-// Reliably extract HH:MM in the target timezone from an ISO timestamp.
-//
-// Cal.com may return times as:
-//   "2026-04-09T09:00:00-04:00"  (already offset-aware → extract directly)
-//   "2026-04-09T13:00:00.000Z"   (UTC → convert to local timezone)
-// ---------------------------------------------------------------------------
-
-function extractLocalTime(isoTime: string, timeZone: string): string {
-  // Fast path: ISO string already carries the timezone offset.
-  const offsetMatch = isoTime.match(/T(\d{2}):(\d{2}):\d{2}[+-]\d{2}:?\d{2}$/);
-  if (offsetMatch) {
-    return `${offsetMatch[1]}:${offsetMatch[2]}`;
-  }
-
-  // Slow path: UTC time — convert to target timezone using Intl.
-  try {
-    const d = new Date(isoTime);
-    if (isNaN(d.getTime())) return '';
-
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).formatToParts(d);
-
-    const h = parts.find((p) => p.type === 'hour')?.value ?? '';
-    const m = parts.find((p) => p.type === 'minute')?.value ?? '';
-
-    if (!h || !m) return '';
-
-    const hour = h === '24' ? '00' : h.padStart(2, '0');
-    return `${hour}:${m.padStart(2, '0')}`;
-  } catch {
-    return '';
-  }
 }
 
 // ---------------------------------------------------------------------------

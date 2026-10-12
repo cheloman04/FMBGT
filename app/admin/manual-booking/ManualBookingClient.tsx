@@ -387,7 +387,7 @@ export function ManualBookingClient({ initialLocations, initialBookings }: Props
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1 block text-xs text-muted-foreground">Time *</Label>
+                <Label className="mb-1 block text-xs text-muted-foreground">Time (Eastern) *</Label>
                 <Input type="time" value={timeSlot} onChange={(e) => setTimeSlot(e.target.value)} />
               </div>
               <div>
@@ -764,7 +764,7 @@ function EditBookingPanel({ booking, onCancel, onDone }: PanelProps) {
       </div>
 
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date &amp; time</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date &amp; time (Eastern)</p>
         <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="col-span-2 sm:col-span-1" />
           <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />

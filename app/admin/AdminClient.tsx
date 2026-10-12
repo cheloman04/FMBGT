@@ -10,6 +10,7 @@ import {
   formatFloridaCalendarDate,
   formatFloridaDateTime,
 } from '@/lib/display-time';
+import { easternLocalToUtcIso } from '@/lib/booking-datetime';
 import type { SkillLevel, TrailType } from '@/types/booking';
 import { AdminTopBar } from './AdminTopBar';
 
@@ -452,7 +453,12 @@ function canStartLeadFollowUp(lead: Lead): boolean {
 }
 
 function getBookingStart(booking: Booking) {
-  return new Date(`${booking.date}T${booking.time_slot || '00:00'}:00`);
+  // time_slot is Eastern wall-clock time, not the admin's browser time.
+  try {
+    return new Date(easternLocalToUtcIso(booking.date, booking.time_slot || '00:00'));
+  } catch {
+    return new Date(NaN); // malformed date/time — never "upcoming"
+  }
 }
 
 function getNearestUpcomingBooking(bookings: Booking[]) {

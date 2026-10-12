@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/pricing';
-import { formatFloridaCalendarDate } from '@/lib/display-time';
+import { formatFloridaCalendarDate, formatTourTime } from '@/lib/display-time';
 
 interface BookingResult {
   id: string;
@@ -147,7 +147,7 @@ export function LookupClient() {
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Time</dt>
-                  <dd className="text-foreground">{result.time_slot}</dd>
+                  <dd className="text-foreground">{formatTourTime(result.time_slot, { withZone: true })}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Trail</dt>
