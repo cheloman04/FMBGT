@@ -80,7 +80,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ slots: [] });
     }
 
-    let slots = await getAvailableSlots({ dateFrom, dateTo, trailType, locationName });
+    // Paved tours always run 2 h (there's no duration step), so ask Cal.com for
+    // starts a 2 h tour fits after — e.g. Sanford's 10:00–12:00 schedule only
+    // offers 10:00. MTB length is picked after the time, so it uses the default.
+    let slots = await getAvailableSlots({
+      dateFrom,
+      dateTo,
+      trailType,
+      locationName,
+      durationMinutes: trailType === 'paved' ? 120 : undefined,
+    });
 
     if (allowsSharedTours(locationName)) {
       slots = await addSharedTourSlots(slots, { locationName, dateFrom, dateTo });

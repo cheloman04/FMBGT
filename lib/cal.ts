@@ -87,6 +87,8 @@ export interface CalAvailabilityParams {
   dateTo: string;   // YYYY-MM-DD
   trailType?: TrailType | null;
   locationName?: string | null;
+  /** Tour length when it's known up front: Cal.com then only offers starts the whole tour fits after. */
+  durationMinutes?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +122,7 @@ export async function getAvailableSlots(
     url.searchParams.set('start', startDate.toISOString());
     url.searchParams.set('end', endDate.toISOString());
     url.searchParams.set('timeZone', TOUR_TIME_ZONE);
+    if (params.durationMinutes) url.searchParams.set('duration', String(params.durationMinutes));
 
     console.log(
       `[cal] Resolved event type ${eventTypeId} for trail=${params.trailType ?? 'unknown'} location="${params.locationName ?? 'unknown'}"`
