@@ -378,7 +378,7 @@ export function BookingDetailClient({ booking, waivers, history, locations, appU
               />
             )}
             <Row label="Collected" value={formatUsd(collected)} />
-            {(booking.refunded_cents ?? 0) > 0 && <Row label="…of which refunded" value={formatUsd(booking.refunded_cents ?? 0)} muted />}
+            {(booking.refunded_cents ?? 0) > 0 && <Row label="Refunded so far (already taken out)" value={formatUsd(booking.refunded_cents ?? 0)} muted />}
             {scheduled > 0 && (
               <Row
                 label={
@@ -506,6 +506,8 @@ function MoneyActions({
   const owed = Math.max(0, unsettled);
   const refundOwed = Math.max(0, -unsettled);
   const hasCard = Boolean(booking.stripe_payment_method_id);
+  // A payment in cash can also cover the balance waiting for the card (it lowers that charge).
+  const payable = owed + scheduledChargeCents(booking);
 
   const [mode, setMode] = useState<MoneyMode | null>(null);
   const [amount, setAmount] = useState('');
@@ -578,7 +580,10 @@ function MoneyActions({
 
   const titles: Record<MoneyMode, string> = {
     charge_card: 'Charge the saved card',
-    record_payment: 'Record a payment (cash, Zelle…)',
+    record_payment:
+      owed > 0
+        ? 'Record a payment (cash, Zelle…)'
+        : 'Record a payment (cash, Zelle…) — it lowers the balance the card will be charged',
     refund_card: 'Refund to the card',
     record_refund: 'Record a refund given outside Stripe',
     manual_payment: 'Record a payment',
@@ -593,8 +598,8 @@ function MoneyActions({
               Charge card {formatUsd(owed)}
             </Button>
           )}
-          {owed > 0 && (
-            <Button size="sm" variant="outline" onClick={() => open('record_payment', owed)}>
+          {payable > 0 && (
+            <Button size="sm" variant="outline" onClick={() => open('record_payment', owed > 0 ? owed : payable)}>
               Record payment
             </Button>
           )}
@@ -1007,7 +1012,10 @@ function describeSave(data: Record<string, unknown>): [string, 'ok' | 'warn'] {
     parts.push(`Calendar NOT updated (${String(data.calendar_error ?? 'Cal.com error')}) — use "Retry calendar".`);
     tone = 'warn';
   }
-  if (data.waiver_reset === true) parts.push('The waiver reopened for the new riders.');
+  const waiverNeeds = (data.preview as EditPreview | undefined)?.waiver_needs ?? [];
+  if (data.waiver_reset === true || waiverNeeds.length > 0) {
+    parts.push(`The waiver reopened${waiverNeeds.length ? ` for ${waiverNeeds.join(', ')}` : ' for the new riders'}.`);
+  }
   if (data.email_sent === true) parts.push('The customer was emailed.');
   if (data.email_sent === false) {
     parts.push(`Email NOT sent (${String(data.email_error ?? 'error')}).`);
@@ -1055,7 +1063,12 @@ function PreviewPanel({ preview, booking }: { preview: EditPreview; booking: Det
         {balance.unsettled < 0 && <li>↩️ {formatUsd(-balance.unsettled)} will be owed back to the customer — refund it after saving.</li>}
         {preview.calendar === 'reschedule' && <li>📅 The Cal.com event moves to the new time.</li>}
         {preview.calendar === 'recreate' && <li>📅 The Cal.com event is replaced with one at the new location.</li>}
-        {preview.waiver_needs.length > 0 && <li>✍️ {preview.waiver_needs.join(', ')} still need to sign the waiver — the link reopens.</li>}
+        {preview.waiver_needs.length > 0 && (
+          <li>
+            ✍️ {preview.waiver_needs.join(', ')} {preview.waiver_needs.length === 1 ? 'still needs' : 'still need'} to sign the
+            waiver — the link reopens.
+          </li>
+        )}
       </ul>
       {preview.warnings.map((warning) => (
         <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">⚠️ {warning}</p>

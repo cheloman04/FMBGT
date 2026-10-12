@@ -20,6 +20,7 @@ import {
   STRIPE_MIN_CHARGE_CENTS,
   formatUsd,
   netCollectedCents,
+  scheduledChargeCents,
   unsettledCents,
   type BookingMoneyRow,
 } from '@/lib/booking-money';
@@ -343,12 +344,36 @@ export async function applyBookingPayment(
   }
 
   // ── Off-platform payment ──────────────────────────────────────────────────────
+  // It can also cover the balance waiting to be charged to the card (the customer
+  // pays it in cash instead): that card charge shrinks by the excess.
   if (input.action === 'record_payment') {
-    if (amount > owed) {
-      return { ok: false, status: 400, error: `That's more than the customer owes (${formatUsd(owed)}).` };
+    const scheduled = scheduledChargeCents(booking);
+    if (amount > owed + scheduled) {
+      return { ok: false, status: 400, error: `That's more than the customer still owes (${formatUsd(owed + scheduled)}).` };
     }
     const dedupeKey = `payment:${input.request_id}`;
     if (await alreadyRecorded('booking.payment_recorded', dedupeKey)) return done('This payment was already recorded.');
+
+    const fromScheduled = Math.max(0, amount - owed);
+    if (fromScheduled > 0) {
+      const left = scheduled - fromScheduled;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: lowered } = await (getSupabaseAdmin() as any)
+        .from('bookings')
+        .update(
+          left >= STRIPE_MIN_CHARGE_CENTS
+            ? { remaining_balance_amount: left }
+            : { remaining_balance_amount: 0, remaining_balance_status: 'waived' }
+        )
+        .eq('id', booking.id)
+        .eq('remaining_balance_amount', scheduled)
+        // Not while the cron is charging it (a failed charge keeps its PI id).
+        .or('remaining_balance_payment_intent_id.is.null,remaining_balance_payment_intent_id.neq.processing')
+        .select('id');
+      if (!lowered || lowered.length === 0) {
+        return { ok: false, status: 409, error: 'The card balance is being charged or just changed — refresh and try again.' };
+      }
+    }
     await addToMoneyColumn(booking.id, 'extra_paid_cents', amount);
     await recordFinancialEvent({
       event_name: 'booking.payment_recorded',
