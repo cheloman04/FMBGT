@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { ComingSoonBadge } from '@/components/ComingSoonBadge';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { faqItems } from '@/data/faqs';
 import { trailsByDifficulty } from '@/data/trails';
@@ -109,6 +110,7 @@ export default function BeginnerGuidePage() {
                     <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-[var(--lp-text-muted)]">
                       {trail.city}
                     </span>
+                    {trail.comingSoon && <ComingSoonBadge className="ml-2" />}
                     <span className="mt-1.5 block text-sm leading-6 text-[var(--lp-text-body)]">
                       {trail.description}
                     </span>

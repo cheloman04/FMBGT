@@ -14,6 +14,7 @@ import { recordFinancialEvent } from '@/lib/financial-log';
 import { resolveFamDiscount, calcDiscountAmount, FAM_LABEL, type DiscountDef } from '@/lib/discounts';
 import { calcGiftCardApplied, GIFT_CARD_LABEL } from '@/lib/gift-cards';
 import { finalizeFreeBooking } from '@/lib/free-booking';
+import { COMING_SOON_MESSAGE, isLocationComingSoon } from '@/lib/location-status';
 import {
   buildMetaUserData,
   getClientIpFromHeaders,
@@ -310,6 +311,19 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
+
+    // "Coming Soon" locations are listed in the flow but not bookable. Check the
+    // stored name for the submitted id too — location_name comes from the client.
+    const { data: locationRow } = await supabase
+      .from('locations')
+      .select('name')
+      .eq('id', state.location_id)
+      .maybeSingle();
+    const storedLocationName = (locationRow as { name: string } | null)?.name ?? null;
+    if (isLocationComingSoon(storedLocationName) || isLocationComingSoon(state.location_name)) {
+      return NextResponse.json({ error: COMING_SOON_MESSAGE }, { status: 400 });
+    }
+
     const reconciledLead = await resolveCheckoutLead(supabase, {
       requestedLeadId: state.lead_id,
       customerEmail: state.customer.email,

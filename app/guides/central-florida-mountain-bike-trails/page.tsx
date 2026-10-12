@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { ComingSoonBadge } from '@/components/ComingSoonBadge';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { CITIES } from '@/data/cities';
 import { DIFFICULTY_COPY, DIFFICULTY_ORDER, TRAILS } from '@/data/trails';
@@ -128,6 +129,7 @@ export default function TrailComparisonGuide() {
                                 Paved
                               </span>
                             )}
+                            {trail.comingSoon && <ComingSoonBadge className="mt-1.5" />}
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-sm text-[var(--lp-text-body)]">
                             {trail.city}, FL

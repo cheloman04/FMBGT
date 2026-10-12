@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { MapPin } from 'lucide-react';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { ComingSoonBadge } from '@/components/ComingSoonBadge';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { CITIES, cityTrails, getCity } from '@/data/cities';
 import { DIFFICULTY_COPY } from '@/data/trails';
@@ -118,7 +119,8 @@ export default async function CityToursPage({ params }: PageProps) {
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <h3 className="text-lg font-bold text-[var(--lp-text)]">{trail.name}</h3>
-                      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--lp-green)]">
+                      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--lp-green)]">
+                        {trail.comingSoon && <ComingSoonBadge className="normal-case tracking-normal" />}
                         {trail.terrain === 'paved' ? 'Paved trail' : trail.difficulty}
                       </span>
                     </div>
