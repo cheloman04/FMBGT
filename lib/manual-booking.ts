@@ -76,10 +76,13 @@ export type ManualEmailResult = {
   waiverUrl: string | null;
 };
 
-/** Send (or re-send) the booking_confirmed email with the waiver link and the real balance. */
+/**
+ * Send (or re-send) the booking_confirmed email with the waiver link and the real
+ * balance. With `changesSummary` it goes out as "Your booking was updated".
+ */
 export async function sendManualBookingEmail(
   bookingId: string,
-  opts: { resend: boolean; source: string }
+  opts: { resend: boolean; source: string; changesSummary?: string[] }
 ): Promise<ManualEmailResult> {
   const supabase = getSupabaseAdmin();
 
@@ -117,6 +120,8 @@ export async function sendManualBookingEmail(
     data: {
       booking_id: booking.id,
       resend: opts.resend,
+      updated: Boolean(opts.changesSummary?.length),
+      changes_summary: opts.changesSummary ?? [],
       customer_email: customer.email,
       customer_name: customer.name ?? null,
       customer_phone: customer.phone ?? null,
@@ -503,7 +508,11 @@ export type ManualBookingUpdate = {
   date?: string;
   time_slot?: string;
   duration_hours?: number;
-  additional_participants?: Array<{ name: string }>;
+  /** Lead rider's bike and height (bike sizing). */
+  bike_rental?: BikeRental;
+  rider_height_inches?: number | null;
+  /** Riders 2..N. Without a bike of their own they ride the lead's. */
+  additional_participants?: Array<{ name: string; bike_rental?: BikeRental; height_inches?: number | null }>;
   total_cents?: number;
   payment_method?: ManualPaymentMethod;
   admin_notes?: string | null;
@@ -537,7 +546,7 @@ export async function updateManualBooking(
   const { data: booking, error } = await (supabase as any)
     .from('bookings')
     .select(
-      'id, status, customer_id, lead_id, date, time_slot, duration_hours, bike_rental, participant_info, ' +
+      'id, status, customer_id, lead_id, date, time_slot, duration_hours, bike_rental, rider_height_inches, participant_info, ' +
         'total_price, deposit_paid_cents, payment_method, admin_notes, waiver_accepted, cal_booking_status, ' +
         'customers(name, email, phone)'
     )
@@ -584,16 +593,41 @@ export async function updateManualBooking(
     }
   }
 
-  // Riders (the customer is rider 1; these are the additional ones).
-  const oldRiders = ((booking.participant_info ?? []) as Array<{ name?: string }>).map((p) => p.name ?? '');
+  // Riders (the customer is rider 1; these are the additional ones). A rider
+  // without a bike of their own rides the lead's (older rows store names only).
+  type ManualRider = { name?: string; bike_rental?: BikeRental; height_inches?: number | null };
+  const storedRiders = (booking.participant_info ?? []) as ManualRider[];
+  const riderKey = (list: ManualRider[]) =>
+    JSON.stringify(list.map((p) => [p.name ?? '', p.bike_rental ?? null, p.height_inches ?? null]));
+  const describeRiders = (list: ManualRider[]) =>
+    list
+      .map((p) => `${p.name}${p.bike_rental ? ` (${p.bike_rental}${p.height_inches ? `, ${p.height_inches}"` : ''})` : ''}`)
+      .join(', ') || null;
+  const oldRiders = storedRiders.map((p) => p.name ?? '');
   let newRiders = oldRiders;
+  let riderRows = storedRiders;
   if (input.additional_participants !== undefined) {
-    newRiders = input.additional_participants.map((p) => p.name.trim()).filter(Boolean);
-    if (newRiders.join('\n') !== oldRiders.join('\n')) {
-      changes.riders = { from: oldRiders.join(', ') || null, to: newRiders.join(', ') || null };
-      bookingPatch.participant_info = newRiders.length > 0 ? newRiders.map((name) => ({ name })) : null;
-      bookingPatch.participant_count = 1 + newRiders.length;
+    riderRows = input.additional_participants
+      .map((p) => ({
+        name: p.name.trim(),
+        ...(p.bike_rental ? { bike_rental: p.bike_rental } : {}),
+        ...(p.height_inches ? { height_inches: p.height_inches } : {}),
+      }))
+      .filter((p) => p.name);
+    newRiders = riderRows.map((p) => p.name ?? '');
+    if (riderKey(riderRows) !== riderKey(storedRiders)) {
+      changes.riders = { from: describeRiders(storedRiders), to: describeRiders(riderRows) };
+      bookingPatch.participant_info = riderRows.length > 0 ? riderRows : null;
+      bookingPatch.participant_count = 1 + riderRows.length;
     }
+  }
+  if (input.bike_rental !== undefined && input.bike_rental !== booking.bike_rental) {
+    changes.bike_rental = { from: booking.bike_rental ?? null, to: input.bike_rental };
+    bookingPatch.bike_rental = input.bike_rental;
+  }
+  if (input.rider_height_inches !== undefined && (input.rider_height_inches ?? null) !== (booking.rider_height_inches ?? null)) {
+    changes.rider_height_inches = { from: booking.rider_height_inches ?? null, to: input.rider_height_inches ?? null };
+    bookingPatch.rider_height_inches = input.rider_height_inches ?? null;
   }
 
   // Money — the agreed total. Collected only changes through recordManualPayment.
@@ -625,14 +659,14 @@ export async function updateManualBooking(
     }
   }
 
-  // A new date or more riders needs rental inventory (the DB trigger only checks
-  // on INSERT). Every rider rides the lead's bike; this booking's own bikes don't count.
-  if (changes.date || newRiders.length > oldRiders.length) {
+  // A new date or different riders / bikes needs rental inventory (the DB trigger
+  // only checks on INSERT). This booking's own bikes don't count.
+  if (changes.date || changes.riders || changes.bike_rental) {
     const inventory = await validateBookingInventory(
       (input.date ?? booking.date) as string,
-      (booking.bike_rental ?? 'none') as BikeRental,
+      (input.bike_rental ?? booking.bike_rental ?? 'none') as BikeRental,
       {},
-      newRiders.map(() => ({})),
+      riderRows.map((p) => ({ bike_rental: p.bike_rental })),
       { excludeBookingId: booking.id }
     );
     if (!inventory.valid) return { ok: false, status: 409, error: inventory.errors[0] ?? 'No rental inventory for that date.' };
@@ -736,8 +770,24 @@ export async function updateManualBooking(
     }
   }
 
+  // "Your booking was updated" with what the customer cares about.
+  const CUSTOMER_LABELS: Record<string, string> = {
+    customer_name: 'Name',
+    date: 'Date',
+    time_slot: 'Time',
+    duration_hours: 'Duration (hours)',
+    riders: 'Other riders',
+    bike_rental: 'Lead rider bike',
+    total: 'Price',
+  };
+  const changesSummary = Object.entries(changes)
+    .filter(([field]) => CUSTOMER_LABELS[field])
+    .map(([field, change]) => {
+      const show = (v: string | number | null) => (v === null ? '—' : field === 'total' ? fmtUsd(Number(v)) : String(v));
+      return `${CUSTOMER_LABELS[field]}: ${show(change.from)} → ${show(change.to)}`;
+    });
   const email = input.notify_customer
-    ? await sendManualBookingEmail(input.id, { resend: true, source })
+    ? await sendManualBookingEmail(input.id, { resend: true, source, changesSummary })
     : null;
 
   console.log(`[manual-booking] ${input.id} updated by ${adminEmail ?? 'admin'}: ${changed.join(', ') || 'no changes'}`);

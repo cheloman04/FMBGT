@@ -132,6 +132,36 @@ export async function syncBookingCalendarEvent(
   return { ok: Boolean(result.uid), uid: result.uid, error: result.error };
 }
 
+/**
+ * Replace the booking's Cal.com event with a new one — for a move to another
+ * location, where the event type and the meeting address change and a
+ * reschedule can't follow.
+ */
+export async function recreateBookingCalendarEvent(
+  bookingId: string,
+  opts: { source: string; reason?: string }
+): Promise<CalendarSyncResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (getSupabaseAdmin() as any)
+    .from('bookings')
+    .select('cal_booking_uid')
+    .eq('id', bookingId)
+    .maybeSingle();
+  const oldUid = (data as { cal_booking_uid: string | null } | null)?.cal_booking_uid ?? null;
+
+  if (oldUid) {
+    const cancelled = await cancelCalBooking(oldUid, opts.reason ?? 'Tour moved to another location');
+    if (!cancelled.ok) console.error(`[booking-calendar] could not cancel the old event of ${bookingId}:`, cancelled.error);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (getSupabaseAdmin() as any)
+      .from('bookings')
+      .update({ cal_booking_uid: null, cal_booking_status: 'cancelled' })
+      .eq('id', bookingId);
+  }
+
+  return syncBookingCalendarEvent(bookingId, opts);
+}
+
 /** Release the booking's Cal.com event (cancel / refund / delete). No-op without one. */
 export async function cancelBookingCalendarEvent(
   booking: { id: string; cal_booking_uid: string | null },

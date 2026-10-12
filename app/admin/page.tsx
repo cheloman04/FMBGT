@@ -417,7 +417,7 @@ async function getStats() {
 
   const [bookingsResult, leadsResult] = await Promise.all([
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).from('bookings').select('status, total_price, deposit_amount, remaining_balance_amount, remaining_balance_status, deposit_payment_status, deleted_at').is('deleted_at', null),
+    (supabase as any).from('bookings').select('status, total_price, deposit_amount, remaining_balance_amount, remaining_balance_status, deposit_payment_status, extra_paid_cents, refunded_cents, deleted_at').is('deleted_at', null),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from('leads').select('id, status, booking_id, converted_at'),
   ]);
@@ -429,6 +429,8 @@ async function getStats() {
     remaining_balance_amount: number | null;
     remaining_balance_status: string | null;
     deposit_payment_status: string | null;
+    extra_paid_cents: number | null;
+    refunded_cents: number | null;
     deleted_at: string | null;
   };
 
@@ -485,7 +487,10 @@ async function getStats() {
         ? booking.remaining_balance_amount ?? 0
         : 0;
 
-    return sum + depositPaid + remainingPaid;
+    // Money moved after an edit: extra charges / payments, partial refunds.
+    const adjustments = (booking.extra_paid_cents ?? 0) - (booking.refunded_cents ?? 0);
+
+    return sum + depositPaid + remainingPaid + adjustments;
   }, 0);
 
   // Projected = remaining balance still owed on confirmed bookings

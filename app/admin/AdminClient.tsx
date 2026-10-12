@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { Fragment, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   getBookingProgressMeta,
@@ -1427,6 +1428,12 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-green-400">Booking Details</p>
                   <h2 className="truncate text-lg font-bold text-foreground">{selectedMobileBooking.customer_name}</h2>
                 </div>
+                <Link
+                  href={`/admin/bookings/${selectedMobileBooking.id}`}
+                  className="ml-auto mr-2 rounded-xl border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm font-semibold text-green-700 transition-colors hover:bg-green-500/20 dark:text-green-300"
+                >
+                  Open / Edit
+                </Link>
                 <button
                   onClick={() => setSelectedMobileBookingId(null)}
                   className="rounded-xl border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
@@ -2289,6 +2296,12 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                                   {getReviewRequestStatusLabel(booking.review_request_enrollment)}
                                 </div>
                               )}
+                              <Link
+                                href={`/admin/bookings/${booking.id}`}
+                                className="inline-flex w-32 items-center justify-center rounded-md border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-700 transition-colors hover:bg-green-500/20 dark:text-green-300"
+                              >
+                                Open / Edit
+                              </Link>
                               <select
                                 value={booking.status}
                                 disabled={updating === booking.id}
