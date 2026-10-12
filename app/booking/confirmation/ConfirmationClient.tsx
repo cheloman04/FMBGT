@@ -6,7 +6,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { useBooking } from '@/context/BookingContext';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/pricing';
-import { formatFloridaCalendarDate } from '@/lib/display-time';
+import { formatFloridaCalendarDate, formatTourTime } from '@/lib/display-time';
 import { track, trackBookingCompleted } from '@/lib/analytics';
 
 interface BookingDetails {
@@ -38,13 +38,6 @@ function formatDate(dateStr: string) {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-function formatTime(time: string) {
-  const [hours, minutes] = time.split(':').map(Number);
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-  return `${displayHour}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 
 function formatTrailType(type: string) {
@@ -133,7 +126,7 @@ export function ConfirmationClient({ booking, bookingId }: Props) {
 
           <div className="flex justify-between">
             <span className="text-muted-foreground">Time</span>
-            <span className="font-medium text-foreground">{formatTime(booking.time_slot)}</span>
+            <span className="font-medium text-foreground">{formatTourTime(booking.time_slot, { withZone: true })}</span>
           </div>
 
           <div className="flex justify-between">

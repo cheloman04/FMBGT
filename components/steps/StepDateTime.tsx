@@ -6,7 +6,8 @@ import { useBooking } from '@/context/BookingContext';
 import type { AvailabilitySlot } from '@/types/booking';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { Button } from '@/components/ui/button';
-import { formatFloridaCalendarDate } from '@/lib/display-time';
+import { FLORIDA_TIME_ZONE_LABEL, formatFloridaCalendarDate, formatTourTime } from '@/lib/display-time';
+import { easternToday } from '@/lib/booking-datetime';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -16,13 +17,6 @@ function formatDate(dateStr: string): string {
     month: 'long',
     day: 'numeric',
   });
-}
-
-function formatTime(time: string): string {
-  const [hours, minutes] = time.split(':').map(Number);
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-  return `${displayHour}:${String(minutes).padStart(2, '0')} ${period}`;
 }
 
 function toIsoDate(date: Date): string {
@@ -45,9 +39,10 @@ function addMonths(date: Date, amount: number): Date {
 }
 
 function getDateRange(): { dateFrom: string; dateTo: string; minDate: Date; maxDate: Date } {
-  const minDate = new Date();
-  minDate.setHours(0, 0, 0, 0);
-  minDate.setDate(minDate.getDate() + 1);
+  // The tours run in Florida, so "tomorrow" is tomorrow in Eastern time no
+  // matter where the visitor is. The Date objects here are only calendar days.
+  const [year, month, day] = easternToday().split('-').map(Number);
+  const minDate = new Date(year, month - 1, day + 1);
 
   const maxDate = new Date(minDate);
   maxDate.setMonth(maxDate.getMonth() + 3);
@@ -105,13 +100,14 @@ export function StepDateTime() {
   useEffect(() => {
     if (missingBookingContext) return;
 
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const trailType = state.trail_type;
     const locationName = state.location_name;
 
     if (!trailType || !locationName) return;
 
-    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&timeZone=${encodeURIComponent(tz)}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}`;
+    // Slots come back in Eastern time (the tours are in Florida) — that is what
+    // gets stored as time_slot, so the browser's time zone is deliberately not sent.
+    const url = `/api/availability?dateFrom=${dateFrom}&dateTo=${dateTo}&trailType=${encodeURIComponent(trailType)}&locationName=${encodeURIComponent(locationName)}`;
 
     fetch(url)
       .then((r) => r.json())
@@ -280,9 +276,12 @@ export function StepDateTime() {
 
           {selectedDate && (
             <div className="mb-6">
-              <h3 className="mb-3 font-medium text-foreground">
+              <h3 className="font-medium text-foreground">
                 Available Times - {formatDate(selectedDate)}
               </h3>
+              <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
+                All times are {FLORIDA_TIME_ZONE_LABEL}, where the tour takes place.
+              </p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {selectedDateSlots.map((slot) => (
                   <button
@@ -297,7 +296,7 @@ export function StepDateTime() {
                           : 'border-border text-foreground hover:border-muted-foreground'
                     }`}
                   >
-                    {formatTime(slot.time)}
+                    {formatTourTime(slot.time)}
                     {!slot.available && <div className="mt-0.5 text-xs">Booked</div>}
                   </button>
                 ))}

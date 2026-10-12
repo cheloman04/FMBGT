@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { SignatureCanvas } from '@/components/waiver/SignatureCanvas';
 import { WAIVER_TEXT } from '@/lib/waiver-text';
 import { generateWaiverPdf } from '@/lib/waiver-pdf';
-import { formatFloridaTime } from '@/lib/display-time';
+import { formatFloridaTime, formatTourTime } from '@/lib/display-time';
 
 const LOGO_URL =
   'https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png';
@@ -134,7 +134,7 @@ function TourSummary({ context }: { context: Props['context'] }) {
         {trail && <SummaryRow label="Tour" value={trail} />}
         {context.locationName && <SummaryRow label="Location" value={context.locationName} />}
         {context.tourDate && <SummaryRow label="Date" value={context.tourDate} />}
-        {context.timeSlot && <SummaryRow label="Time" value={context.timeSlot} />}
+        {context.timeSlot && <SummaryRow label="Time" value={formatTourTime(context.timeSlot, { withZone: true })} />}
       </div>
     </div>
   );

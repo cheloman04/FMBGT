@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { PriceSummary } from '@/components/PriceSummary';
 import { formatPrice } from '@/lib/pricing';
 import { type AppliedCode, appliedReductionCents } from '@/lib/discounts';
-import { formatFloridaCalendarDate } from '@/lib/display-time';
+import { formatFloridaCalendarDate, formatTourTime } from '@/lib/display-time';
 import { BookingStepActions } from '@/components/BookingStepActions';
 import { track, getAcquisitionContext } from '@/lib/analytics';
 
@@ -407,7 +407,7 @@ export function StepPayment() {
             {state.time_slot && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Time</span>
-                <span className="text-foreground">{state.time_slot}</span>
+                <span className="text-foreground">{formatTourTime(state.time_slot, { withZone: true })}</span>
               </div>
             )}
             {state.duration_hours && (

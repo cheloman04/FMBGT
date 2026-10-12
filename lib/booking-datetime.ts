@@ -24,3 +24,38 @@ export function addHoursToIso(iso: string, hours: number): string {
   return new Date(new Date(iso).getTime() + hours * 3_600_000).toISOString();
 }
 
+
+// Tours run in Florida, so a booking's `date` + `time_slot` are always Eastern
+// wall-clock values — never the visitor's browser time zone.
+const easternPartsFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/**
+ * Eastern calendar date (YYYY-MM-DD) and wall-clock time (HH:MM) of an instant —
+ * the inverse of easternLocalToUtcIso. Accepts UTC ("…Z") or offset ("…-04:00")
+ * ISO strings; returns null for anything unparseable.
+ */
+export function utcIsoToEasternLocal(iso: string): { date: string; time: string } | null {
+  const instant = new Date(iso);
+  if (Number.isNaN(instant.getTime())) return null;
+
+  const parts: Record<string, string> = {};
+  for (const part of easternPartsFormatter.formatToParts(instant)) parts[part.type] = part.value;
+
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour === '24' ? '00' : parts.hour}:${parts.minute}`,
+  };
+}
+
+/** Today's date (YYYY-MM-DD) in Florida. */
+export function easternToday(now: Date = new Date()): string {
+  return utcIsoToEasternLocal(now.toISOString())!.date;
+}
