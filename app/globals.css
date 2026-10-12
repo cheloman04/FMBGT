@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* The dashboard kit (components/kit, synced from senzai-skills) and the /admin
+   theme. Both are scoped to [data-kit], so the landing and booking flow keep
+   their own palette. */
+@import "../components/kit/kit.css";
+@import "./admin/theme.css";
 
 @custom-variant dark (&:is(.dark *));
 
