@@ -95,7 +95,7 @@ The project has two distinct surfaces:
 │   └── api/
 │       ├── create-checkout/route.ts      # POST — validates + creates Stripe session
 │       ├── validate-inventory/route.ts   # POST — checks item availability for a date
-│       ├── availability/route.ts         # GET — Cal.com slots (mock fallback)
+│       ├── availability/route.ts         # GET — Cal.com slots + joinable Sanford tours, minus dates without bikes
 │       ├── booking-lookup/route.ts       # GET — verifies email → customer → booking ownership
 │       ├── admin/
 │       │   ├── login/route.ts            # POST (set session cookie) + DELETE (logout)
@@ -151,10 +151,12 @@ The project has two distinct surfaces:
 │   ├── animations.ts                     # Shared Framer Motion variants (fadeUp, stagger)
 │   ├── steps.ts                          # Step engine: IDs, skip/complete logic, nav helpers
 │   ├── pricing.ts                        # Price calculation logic (server-side truth)
-│   ├── inventory.ts                      # Electric bike / GoPro availability checks
+│   ├── inventory.ts                      # Fleet / e-bike / GoPro availability checks (per rider)
+│   ├── bike-counts.ts                    # Bikes per booking (pure — shared with the booking calendar)
+│   ├── shared-tours.ts                   # Sanford multi-booking: joinable tours + Cal.com join detection
 │   ├── supabase.ts                       # Supabase client + admin client + helpers
 │   ├── stripe.ts                         # Checkout session creation + webhook verify
-│   ├── cal.ts                            # Cal.com availability fetch + mock data
+│   ├── cal.ts                            # Cal.com slots, create / reschedule / cancel, shared-tour flags
 │   └── utils.ts                          # cn() utility (clsx + tailwind-merge)
 │
 ├── types/
@@ -642,19 +644,22 @@ total = rider_prices + duration_cost + gopro_cost + pickup_cost + electric_cost
 
 Source of truth: `lib/inventory.ts`
 
-**Limited items:**
-- Electric bikes: **2 units**
+**Limited items** (per date, shared by every tour that day):
+- Rental fleet (`standard_bike`): **10 bikes**, electric ones included
+- Electric bikes: **2 units** (a subset of the fleet)
 - GoPros: **3 units**
 
-**Check logic** (two layers):
+**Check logic** (three layers):
 
-1. **Application-level** (fast UX feedback): `/api/validate-inventory` is called when the add-ons step mounts. Counts bookings on the same date with `status IN ('pending', 'confirmed')`, compares against inventory quantity, disables unavailable options. Remaining counts ("X left") are displayed inline.
+1. **Booking calendar:** `StepDateTime` sends the group's bike needs to `/api/availability`, which hides dates whose leftover fleet can't seat the group.
 
-2. **Database-level** (correctness guarantee): The trigger `enforce_inventory_on_booking` (replaced by `supabase/migrations/003_fix_electric_trigger.sql`) runs `BEFORE INSERT` on the `bookings` table. It issues `SELECT ... FOR UPDATE` on the matching inventory row, serializing concurrent inserts. If `available <= 0` it raises `RAISE EXCEPTION 'inventory_exhausted:electric_bike'` (or `gopro`). `/api/create-checkout` catches PostgreSQL error code `P0001` and decodes the message to return `409 Conflict`.
+2. **Application-level:** `validateBookingInventory()` runs in `/api/create-checkout`, `/api/validate-inventory` and manual-booking edits. It counts bookings on the same date with `status IN ('pending', 'confirmed')` and compares them against the inventory quantity.
 
-This two-layer approach gives instant UI feedback (application check) and prevents oversell under concurrent load (DB trigger).
+3. **Database-level** (correctness guarantee): the trigger `enforce_inventory_on_booking` (current version: `supabase/migrations/033_inventory_per_rider.sql`) runs `BEFORE INSERT` on `bookings`. It locks the inventory rows with `SELECT ... FOR UPDATE`, which serializes concurrent inserts. When the date is full it raises `inventory_exhausted:standard_bike` (or `electric_bike` / `gopro`), and the API returns `409 Conflict`.
 
-**Multi-rider electric counting:** Both the application-level check (`lib/inventory.ts`) and the DB trigger count electric bikes across ALL riders in a booking — not just the lead rider's `bike_rental` column. Additional riders' electric choices are stored in `participant_info` JSONB and are summed during the availability check. This prevents oversell when a group books multiple electric bikes across `participant_info`.
+**Per-rider counting:** every rider on a `standard` or `electric` bike takes one bike from the fleet, and electric riders also take one e-bike. Additional riders' choices live in `participant_info`; riders without their own choice (manual bookings store names only) ride the lead's bike. `bookingBikeCounts()` in `lib/bike-counts.ts` and the SQL `booking_bike_counts()` apply the same rules.
+
+**Sanford multi-booking:** several groups can book the same Sanford time slot while bikes remain. See `lib/shared-tours.ts` and `docs/plans/sanford-multi-booking.md`.
 
 ---
 
