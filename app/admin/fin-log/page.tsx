@@ -131,7 +131,7 @@ export default async function AdminFinLogPage() {
                     </td>
                     <td className="px-4 py-4">
                       {event.booking_id ? (
-                        <Link href={`/admin?bookingId=${event.booking_id}`} className="text-green-300 hover:text-green-200">
+                        <Link href={`/admin/bookings/${event.booking_id}`} className="text-green-300 hover:text-green-200">
                           {event.booking_id.slice(0, 8)}...
                         </Link>
                       ) : (
