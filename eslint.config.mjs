@@ -26,6 +26,9 @@ const eslintConfig = defineConfig([
       "app/admin/(panel)/gift-cards/**/*.tsx",
       "app/admin/(panel)/referrals/**/*.tsx",
       "app/admin/(panel)/fin-log/**/*.tsx",
+      // Phase 2, step 3a: the dashboard page and its overview (AdminClient,
+      // with the lists, stays out until 3b/3c).
+      "app/admin/(panel)/page.tsx",
       "lib/admin/**/*.ts",
     ],
   }),
