@@ -85,3 +85,40 @@ export { LineChart, type ChartSeries } from "./LineChart";
 export { Sparkline } from "./Sparkline";
 export { domainOf, niceDomain, linePath, ticks, yOf, type Domain } from "./chart";
 export { withParam, type SearchParamsInput } from "./url";
+
+// 2a · la bandeja de conversaciones (Instagram, Messenger, WhatsApp…)
+// 🔒 Su parte de servidor (`conversations/server.ts`: conexión con el hub, rutas
+// proxy y cargadores) NO sale por aquí: este barrel lo importan las islas. Se
+// importa por su ruta, `@/components/kit/conversations/server`, y solo en servidor.
+export { ConversationsInbox } from "./conversations/ConversationsInbox";
+export { ConversationThread } from "./conversations/ConversationThread";
+export { AttachmentStrip } from "./conversations/AttachmentStrip";
+export {
+  INBOX_LABELS,
+  mergeLabels,
+  readPreview,
+  readMessage,
+  deliveryStatus,
+  contactName,
+  channelName,
+  type InboxLabels,
+  type InboxTab,
+} from "./conversations/inbox";
+export { usePolling } from "./conversations/usePolling";
+export { useMediaQuery } from "./conversations/useMediaQuery";
+export type {
+  AgentState,
+  AttachmentKind,
+  InboxAttachment,
+  InboxChannel,
+  InboxConversation,
+  InboxData,
+  InboxHandlerResult,
+  InboxLoad,
+  InboxMessage,
+  InboxPreview,
+  InboxSendResult,
+  InboxTemplate,
+  InboxThread,
+  SenderType,
+} from "./conversations/types";
