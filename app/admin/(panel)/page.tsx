@@ -1,8 +1,11 @@
+import { PageHeader, PageShell } from '@/components/kit';
+import { requireOperator } from '@/lib/admin/auth';
+import { loadLeadsWithPaymentSignal, loadNextBooking, loadOverview } from '@/lib/admin/loaders';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { AdminClient } from './AdminClient';
 import type { AdditionalParticipant } from '@/types/booking';
-import { requireAdminUser } from '@/lib/admin-auth';
 import { LegacyArea } from '../_components/LegacyArea';
+import { AdminOverview } from './_components/Overview';
+import { AdminClient } from './AdminClient';
 
 function extractWaiverStoragePath(urlOrPath: string | null): string | null {
   if (!urlOrPath) return null;
@@ -43,63 +46,6 @@ async function createSignedWaiverUrl(pathOrUrl: string | null) {
   }
 
   return data?.signedUrl ?? null;
-}
-
-async function checkAuth() {
-  await requireAdminUser();
-}
-
-async function getLeadConversionSignalSet(leadIds: string[]) {
-  if (leadIds.length === 0) return new Set<string>();
-
-  const supabase = getSupabaseAdmin();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('bookings')
-    .select(
-      'lead_id, status, deposit_payment_status, remaining_balance_status, stripe_session_id, stripe_customer_id, stripe_payment_method_id, stripe_payment_intent_id, deposit_payment_intent_id, remaining_balance_payment_intent_id'
-    )
-    .in('lead_id', leadIds);
-
-  if (error) {
-    console.error('[admin] Failed to inspect lead conversion signals:', error.message);
-    return new Set<string>();
-  }
-
-  const convertedLeadIds = (data ?? [])
-    .filter((b: {
-      lead_id?: string | null;
-      status?: string | null;
-      deposit_payment_status?: string | null;
-      remaining_balance_status?: string | null;
-      stripe_session_id?: string | null;
-      stripe_customer_id?: string | null;
-      stripe_payment_method_id?: string | null;
-      stripe_payment_intent_id?: string | null;
-      deposit_payment_intent_id?: string | null;
-      remaining_balance_payment_intent_id?: string | null;
-    }) => {
-      if (!b.lead_id) return false;
-      return (
-        b.status === 'confirmed' ||
-        b.status === 'completed' ||
-        b.status === 'refunded' ||
-        b.deposit_payment_status === 'paid' ||
-        b.remaining_balance_status === 'pending' ||
-        b.remaining_balance_status === 'paid' ||
-        b.remaining_balance_status === 'failed' ||
-        !!b.stripe_session_id ||
-        !!b.stripe_customer_id ||
-        !!b.stripe_payment_method_id ||
-        !!b.stripe_payment_intent_id ||
-        !!b.deposit_payment_intent_id ||
-        !!b.remaining_balance_payment_intent_id
-      );
-    })
-    .map((b: { lead_id?: string | null }) => b.lead_id as string);
-
-  return new Set(convertedLeadIds);
 }
 
 // Bookings: only show confirmed/completed/cancelled/refunded — never pending
@@ -312,7 +258,7 @@ async function getLeads() {
   }
 
   const rawLeads = data ?? [];
-  const conversionSignalLeadIds = await getLeadConversionSignalSet(
+  const conversionSignalLeadIds = await loadLeadsWithPaymentSignal(
     rawLeads.map((lead: { id: string }) => lead.id)
   );
 
@@ -413,107 +359,6 @@ async function getLeads() {
   });
 }
 
-async function getStats() {
-  const supabase = getSupabaseAdmin();
-
-  const [bookingsResult, leadsResult] = await Promise.all([
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).from('bookings').select('status, total_price, deposit_amount, remaining_balance_amount, remaining_balance_status, deposit_payment_status, extra_paid_cents, refunded_cents, deleted_at').is('deleted_at', null),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).from('leads').select('id, status, booking_id, converted_at'),
-  ]);
-
-  type StatBooking = {
-    status: string;
-    total_price: number;
-    deposit_amount: number | null;
-    remaining_balance_amount: number | null;
-    remaining_balance_status: string | null;
-    deposit_payment_status: string | null;
-    extra_paid_cents: number | null;
-    refunded_cents: number | null;
-    deleted_at: string | null;
-  };
-
-  const bookings: StatBooking[] = bookingsResult.data ?? [];
-  const leads = leadsResult.data ?? [];
-  const conversionSignalLeadIds = await getLeadConversionSignalSet(
-    leads.map((lead: { id: string }) => lead.id)
-  );
-
-  const realBookings = bookings.filter((b) => b.status !== 'pending');
-  const confirmedBookings = realBookings.filter((b) => b.status === 'confirmed');
-
-  const totalLeads = leads.length;
-  const activeLeads = leads.filter((lead: {
-    id: string;
-    status: string;
-    booking_id: string | null;
-    converted_at: string | null;
-  }) => {
-    const hasConversionSignal =
-      conversionSignalLeadIds.has(lead.id) ||
-      lead.status === 'converted' ||
-      !!lead.booking_id ||
-      !!lead.converted_at;
-
-    return lead.status === 'lead' && !hasConversionSignal;
-  }).length;
-  const convertedLeads = leads.filter((lead: {
-    id: string;
-    status: string;
-    booking_id: string | null;
-    converted_at: string | null;
-  }) => {
-    return (
-      conversionSignalLeadIds.has(lead.id) ||
-      lead.status === 'converted' ||
-      !!lead.booking_id ||
-      !!lead.converted_at
-    );
-  }).length;
-
-  const revenue = realBookings.reduce((sum, booking) => {
-    if (booking.status === 'refunded') {
-      return sum;
-    }
-
-    const depositPaid =
-      booking.deposit_payment_status === 'paid'
-        ? booking.deposit_amount ?? 0
-        : 0;
-
-    const remainingPaid =
-      booking.remaining_balance_status === 'paid'
-        ? booking.remaining_balance_amount ?? 0
-        : 0;
-
-    // Money moved after an edit: extra charges / payments, partial refunds.
-    const adjustments = (booking.extra_paid_cents ?? 0) - (booking.refunded_cents ?? 0);
-
-    return sum + depositPaid + remainingPaid + adjustments;
-  }, 0);
-
-  // Projected = remaining balance still owed on confirmed bookings
-  const projectedRevenue = confirmedBookings
-    .filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'pending')
-    .reduce((sum, b) => sum + ((b as { remaining_balance_amount?: number }).remaining_balance_amount ?? 0), 0);
-
-  const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : null;
-
-  return {
-    total: realBookings.length,
-    leads: activeLeads,
-    confirmed: confirmedBookings.length,
-    completed: realBookings.filter((b) => b.status === 'completed').length,
-    revenue,
-    projectedRevenue,
-    conversionRate,
-    balancePending: confirmedBookings.filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'pending').length,
-    balanceFailed: realBookings.filter((b) => (b as { remaining_balance_status?: string }).remaining_balance_status === 'failed').length,
-  };
-}
-
 async function getTrashedBookings() {
   const supabase = getSupabaseAdmin();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -564,32 +409,50 @@ interface PageProps {
   searchParams: Promise<{ status?: string; leadId?: string }>;
 }
 
+export const metadata = { title: 'Dashboard | Admin' };
+export const dynamic = 'force-dynamic';
+
 export default async function AdminPage({ searchParams }: PageProps) {
-  await checkAuth();
+  await requireOperator();
 
   const { status, leadId } = await searchParams;
   const isLeadsView = status === 'leads' || !!leadId;
   const isTrashView = status === 'trash';
+  const view = isLeadsView ? 'leads' : status ?? 'all';
 
-  const [bookings, leads, stats, trashedBookings, trashedLeads] = await Promise.all([
+  const [overview, next, bookings, leads, trashedBookings, trashedLeads] = await Promise.all([
+    loadOverview(),
+    loadNextBooking(),
     isLeadsView || isTrashView ? Promise.resolve([]) : getBookings(status),
     isLeadsView ? getLeads() : Promise.resolve([]),
-    getStats(),
     isTrashView ? getTrashedBookings() : Promise.resolve([]),
     isTrashView ? getTrashedLeads() : Promise.resolve([]),
   ]);
 
   return (
-    <LegacyArea>
-      <AdminClient
-        bookings={bookings}
-        leads={leads}
-        stats={stats}
-        currentStatus={isLeadsView ? 'leads' : status ?? 'all'}
-        initialLeadId={leadId ?? null}
-        trashedBookings={trashedBookings}
-        trashedLeads={trashedLeads}
-      />
-    </LegacyArea>
+    <PageShell>
+      <PageHeader eyebrow="Overview" title="Dashboard" subtitle="Money, the next tour and what needs you. Times in Eastern." />
+      <AdminOverview stats={overview} next={next} view={view} />
+
+      {/* The bookings, leads and trash lists: still the legacy client, until
+          they move to their own routes (phase 2, steps 3b and 3c). */}
+      <div className="mt-10">
+        <LegacyArea>
+          {/* The key remounts the client when the view changes. It copies its
+              props into state once, so a soft navigation from the strip above
+              (a <Link>, unlike its own full-reload tabs) would keep showing the
+              previous view's list. */}
+          <AdminClient
+            key={`${view}:${leadId ?? ''}`}
+            bookings={bookings}
+            leads={leads}
+            currentStatus={view}
+            initialLeadId={leadId ?? null}
+            trashedBookings={trashedBookings}
+            trashedLeads={trashedLeads}
+          />
+        </LegacyArea>
+      </div>
+    </PageShell>
   );
 }

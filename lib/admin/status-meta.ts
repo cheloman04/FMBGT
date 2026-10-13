@@ -3,6 +3,18 @@
 // import from here, never write a tone next to a status.
 import type { StatusMeta } from '@/components/kit';
 
+export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'refunded';
+
+export const BOOKING_STATUS: Record<BookingStatus, StatusMeta> = {
+  pending: { label: 'Pending', tone: 'amber' },
+  confirmed: { label: 'Confirmed', tone: 'green' },
+  completed: { label: 'Completed', tone: 'blue' },
+  cancelled: { label: 'Cancelled', tone: 'gray' },
+  refunded: { label: 'Refunded', tone: 'red' },
+};
+
+export const FAILED_CHARGE: StatusMeta = { label: 'Charge failed', tone: 'red' };
+
 export type GiftCardStatus = 'active' | 'reserved' | 'redeemed' | 'void';
 
 export const GIFT_CARD_STATUS: Record<GiftCardStatus, StatusMeta> = {

@@ -11,9 +11,7 @@ import {
   formatFloridaCalendarDate,
   formatFloridaDateTime,
 } from '@/lib/display-time';
-import { easternLocalToUtcIso } from '@/lib/booking-datetime';
 import type { SkillLevel, TrailType } from '@/types/booking';
-import { PageHeader } from '@/components/kit';
 
 interface WaiverRecord {
   id: string;
@@ -190,18 +188,6 @@ interface LeadFollowUpStep {
   updated_at: string;
 }
 
-interface Stats {
-  total: number;
-  leads: number;
-  confirmed: number;
-  completed: number;
-  revenue: number;
-  projectedRevenue: number;
-  conversionRate: number | null;
-  balancePending: number;
-  balanceFailed: number;
-}
-
 interface TrashedBooking {
   id: string;
   status: string;
@@ -230,7 +216,6 @@ interface TrashedLead {
 interface Props {
   bookings: Booking[];
   leads: Lead[];
-  stats: Stats;
   currentStatus: string;
   initialLeadId?: string | null;
   trashedBookings?: TrashedBooking[];
@@ -451,25 +436,6 @@ function canStartLeadFollowUp(lead: Lead): boolean {
   if (lead.status === 'converted' || lead.converted_at || lead.booking_id) return false;
   if (lead.status === 'lost' || lead.lost_at) return false;
   return lead.followup_enrollment?.status !== 'active';
-}
-
-function getBookingStart(booking: Booking) {
-  // time_slot is Eastern wall-clock time, not the admin's browser time.
-  try {
-    return new Date(easternLocalToUtcIso(booking.date, booking.time_slot || '00:00'));
-  } catch {
-    return new Date(NaN); // malformed date/time — never "upcoming"
-  }
-}
-
-function getNearestUpcomingBooking(bookings: Booking[]) {
-  const now = new Date();
-  return (
-    bookings
-      .filter((booking) => !['cancelled', 'refunded', 'completed'].includes(booking.status))
-      .filter((booking) => getBookingStart(booking).getTime() >= now.getTime())
-      .sort((a, b) => getBookingStart(a).getTime() - getBookingStart(b).getTime())[0] ?? null
-  );
 }
 
 function BalanceBadge({
@@ -762,7 +728,7 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
   );
 }
 
-export function AdminClient({ bookings, leads, stats, currentStatus, initialLeadId = null, trashedBookings = [], trashedLeads = [] }: Props) {
+export function AdminClient({ bookings, leads, currentStatus, initialLeadId = null, trashedBookings = [], trashedLeads = [] }: Props) {
   const router = useRouter();
   const handleUnauthorized = useCallback(() => {
     router.push('/admin/login?expired=1');
@@ -779,7 +745,6 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
   const [purgeDialog, setPurgeDialog] = useState<{ type: 'booking' | 'lead'; id: string; label: string; sublabel: string } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [leadDeleteDialog, setLeadDeleteDialog] = useState<DeleteLeadDialogState | null>(null);
-  const [isNextBookingExpanded, setIsNextBookingExpanded] = useState(false);
   const [selectedMobileBookingId, setSelectedMobileBookingId] = useState<string | null>(null);
   const [localBookings, setLocalBookings] = useState(bookings);
   const [markingReviewBookingId, setMarkingReviewBookingId] = useState<string | null>(null);
@@ -835,7 +800,6 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
           .some((value) => String(value).toLowerCase().includes(normalizedSearch))
       )
     : localBookings;
-  const nearestBooking = isLeadsView ? null : getNearestUpcomingBooking(localBookings);
   const selectedMobileBooking =
     filteredBookings.find((booking) => booking.id === selectedMobileBookingId) ??
     localBookings.find((booking) => booking.id === selectedMobileBookingId) ??
@@ -1264,56 +1228,9 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
 
   const filterUrl = (status: string) => `/admin?status=${status}`;
 
-  const statCards = [
-    {
-      label: 'Total Bookings',
-      value: stats.total,
-      className: 'border-border bg-card/90',
-      mobileSpanClassName: 'col-span-1',
-      href: filterUrl('all'),
-    },
-    {
-      label: 'Leads',
-      value: stats.leads,
-      className: 'border-blue-500/30 bg-gradient-to-br from-blue-500/[0.08] via-card/95 to-card/90',
-      valueClassName: 'text-blue-400 dark:text-blue-300',
-      mobileSpanClassName: 'col-span-1',
-      href: filterUrl('leads'),
-    },
-    {
-      label: 'Revenue',
-      value: formatPrice(stats.revenue),
-      className: 'border-green-500/30 bg-gradient-to-br from-green-500/[0.10] via-card/95 to-card/90',
-      valueClassName: 'tracking-tight',
-      featured: true,
-      mobileSpanClassName: 'col-span-2',
-    },
-    {
-      label: 'Projected Revenue',
-      value: formatPrice(stats.projectedRevenue),
-      className: 'border-green-500/30 bg-gradient-to-br from-green-500/[0.10] via-card/95 to-card/90',
-      valueClassName: 'tracking-tight',
-      featured: true,
-      mobileSpanClassName: 'col-span-2',
-    },
-    {
-      label: 'Confirmed',
-      value: stats.confirmed,
-      className: 'border-border bg-card/90',
-      mobileSpanClassName: 'col-span-1',
-    },
-    {
-      label: stats.conversionRate !== null ? `Conversion ${stats.conversionRate}%` : 'Completed',
-      value: stats.conversionRate !== null ? `${stats.conversionRate}%` : stats.completed,
-      className: 'border-border bg-card/90',
-      mobileSpanClassName: 'col-span-1',
-    },
-  ];
-
   return (
-    <div className="bg-background">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.05),transparent_60%)] dark:bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.10),transparent_58%)]" />
-      <div className="relative mx-auto max-w-7xl px-4 py-6 sm:py-8">
+    <div>
+      <div className="relative">
         {deleteDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => (deleting ? undefined : setDeleteDialog(null))} />
@@ -1620,81 +1537,6 @@ export function AdminClient({ bookings, leads, stats, currentStatus, initialLead
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <PageHeader title="Dashboard" subtitle="Florida Mountain Bike Trail Guided Tours" />
-
-        {/* Next booking banner */}
-        {nearestBooking && currentStatus !== 'completed' && (
-          <div className="relative mb-5 overflow-hidden rounded-2xl border border-green-500/30 bg-gradient-to-r from-green-500/[0.06] via-card/95 to-green-500/[0.04] p-4 shadow-[0_0_0_1px_rgba(34,197,94,0.06),0_10px_28px_rgba(22,30,18,0.06)] sm:mb-8 sm:p-5 dark:border-green-500/35 dark:bg-gradient-to-r dark:from-green-950/35 dark:via-card dark:to-emerald-950/20 dark:shadow-[0_0_0_1px_rgba(34,197,94,0.10),0_0_18px_rgba(34,197,94,0.06)]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_38%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_35%)]" />
-            <div className="relative">
-              <div className="space-y-2">
-                <div className="inline-flex items-center rounded-full border border-green-500/35 bg-green-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-green-700 dark:text-green-300">Your Next Booking</div>
-                <div>
-                  <h2 className="text-lg font-bold text-foreground sm:text-xl">{nearestBooking.customer_name}</h2>
-                  <p className="text-sm leading-6 text-muted-foreground">{nearestBooking.location_name} - {formatDate(nearestBooking.date)} - {nearestBooking.time_slot}</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => setIsNextBookingExpanded((prev) => !prev)} className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/55 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-background/75 sm:hidden dark:bg-background/60" aria-expanded={isNextBookingExpanded}>
-                {isNextBookingExpanded ? 'Hide details' : 'Show details'}
-                <svg viewBox="0 0 20 20" fill="none" className={`h-4 w-4 transition-transform ${isNextBookingExpanded ? 'rotate-180' : ''}`} aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              </button>
-              <div className={`${isNextBookingExpanded ? 'mt-4 grid gap-2 text-sm' : 'hidden'} sm:mt-4 sm:grid sm:gap-2 sm:text-sm sm:grid-cols-3 lg:min-w-[420px]`}>
-                <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Tour</p><p className="mt-1 font-semibold text-foreground">{nearestBooking.trail_type === 'mtb' ? 'MTB' : 'Paved'} - {nearestBooking.duration_hours}h</p></div>
-                <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Payment</p><p className="mt-1 font-semibold text-foreground">{formatPrice(nearestBooking.total_price)}</p></div>
-                <div className="rounded-xl border border-border/70 bg-background/55 p-3 dark:bg-background/60"><p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p><p className="mt-1 font-semibold capitalize text-green-700 dark:text-green-300">{nearestBooking.status}</p></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Stats cards */}
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:mb-5 lg:grid-cols-6">
-          {statCards.map((stat) => (
-            <div
-              key={stat.label}
-              className={[
-                'group relative flex min-h-[104px] flex-col justify-between overflow-hidden rounded-2xl border p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] transition-colors sm:min-h-[118px]',
-                stat.mobileSpanClassName ?? 'col-span-1',
-                'sm:col-span-1 lg:col-span-2',
-                stat.className,
-                stat.href ? 'cursor-pointer hover:opacity-90' : '',
-              ].join(' ')}
-              onClick={stat.href ? () => (window.location.href = stat.href!) : undefined}
-            >
-              {stat.featured && (
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.07),transparent_45%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.14),transparent_42%)]" />
-              )}
-              <div className="relative">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{stat.label}</p>
-              </div>
-              <div className="relative mt-5 flex items-end justify-between gap-3">
-                <p className={['text-[2rem] font-bold leading-none sm:text-[2rem]', 'text-foreground', stat.valueClassName ?? ''].join(' ')}>
-                  {stat.value}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Failed balance alert */}
-        {stats.balanceFailed > 0 && (
-          <div className="mb-6 rounded-2xl border border-red-500/35 bg-gradient-to-r from-red-500/[0.08] via-card/95 to-card/90 p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] sm:mb-8">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-300">Payment Issues</p>
-                <h3 className="mt-2 text-lg font-semibold text-foreground">
-                  {stats.balanceFailed} booking{stats.balanceFailed > 1 ? 's have' : ' has'} a failed balance charge
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">Review these bookings and retry the payment if needed.</p>
-              </div>
-              <div className="shrink-0 rounded-2xl border border-red-500/25 bg-red-500/[0.08] px-5 py-4 text-left sm:min-w-[140px] sm:text-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-300">Issues</p>
-                <p className="mt-2 text-3xl font-bold leading-none text-red-400">{stats.balanceFailed}</p>
               </div>
             </div>
           </div>
