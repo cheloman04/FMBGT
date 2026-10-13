@@ -91,3 +91,32 @@ export const FINANCIAL_SEVERITY: Record<FinancialSeverity, StatusMeta> = {
 };
 
 export const NEEDS_ATTENTION: StatusMeta = { label: 'Needs attention', tone: 'amber' };
+
+/** How recently a lead was active: hot within a day, warm within three. Older says nothing. */
+export const LEAD_FRESHNESS = {
+  hot: { label: 'Hot', tone: 'amber' },
+  warm: { label: 'Warm', tone: 'yellow' },
+} satisfies Record<string, StatusMeta>;
+
+/**
+ * Where a lead's follow-up stands (lib/lead-followup.ts). `enrolled` is an
+ * active sequence whose n8n webhook hasn't fired yet.
+ */
+export const LEAD_FOLLOW_UP = {
+  notStarted: { label: 'Not started', tone: 'gray' },
+  enrolled: { label: 'Enrolled', tone: 'blue' },
+  active: { label: 'Following up', tone: 'blue' },
+  completed: { label: 'Sequence done', tone: 'gray' },
+  stopped: { label: 'Stopped', tone: 'gray' },
+  lost: { label: 'Lost', tone: 'red' },
+  converted: { label: 'Converted', tone: 'green' },
+} satisfies Record<string, StatusMeta>;
+
+export type FollowUpStepStatus = 'pending' | 'sent' | 'skipped' | 'cancelled';
+
+export const FOLLOW_UP_STEP: Record<FollowUpStepStatus, StatusMeta> = {
+  pending: { label: 'Scheduled', tone: 'gray' },
+  sent: { label: 'Sent', tone: 'green' },
+  skipped: { label: 'Skipped', tone: 'gray' },
+  cancelled: { label: 'Cancelled', tone: 'gray' },
+};

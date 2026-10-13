@@ -18,6 +18,7 @@ import {
   SIZING_STATUS,
   WAIVER_STATUS,
 } from './status-meta';
+import { dropParam, parseUuid, single, type Raw } from './params';
 
 // ─── Records ────────────────────────────────────────────────────────────────
 
@@ -152,43 +153,14 @@ export const BOOKING_FILTERS = ['all', 'confirmed', 'completed', 'cancelled', 'r
 export type BookingFilter = (typeof BOOKING_FILTERS)[number];
 export type BookingCounts = Record<BookingFilter, number>;
 
-/** Rows per "Load more". */
-export const PAGE_SIZE = 50;
-const MAX_PAGES = 20;
-const MAX_SEARCH = 80;
-
-type Raw = string | string[] | undefined;
-const single = (raw: Raw) => (Array.isArray(raw) ? raw[0] : raw);
-
 export function parseBookingFilter(raw: Raw): BookingFilter {
   const value = single(raw);
   return (BOOKING_FILTERS as readonly string[]).includes(value ?? '') ? (value as BookingFilter) : 'all';
 }
 
-/**
- * The search as it goes to the database. The characters PostgREST reads as
- * filter syntax (`,` `(` `)` `"` `\`) and the LIKE wildcards (`%` `*`) are
- * dropped: they never carry meaning in a name, an email or a phone.
- */
-export function parseSearch(raw: Raw): string {
-  return (single(raw) ?? '')
-    .replace(/[,()"\\%*]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_SEARCH);
-}
-
-/** How many pages of PAGE_SIZE are showing ("Load more" adds one). */
-export function parsePage(raw: Raw): number {
-  const page = Number.parseInt(single(raw) ?? '', 10);
-  return Number.isFinite(page) && page >= 1 ? Math.min(page, MAX_PAGES) : 1;
-}
-
-/** The id of the booking open in the drawer, if it looks like one. */
-export function parseBookingId(raw: Raw): string | null {
-  const value = single(raw);
-  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ? value.toLowerCase() : null;
-}
+// The generic URL readers live in ./params; these names stay for the bookings page.
+export { PAGE_SIZE, parsePage, parseSearch } from './params';
+export const parseBookingId = parseUuid;
 
 /** A balance charge that failed on a tour that still happens (or happened): the operator can retry it. */
 export function isFailedCharge(b: { status: string; remaining_balance_status?: string | null }): boolean {
@@ -263,17 +235,7 @@ const STRIP_FILTERS: readonly BookingFilter[] = ['all', 'confirmed', 'completed'
 
 /** The list's URL with one filter, keeping the search and dropping the drawer and the page. */
 export function filterHref(path: string, params: SearchParamsInput, filter: BookingFilter): string {
-  return withParam(path, withoutBooking(params), 'status', filter === 'all' ? null : filter);
-}
-
-function withoutBooking(params: SearchParamsInput): URLSearchParams {
-  const copy = new URLSearchParams();
-  const entries = params instanceof URLSearchParams ? [...params.entries()] : Object.entries(params);
-  for (const [key, value] of entries) {
-    if (key === 'booking') continue;
-    for (const v of Array.isArray(value) ? value : [value]) if (v !== undefined) copy.append(key, v);
-  }
-  return copy;
+  return withParam(path, dropParam(params, 'booking'), 'status', filter === 'all' ? null : filter);
 }
 
 /** The strip doubles as the status filter on a wide screen (§4.7). */
