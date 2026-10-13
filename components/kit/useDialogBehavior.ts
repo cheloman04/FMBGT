@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type RefObject } from "react";
+import { dialogStack } from "./_dialogStack";
 
 /**
  * Lo que un diálogo tiene que hacer aunque no se vea: Escape, foco inicial,
@@ -11,6 +12,11 @@ import { useEffect, useRef, type RefObject } from "react";
  * abajo no comparten MATERIAL con `Modal`, pero sí esta conducta. En el hub, de
  * seis diálogos escritos a mano solo cuatro cerraban con Escape y ninguno
  * atrapaba ni devolvía el foco.
+ *
+ * Con diálogos anidados (una confirmación dentro de un drawer) solo responde el
+ * de más arriba (`_dialogStack`), y un Escape que ya atendió un control de dentro
+ * (el desplegable de un `SelectMenu`, el calendario de un `DatePicker`) no cierra
+ * el diálogo: ese control lo marca con `preventDefault()`.
  */
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -31,11 +37,15 @@ export function useDialogBehavior(open: boolean, onClose: () => void, panelRef: 
 
   useEffect(() => {
     if (!open) return;
+    const token = dialogStack.open();
     const restore = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
     panel?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
+      // 🪤 Todos escuchan en `document`: `stopPropagation` no separa a un oyente de
+      // otro. Sin esto, Escape en una confirmación cerraba también el drawer de debajo.
+      if (!dialogStack.isTop(token) || e.defaultPrevented) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onCloseRef.current();
@@ -60,6 +70,7 @@ export function useDialogBehavior(open: boolean, onClose: () => void, panelRef: 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      dialogStack.close(token);
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
       restore?.focus?.();

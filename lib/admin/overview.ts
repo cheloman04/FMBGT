@@ -68,8 +68,8 @@ export function computeOverview(
   };
 }
 
-/** The views of the list below that a figure filters to (they live in `?status=`). */
-export type OverviewView = 'all' | 'leads' | 'confirmed' | string;
+/** The legacy list below the overview (`?status=`): the leads, or the trash. */
+export type OverviewView = 'leads' | 'trash' | string;
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -94,8 +94,7 @@ export function overviewMetrics(stats: OverviewStats, view: OverviewView): Metri
       label: 'Confirmed',
       value: String(stats.confirmed),
       sub: `${stats.completed} completed`,
-      href: '/admin?status=confirmed',
-      active: view === 'confirmed',
+      href: '/admin/bookings?status=confirmed',
     },
     {
       key: 'leads',

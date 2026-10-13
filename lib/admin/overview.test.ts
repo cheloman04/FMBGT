@@ -93,7 +93,7 @@ describe('overviewMetrics', () => {
     const metrics = overviewMetrics(stats, 'leads');
     expect(metrics.map((m) => m.key)).toEqual(['collected', 'to-collect', 'confirmed', 'leads']);
     expect(metrics.find((m) => m.key === 'leads')).toMatchObject({ href: '/admin?status=leads', active: true });
-    expect(metrics.find((m) => m.key === 'confirmed')).toMatchObject({ href: '/admin?status=confirmed', active: false });
+    expect(metrics.find((m) => m.key === 'confirmed')).toMatchObject({ href: '/admin/bookings?status=confirmed' });
   });
 
   it('says so when nothing is owed', () => {

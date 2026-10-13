@@ -439,9 +439,58 @@ export type WaiverView = {
   signatureUrl: string | null;
 };
 
+/**
+ * What the drawer offers on a booking, each where the API would accept it (the
+ * route checks again: this only hides a button that would be refused).
+ */
+export type BookingActions = {
+  /** The booking's status, for the status menu. */
+  status: string;
+  /** A failed balance charge on the saved card, and its amount. */
+  retryCharge: { amount: string } | null;
+  /** A confirmed tour with no Cal.com event blocking its slot. */
+  retryCalendar: boolean;
+  /** Confirmed tours only; "resend" once it went out. */
+  confirmationEmail: { mode: 'send' | 'resend'; to: string | null } | null;
+  /** A completed tour whose review request is still running. */
+  markReview: { enrollmentId: string } | null;
+};
+
+export const STATUS_CHOICES = ['confirmed', 'completed', 'cancelled', 'refunded'] as const;
+
+export function bookingActions(b: BookingRecord, review: ReviewEnrollment | null): BookingActions {
+  const confirmed = b.status === 'confirmed';
+  return {
+    status: b.status,
+    // /api/admin/retry-charge needs the deposit's saved card and a failed balance.
+    retryCharge:
+      isFailedCharge(b) && b.deposit_payment_status === 'paid' && b.remaining_balance_amount
+        ? { amount: formatPrice(b.remaining_balance_amount) }
+        : null,
+    retryCalendar: confirmed && b.cal_booking_status !== 'created',
+    confirmationEmail: confirmed ? { mode: b.webhook_sent ? 'resend' : 'send', to: b.customer_email } : null,
+    // markReviewRequestReceived() only moves an active or completed request.
+    markReview:
+      b.status === 'completed' && review && (review.status === 'active' || review.status === 'completed')
+        ? { enrollmentId: review.id }
+        : null,
+  };
+}
+
+/**
+ * The bookings views of /admin moved to /admin/bookings (phase 2, step 3b):
+ * where an old `/admin?status=…` link goes now, or null if it isn't one.
+ */
+export function legacyBookingsUrl(status: string | string[] | undefined): string | null {
+  const value = single(status);
+  if (value === 'all') return '/admin/bookings';
+  return value && (STATUS_CHOICES as readonly string[]).includes(value) ? `/admin/bookings?status=${value}` : null;
+}
+
 export type BookingDetailView = {
   id: string;
   customer: string;
+  actions: BookingActions;
   status: StatusMeta;
   flags: StatusMeta[];
   tour: Fact[];
@@ -562,6 +611,7 @@ export function toBookingDetail(b: BookingRecord, waivers: readonly WaiverRecord
   return {
     id: b.id,
     customer: b.customer_name || 'Customer',
+    actions: bookingActions(b, review),
     status: resolveStatus(BOOKING_STATUS, b.status),
     flags: bookingFlags(b, waivers.length),
     tour: [

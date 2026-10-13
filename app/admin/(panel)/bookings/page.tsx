@@ -114,6 +114,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   const rows = list.records.map((r) => toBookingRow(r, list.waiverCounts.get(r.id) ?? 0));
   const detail = opened ? toBookingDetail(opened.record, opened.waivers, opened.review) : null;
   const failed = list.counts.failed;
+  const closeHref = withParam(PATH, params, 'booking', null, { keepPage: true });
 
   return (
     <PageShell>
@@ -204,7 +205,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
       <Drawer
         open={drawerOpen}
         title={detail?.customer ?? 'Booking not found'}
-        closeHref={withParam(PATH, params, 'booking', null, { keepPage: true })}
+        closeHref={closeHref}
         size="lg"
         footer={
           detail ? (
@@ -215,7 +216,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
         }
       >
         {detail ? (
-          <BookingQuickView booking={detail} />
+          <BookingQuickView booking={detail} closeHref={closeHref} />
         ) : (
           <EmptyState title="This booking doesn't exist or was archived. Archived bookings are in the Trash, on the Dashboard." />
         )}

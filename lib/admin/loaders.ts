@@ -14,7 +14,6 @@ import {
   extractWaiverStoragePath,
   groupWaivers,
   latestReviewByBooking,
-  parseBookingFilter,
   searchResults,
   type BookingCounts,
   type BookingFilter,
@@ -340,33 +339,6 @@ export async function loadBookingDetail(
   const record = toRecord(found[0]);
   const [waivers, reviews] = await Promise.all([loadWaivers<WaiverRecord>([record], WAIVER_COLUMNS), loadReviews([id])]);
   return { record, waivers: await signWaivers(groupWaivers([record], waivers).get(id) ?? []), review: reviews.get(id) ?? null };
-}
-
-/**
- * The legacy list on /admin, in the shape AdminClient reads: the newest 100,
- * every waiver signed, the latest review request.
- * TEMPORARY — it goes away with that list in phase 2, step 3b-2.
- */
-export async function loadLegacyBookings(status: string | undefined) {
-  const { records } = await bookingsPage(parseBookingFilter(status), 100);
-  const [waivers, reviews] = await Promise.all([
-    loadWaivers<WaiverRecord>(records, WAIVER_COLUMNS).then(signWaivers),
-    loadReviews(records.map((r) => r.id)),
-  ]);
-  const byBooking = groupWaivers(records, waivers);
-  return records.map((r) => ({
-    ...r,
-    // AdminClient's types say these are never null.
-    time_slot: r.time_slot ?? '',
-    duration_hours: r.duration_hours ?? 0,
-    bike_rental: r.bike_rental ?? 'none',
-    participant_info: r.participant_info as { name: string; bike_rental?: string; height_inches?: number }[] | null,
-    location_name: r.location_name ?? '—',
-    customer_name: r.customer_name ?? '—',
-    customer_email: r.customer_email ?? '—',
-    waiver_records: (byBooking.get(r.id) ?? []).map((w) => ({ ...w, participants_covered: w.participants_covered ?? [] })),
-    review_request_enrollment: reviews.get(r.id) ?? null,
-  }));
 }
 
 // ─── The menu's badges (§5.3) ───────────────────────────────────────────────

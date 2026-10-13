@@ -104,9 +104,12 @@ export function SelectMenu({
   }, []);
 
   function choose(index: number) {
-    onChange(options[index].value);
+    // 🪤 El foco vuelve al disparador ANTES de avisar. Si `onChange` abre un diálogo
+    // (una confirmación), el diálogo apunta el disparador como sitio al que volver;
+    // después, la opción pulsada se desmonta y el foco habría caído en <body>.
     setOpen(false);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    triggerRef.current?.focus();
+    onChange(options[index].value);
   }
 
   function openMenu() {
@@ -116,6 +119,14 @@ export function SelectMenu({
   }
 
   function onTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    // Abierto, el Escape es del desplegable aunque el foco siga en el disparador
+    // (tras un clic no pasa a la opción hasta el frame siguiente): `preventDefault`
+    // para que no cierre también el diálogo de alrededor.
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      setOpen(false);
+      return;
+    }
     if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
       event.preventDefault();
       openMenu();
