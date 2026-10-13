@@ -11,6 +11,7 @@ describe('ADMIN_NAV', () => {
   it('keeps the menu order', () => {
     expect(ADMIN_NAV.map((item) => item.label)).toEqual([
       'Dashboard',
+      'Bookings',
       'Manual booking',
       'Financial log',
       'Referrals',
@@ -20,6 +21,10 @@ describe('ADMIN_NAV', () => {
 
   it('only the area root matches exactly', () => {
     expect(ADMIN_NAV.filter((item) => 'exact' in item && item.exact).map((item) => item.href)).toEqual(['/admin']);
+  });
+
+  it('the badges are the ones loadNavBadges() counts', () => {
+    expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual(['bookings']);
   });
 
   it('every entry is a real page of the panel', () => {

@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { AppShell, ShellFooterAction } from '@/components/kit';
 import { requireOperator } from '@/lib/admin/auth';
+import { loadNavBadges } from '@/lib/admin/loaders';
 import { ADMIN_ICONS, PASSWORD_ICON, SIGN_OUT_ICON } from './_components/icons';
 import { ADMIN_NAV } from './_components/nav';
 
@@ -11,6 +12,11 @@ const LOGO_URL =
 // (panel) is guarded here once and drawn inside the shell.
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   await requireOperator();
+  // A counter that fails to load shouldn't take the whole admin down: no badge.
+  const badges = await loadNavBadges().catch((error: unknown) => {
+    console.error('[admin] nav badges:', error);
+    return {};
+  });
 
   return (
     <AppShell
@@ -20,6 +26,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       brand={<span className="text-[13px] font-semibold tracking-tight">Florida MTB</span>}
       mark={<Image src={LOGO_URL} alt="" width={28} height={28} className="h-7 w-7 rounded-lg object-contain" />}
       area="Admin"
+      badges={badges}
+      badgesEndpoint="/api/admin/badges"
       storageKey="fmbgt-admin-sidebar"
       footer={
         <>

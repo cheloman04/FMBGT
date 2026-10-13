@@ -30,6 +30,11 @@ const eslintConfig = defineConfig([
       // with the lists, stays out until 3b/3c).
       "app/admin/(panel)/page.tsx",
       "lib/admin/**/*.ts",
+      // Phase 2, step 3b-1: the bookings list. Only its own files: the booking
+      // page (bookings/*/…, still in <LegacyArea>) comes in with step 4.
+      "app/admin/(panel)/bookings/*.tsx",
+      "app/admin/(panel)/bookings/_components/**/*.tsx",
+      "app/api/admin/badges/*.ts",
     ],
   }),
   // Override default ignores of eslint-config-next.
