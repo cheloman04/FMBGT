@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { z } from 'zod';
 import {
   buildLeadFollowUpWebhookPayload,
@@ -7,18 +6,16 @@ import {
   evaluateLeadFollowUpEligibility,
   markFollowUpWebhookTriggered,
 } from '@/lib/lead-followup';
-import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 
 const BodySchema = z.object({
   lead_id: z.string().uuid(),
 });
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const adminUser = await getAdminUserFromCookieStore(cookieStore);
-  if (!adminUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // The session first, before any work: an API answers 401, never a redirect.
+  const adminUser = await getOperator();
+  if (!adminUser) return unauthorized();
 
   const leadWebhookUrl = process.env.N8N_LEAD_FOLLOWUP_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL;
   if (!leadWebhookUrl || leadWebhookUrl === 'your_n8n_webhook_url_here') {

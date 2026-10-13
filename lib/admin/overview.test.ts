@@ -89,17 +89,17 @@ describe('computeOverview', () => {
 describe('overviewMetrics', () => {
   const stats = computeOverview([booking({})], [], new Set());
 
-  it('four figures; the bookings and leads ones filter the list below', () => {
-    const metrics = overviewMetrics(stats, 'leads');
+  it('four figures; the bookings and leads ones open their lists', () => {
+    const metrics = overviewMetrics(stats);
     expect(metrics.map((m) => m.key)).toEqual(['collected', 'to-collect', 'confirmed', 'leads']);
-    expect(metrics.find((m) => m.key === 'leads')).toMatchObject({ href: '/admin?status=leads', active: true });
+    expect(metrics.find((m) => m.key === 'leads')).toMatchObject({ href: '/admin/leads' });
     expect(metrics.find((m) => m.key === 'confirmed')).toMatchObject({ href: '/admin/bookings?status=confirmed' });
   });
 
   it('says so when nothing is owed', () => {
     const none = computeOverview([booking({ remaining_balance_status: 'paid' })], [], new Set());
-    expect(overviewMetrics(none, 'all')[1]).toMatchObject({ value: '$0.00', sub: 'Nothing outstanding' });
-    expect(overviewMetrics(stats, 'all')[1]).toMatchObject({ value: '$100.00', sub: 'On 1 confirmed booking' });
+    expect(overviewMetrics(none)[1]).toMatchObject({ value: '$0.00', sub: 'Nothing outstanding' });
+    expect(overviewMetrics(stats)[1]).toMatchObject({ value: '$100.00', sub: 'On 1 confirmed booking' });
   });
 });
 

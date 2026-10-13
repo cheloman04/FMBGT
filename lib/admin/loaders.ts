@@ -23,6 +23,18 @@ import {
   type WaiverRecord,
 } from './bookings';
 import type { FinLogCounts, FinLogView, FinancialEventRecord } from './fin-log';
+import {
+  LEAD_VIEWS,
+  hotSince,
+  latestEnrollmentByLead,
+  stepsByEnrollment,
+  type FollowUpEnrollment,
+  type FollowUpStep,
+  type LeadCounts,
+  type LeadRecord,
+  type LeadView,
+} from './leads';
+import { ilikeAny } from './params';
 import type { GiftCardRecord } from './gift-cards';
 import type { ReferralPartnerRecord } from './referrals';
 import {
@@ -109,25 +121,24 @@ export async function loadFinancialLog(view: FinLogView): Promise<{ events: Fina
  */
 export async function loadLeadsWithPaymentSignal(leadIds: readonly string[]): Promise<Set<string>> {
   if (leadIds.length === 0) return new Set();
-  const bookings = await rows<Record<string, string | null> & { lead_id: string | null }>(
-    'overview',
-    from('bookings')
-      .select(
-        'lead_id, status, deposit_payment_status, remaining_balance_status, stripe_session_id, stripe_customer_id, ' +
-          'stripe_payment_method_id, stripe_payment_intent_id, deposit_payment_intent_id, remaining_balance_payment_intent_id',
-      )
-      .in('lead_id', leadIds),
-  );
-  const signal = (b: Record<string, string | null>) =>
-    b.status === 'confirmed' ||
-    b.status === 'completed' ||
-    b.status === 'refunded' ||
-    b.deposit_payment_status === 'paid' ||
-    ['pending', 'paid', 'failed'].includes(b.remaining_balance_status ?? '') ||
-    !!(b.stripe_session_id || b.stripe_customer_id || b.stripe_payment_method_id || b.stripe_payment_intent_id) ||
-    !!(b.deposit_payment_intent_id || b.remaining_balance_payment_intent_id);
-  return new Set(bookings.filter((b) => b.lead_id && signal(b)).map((b) => b.lead_id as string));
+  const bookings = await rows<SignalRow>('overview', from('bookings').select(SIGNAL_COLUMNS).in('lead_id', leadIds));
+  return new Set(bookings.filter((b) => b.lead_id && hasPaymentSignal(b)).map((b) => b.lead_id as string));
 }
+
+const SIGNAL_COLUMNS =
+  'lead_id, status, deposit_payment_status, remaining_balance_status, stripe_session_id, stripe_customer_id, ' +
+  'stripe_payment_method_id, stripe_payment_intent_id, deposit_payment_intent_id, remaining_balance_payment_intent_id';
+
+type SignalRow = Record<string, string | null> & { lead_id: string | null };
+
+const hasPaymentSignal = (b: Record<string, string | null>) =>
+  b.status === 'confirmed' ||
+  b.status === 'completed' ||
+  b.status === 'refunded' ||
+  b.deposit_payment_status === 'paid' ||
+  ['pending', 'paid', 'failed'].includes(b.remaining_balance_status ?? '') ||
+  !!(b.stripe_session_id || b.stripe_customer_id || b.stripe_payment_method_id || b.stripe_payment_intent_id) ||
+  !!(b.deposit_payment_intent_id || b.remaining_balance_payment_intent_id);
 
 const MONEY_COLUMNS =
   'status, booking_source, total_price, total_after_discount_cents, deposit_paid_cents, deposit_payment_status, ' +
@@ -136,7 +147,8 @@ const MONEY_COLUMNS =
 export async function loadOverview(): Promise<OverviewStats> {
   const [bookings, leads] = await Promise.all([
     rows<OverviewBooking>('overview', from('bookings').select(MONEY_COLUMNS).is('deleted_at', null)),
-    rows<OverviewLead>('overview', from('leads').select('id, status, booking_id, converted_at')),
+    // Not the archived (Trash): the same leads the Leads page counts.
+    rows<OverviewLead>('overview', from('leads').select('id, status, booking_id, converted_at').is('deleted_at', null)),
   ]);
   const withSignal = await loadLeadsWithPaymentSignal(leads.map((l) => l.id));
   return computeOverview(bookings, leads, withSignal);
@@ -246,21 +258,17 @@ async function searchBookings(
   q: string,
   limit: number,
 ): Promise<{ records: BookingRecord[]; total: number; counts: BookingCounts }> {
-  // Quoted: the value may hold `.` or `:` (an email, a time), which a logic tree reads as syntax.
-  const like = `"%${q}%"`;
   const MATCH = 'id, status, date, time_slot, remaining_balance_status';
   const matches = (
     await Promise.all([
       rows<BookingMatch>(
         'bookings',
-        realBookings(`${MATCH}, customers!inner(name)`).or(`name.ilike.${like},email.ilike.${like},phone.ilike.${like}`, {
-          referencedTable: 'customers',
-        }),
+        realBookings(`${MATCH}, customers!inner(name)`).or(ilikeAny(['name', 'email', 'phone'], q), { referencedTable: 'customers' }),
       ),
       rows<BookingMatch>('bookings', realBookings(`${MATCH}, locations!inner(name)`).ilike('locations.name', `%${q}%`)),
       rows<BookingMatch>(
         'bookings',
-        realBookings(MATCH).or(['zip_code', 'marketing_source', 'discount_code', 'trail_type'].map((c) => `${c}.ilike.${like}`).join(',')),
+        realBookings(MATCH).or(ilikeAny(['zip_code', 'marketing_source', 'discount_code', 'trail_type'], q)),
       ),
     ])
   ).flat();
@@ -341,9 +349,209 @@ export async function loadBookingDetail(
   return { record, waivers: await signWaivers(groupWaivers([record], waivers).get(id) ?? []), review: reviews.get(id) ?? null };
 }
 
+// ─── Leads (/admin/leads) ───────────────────────────────────────────────────
+
+const LEAD_COLUMNS =
+  'id, full_name, email, phone, zip_code, heard_about_us, selected_trail_type, selected_skill_level, ' +
+  'selected_location_name, selected_bike, selected_date, selected_time_slot, selected_duration_hours, ' +
+  'utm_source, utm_medium, utm_campaign, utm_content, utm_term, last_step_completed, last_activity_at, ' +
+  'status, created_at, booking_id, converted_at, lost_at';
+
+const ENROLLMENT_COLUMNS = 'id, lead_id, status, enrolled_at, next_step_due_at, lost_at, stop_reason, webhook_triggered_at';
+const STEP_COLUMNS = 'id, enrollment_id, step_number, step_key, scheduled_for, sent_at, status, skip_reason';
+
+const LEAD_SEARCH = [
+  'full_name',
+  'email',
+  'phone',
+  'zip_code',
+  'heard_about_us',
+  'utm_source',
+  'utm_campaign',
+  'selected_location_name',
+  'selected_trail_type',
+] as const;
+
+/**
+ * The leads a payment on one of their bookings converted although their own row
+ * doesn't say so. The list leaves them out IN the query, so its pages and counts
+ * are right (the legacy list dropped them after fetching 100, and came up short).
+ *
+ * Only the leads still open or lost and unmarked (an inner join + filters on the
+ * embedded row): the ones already marked converted are excluded by their own
+ * columns, so this list stays a handful and the `not.in.(…)` URL stays short.
+ *
+ * 🪤 bookings and leads point at each other (bookings.lead_id, leads.booking_id):
+ * the embed names its foreign key column (`leads!lead_id`) or PostgREST refuses
+ * it as ambiguous.
+ */
+async function loadConvertedLeadIds(): Promise<string[]> {
+  const bookings = await rows<SignalRow>(
+    'leads',
+    from('bookings')
+      .select(`${SIGNAL_COLUMNS}, lead:leads!lead_id!inner(id)`)
+      .in('lead.status', ['lead', 'lost'])
+      .is('lead.booking_id', null)
+      .is('lead.converted_at', null)
+      .is('lead.deleted_at', null),
+  );
+  return [...new Set(bookings.filter(hasPaymentSignal).map((b) => b.lead_id as string))];
+}
+
+async function loadFollowingLeadIds(): Promise<string[]> {
+  const enrollments = await rows<{ lead_id: string }>('leads', from('lead_followup_enrollments').select('lead_id').eq('status', 'active'));
+  return [...new Set(enrollments.map((e) => e.lead_id))];
+}
+
+type LeadScope = { converted: string[]; following: string[]; hotSince: string; q: string };
+
+/** A lead the admin works: not archived and not converted by any signal; matching the search. */
+function workableLeads(columns: string, scope: LeadScope, options?: Record<string, unknown>): Query {
+  let query = from('leads').select(columns, options).is('deleted_at', null).is('booking_id', null).is('converted_at', null);
+  if (scope.converted.length) query = query.not('id', 'in', `(${scope.converted.join(',')})`);
+  if (scope.q) query = query.or(ilikeAny(LEAD_SEARCH, scope.q));
+  return query;
+}
+
+/** Narrows to one view. Null when the view is empty by definition (no follow-up running). */
+function inLeadView(query: Query, view: LeadView, scope: LeadScope): Query | null {
+  if (view === 'lost') return query.eq('status', 'lost');
+  const open = query.eq('status', 'lead');
+  if (view === 'hot') return open.gte('last_activity_at', scope.hotSince);
+  if (view === 'following') return scope.following.length ? open.in('id', scope.following) : null;
+  return open;
+}
+
+async function leadScope(q: string, now: Date): Promise<LeadScope> {
+  const [converted, following] = await Promise.all([loadConvertedLeadIds(), loadFollowingLeadIds()]);
+  return { converted, following, hotSince: hotSince(now), q };
+}
+
+async function countLeads(view: LeadView, scope: LeadScope): Promise<number> {
+  const query = inLeadView(workableLeads('id', scope, { count: 'exact', head: true }), view, scope);
+  if (!query) return 0;
+  const { count: n, error } = await query;
+  if (error) throw new Error(`[admin/leads] count ${view}: ${error.message}`);
+  return n ?? 0;
+}
+
+/** The latest follow-up of each lead, with its emails. */
+async function loadFollowUps(leadIds: readonly string[]): Promise<{ enrollments: Map<string, FollowUpEnrollment>; steps: Map<string, FollowUpStep[]> }> {
+  if (leadIds.length === 0) return { enrollments: new Map(), steps: new Map() };
+  const enrollments = latestEnrollmentByLead(
+    await rows<FollowUpEnrollment>(
+      'leads',
+      from('lead_followup_enrollments').select(ENROLLMENT_COLUMNS).in('lead_id', leadIds).order('enrolled_at', { ascending: false }),
+    ),
+  );
+  const enrollmentIds = [...enrollments.values()].map((e) => e.id);
+  const steps = enrollmentIds.length
+    ? stepsByEnrollment(await rows<FollowUpStep>('leads', from('lead_followup_steps').select(STEP_COLUMNS).in('enrollment_id', enrollmentIds)))
+    : new Map<string, FollowUpStep[]>();
+  return { enrollments, steps };
+}
+
+export type LeadList = {
+  records: LeadRecord[];
+  /** Rows of the active view (and search), not just the ones loaded. */
+  total: number;
+  /** Every view's size, over the search when there is one. */
+  counts: LeadCounts;
+  enrollments: Map<string, FollowUpEnrollment>;
+  steps: Map<string, FollowUpStep[]>;
+};
+
+/** One view of the leads, most recently active first. */
+export async function loadLeadList({ view, q, limit, now }: { view: LeadView; q: string; limit: number; now: Date }): Promise<LeadList> {
+  const scope = await leadScope(q, now);
+  const pageQuery = inLeadView(workableLeads(LEAD_COLUMNS, scope, { count: 'exact' }), view, scope);
+  const [page, counts] = await Promise.all([
+    pageQuery
+      ? pageQuery.order('last_activity_at', { ascending: false }).range(0, limit - 1)
+      : Promise.resolve({ data: [], error: null, count: 0 }),
+    Promise.all(LEAD_VIEWS.map((v) => countLeads(v, scope))),
+  ]);
+  if (page.error) throw new Error(`[admin/leads] ${page.error.message}`);
+  const records = (page.data ?? []) as LeadRecord[];
+  const followUps = await loadFollowUps(records.map((r) => r.id));
+  return {
+    records,
+    total: page.count ?? 0,
+    counts: Object.fromEntries(LEAD_VIEWS.map((v, i) => [v, counts[i]])) as LeadCounts,
+    ...followUps,
+  };
+}
+
+/** One lead for the drawer, whatever its state (a link may point at a converted one). Null if it doesn't exist or was archived. */
+export async function loadLeadDetail(id: string): Promise<{ lead: LeadRecord; enrollment: FollowUpEnrollment | null; steps: FollowUpStep[] } | null> {
+  const found = await rows<LeadRecord>('leads', from('leads').select(LEAD_COLUMNS).eq('id', id).is('deleted_at', null).limit(1));
+  const lead = found[0];
+  if (!lead) return null;
+  const { enrollments, steps } = await loadFollowUps([id]);
+  const enrollment = enrollments.get(id) ?? null;
+  return { lead, enrollment, steps: enrollment ? steps.get(enrollment.id) ?? [] : [] };
+}
+
+// ─── Trash (/admin/trash) ───────────────────────────────────────────────────
+
+/**
+ * The newest 100 archived bookings and leads, in the shape the legacy Trash
+ * reads. TEMPORARY shape: step 3c-2 rebuilds the page on view-models.
+ */
+export async function loadTrash() {
+  const [bookings, leads] = await Promise.all([
+    rows<{
+      id: string;
+      status: string;
+      date: string;
+      total_price: number;
+      deposit_amount: number | null;
+      deposit_payment_status: string | null;
+      deleted_at: string;
+      deleted_by: string | null;
+      created_at: string;
+      locations: { name: string | null } | null;
+    }>(
+      'trash',
+      from('bookings')
+        .select('id, status, date, total_price, deposit_amount, deposit_payment_status, deleted_at, deleted_by, created_at, locations(name)')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false })
+        .limit(100),
+    ),
+    rows<{
+      id: string;
+      full_name: string;
+      email: string;
+      phone: string | null;
+      selected_trail_type: string | null;
+      selected_location_name: string | null;
+      deleted_at: string;
+      deleted_by: string | null;
+      created_at: string;
+    }>(
+      'trash',
+      from('leads')
+        .select('id, full_name, email, phone, selected_trail_type, selected_location_name, deleted_at, deleted_by, created_at')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false })
+        .limit(100),
+    ),
+  ]);
+  return {
+    bookings: bookings.map(({ locations, ...b }) => ({ ...b, location_name: locations?.name ?? 'Unknown' })),
+    leads,
+  };
+}
+
 // ─── The menu's badges (§5.3) ───────────────────────────────────────────────
 
 /** Seeded by the panel layout and refreshed through /api/admin/badges. */
-export async function loadNavBadges(): Promise<NavBadges> {
-  return { bookings: { count: await countBookings('failed'), tone: 'red' } };
+export async function loadNavBadges(now: Date = new Date()): Promise<NavBadges> {
+  const [failed, hot] = await Promise.all([countBookings('failed'), leadScope('', now).then((scope) => countLeads('hot', scope))]);
+  return {
+    bookings: { count: failed, tone: 'red' },
+    // People in the booking flow right now: news, not a fault.
+    leads: { count: hot, tone: 'accent' },
+  };
 }

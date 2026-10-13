@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 import { recordFinancialEvent } from '@/lib/financial-log';
 
 const Schema = z.object({
@@ -38,13 +37,11 @@ function bookingHasFinancialHistory(booking: {
 }
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const adminUser = await getAdminUserFromCookieStore(cookieStore);
-  if (!adminUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // The session first, before any work: an API answers 401, never a redirect.
+  const adminUser = await getOperator();
+  if (!adminUser) return unauthorized();
 
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
   const parsed = Schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });

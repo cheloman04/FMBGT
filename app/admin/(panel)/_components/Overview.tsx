@@ -5,28 +5,25 @@ import {
   toNextBooking,
   type NextBookingRecord,
   type OverviewStats,
-  type OverviewView,
 } from '@/lib/admin/overview';
 import { FAILED_CHARGE } from '@/lib/admin/status-meta';
 
 /**
  * The top of /admin: the business pulse, what needs the operator, and the next
- * tour. Server-rendered; the leads and trash below it are still the legacy client.
+ * tour. Server-rendered. Each list has its own route (bookings, leads, trash).
  */
 export function AdminOverview({
   stats,
   next,
-  view,
 }: {
   stats: OverviewStats;
   next: { booking: NextBookingRecord; today: string } | null;
-  view: OverviewView;
 }) {
   const booking = next ? toNextBooking(next.booking, next.today) : null;
 
   return (
     <>
-      <MetricStrip metrics={overviewMetrics(stats, view)} />
+      <MetricStrip metrics={overviewMetrics(stats)} />
 
       <div className="mt-10 space-y-10">
         {stats.failedCharges > 0 ? (

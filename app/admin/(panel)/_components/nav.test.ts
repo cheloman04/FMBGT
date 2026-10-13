@@ -12,10 +12,12 @@ describe('ADMIN_NAV', () => {
     expect(ADMIN_NAV.map((item) => item.label)).toEqual([
       'Dashboard',
       'Bookings',
+      'Leads',
       'Manual booking',
       'Financial log',
       'Referrals',
       'Gift cards',
+      'Trash',
     ]);
   });
 
@@ -24,7 +26,7 @@ describe('ADMIN_NAV', () => {
   });
 
   it('the badges are the ones loadNavBadges() counts', () => {
-    expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual(['bookings']);
+    expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual(['bookings', 'leads']);
   });
 
   it('every entry is a real page of the panel', () => {
