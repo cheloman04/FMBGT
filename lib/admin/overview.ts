@@ -9,6 +9,7 @@ import { easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { bookingTotalCents, netCollectedCents, type BookingMoneyRow } from '@/lib/booking-money';
 import { formatFloridaCalendarDate, formatTourTime } from '@/lib/display-time';
 import { formatPrice } from '@/lib/pricing';
+import { isFailedCharge } from './bookings';
 import { BOOKING_STATUS, type BookingStatus } from './status-meta';
 
 export type OverviewBooking = BookingMoneyRow & { status: BookingStatus };
@@ -58,7 +59,8 @@ export function computeOverview(
     collectedCents: real.filter((b) => b.status !== 'refunded').reduce((sum, b) => sum + netCollectedCents(b), 0),
     toCollectCents: owed.reduce((sum, cents) => sum + cents, 0),
     toCollectCount: owed.length,
-    failedCharges: real.filter((b) => b.remaining_balance_status === 'failed').length,
+    // The same rule as the Bookings badge and its failed filter: only a charge that can be retried.
+    failedCharges: real.filter(isFailedCharge).length,
     confirmed: confirmed.length,
     completed: real.filter((b) => b.status === 'completed').length,
     activeLeads: leads.filter((l) => l.status === 'lead' && !isConverted(l, withPaymentSignal)).length,

@@ -6,6 +6,11 @@ vi.mock('@/lib/discounts', () => import('../discounts'));
 vi.mock('@/lib/display-time', () => import('../display-time'));
 vi.mock('@/lib/booking-datetime', () => import('../booking-datetime'));
 vi.mock('@/lib/booking-money', () => import('../booking-money'));
+// The kit's barrel pulls in React components; its pure modules are all ./bookings needs.
+vi.mock('@/components/kit', async () => ({
+  ...(await import('../../components/kit/url')),
+  ...(await import('../../components/kit/status')),
+}));
 
 const { computeOverview, daysUntil, overviewMetrics, pickNextBooking, toNextBooking } = await import('./overview');
 
@@ -58,6 +63,7 @@ describe('computeOverview', () => {
         booking({ remaining_balance_status: 'failed' }), // owes 100, charge failed
         booking({ remaining_balance_status: 'paid' }), // paid in full
         booking({ status: 'cancelled' }), // not owed
+        booking({ status: 'cancelled', remaining_balance_status: 'failed' }), // failed, but there is no tour to charge for
       ],
       [],
       new Set(),

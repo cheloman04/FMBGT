@@ -6,8 +6,23 @@
 // The `as any` is debt: gift_cards, referral_partners, financial_event_logs and
 // several bookings/leads columns are missing from types/database.ts.
 // Regenerating it removes these casts.
+import type { NavBadges } from '@/components/kit';
 import { easternToday } from '@/lib/booking-datetime';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import {
+  BOOKING_FILTERS,
+  extractWaiverStoragePath,
+  groupWaivers,
+  latestReviewByBooking,
+  parseBookingFilter,
+  searchResults,
+  type BookingCounts,
+  type BookingFilter,
+  type BookingMatch,
+  type BookingRecord,
+  type ReviewEnrollment,
+  type WaiverRecord,
+} from './bookings';
 import type { FinLogCounts, FinLogView, FinancialEventRecord } from './fin-log';
 import type { GiftCardRecord } from './gift-cards';
 import type { ReferralPartnerRecord } from './referrals';
@@ -152,4 +167,211 @@ export async function loadNextBooking(now: Date = new Date()): Promise<{ booking
     booking: { ...next, customer_name: customers[0]?.name ?? null, location_name: locations[0]?.name ?? null },
     today,
   };
+}
+
+// ─── Bookings (/admin/bookings) ─────────────────────────────────────────────
+
+const BOOKING_COLUMNS =
+  'id, lead_id, booking_source, trail_type, date, time_slot, duration_hours, bike_rental, rider_height_inches, ' +
+  'participant_count, participant_info, total_price, status, created_at, location_id, customer_id, waiver_session_id, ' +
+  'zip_code, marketing_source, attribution_snapshot, deposit_amount, deposit_paid_cents, deposit_payment_status, ' +
+  'remaining_balance_amount, remaining_balance_due_at, remaining_balance_status, stripe_payment_method_id, ' +
+  'extra_paid_cents, refunded_cents, cal_booking_status, webhook_sent, webhook_last_attempt_at, ' +
+  'webhook_last_status_code, webhook_last_error, discount_code, discount_label, discount_percentage, ' +
+  'discount_amount_cents, subtotal_before_discount_cents, total_after_discount_cents';
+const BOOKING_SELECT = `${BOOKING_COLUMNS}, customers(name, email, phone), locations(name)`;
+
+const WAIVER_COLUMNS =
+  'id, booking_id, session_id, signer_name, signer_role, participants_covered, agreed_at, pdf_url, signature_url, guardian_relationship';
+
+const REVIEW_COLUMNS =
+  'id, booking_id, status, enrolled_at, next_step_due_at, review_left_at, review_platform, completed_at, cancelled_at, ' +
+  'stop_reason, created_at, updated_at';
+
+type JoinedBooking = Omit<BookingRecord, 'customer_name' | 'customer_email' | 'customer_phone' | 'location_name'> & {
+  customers: { name: string | null; email: string | null; phone: string | null } | null;
+  locations: { name: string | null } | null;
+};
+
+function toRecord({ customers, locations, ...row }: JoinedBooking): BookingRecord {
+  return {
+    ...row,
+    participant_info: Array.isArray(row.participant_info) ? row.participant_info : null,
+    customer_name: customers?.name ?? null,
+    customer_email: customers?.email ?? null,
+    customer_phone: customers?.phone ?? null,
+    location_name: locations?.name ?? null,
+  };
+}
+
+/** Real bookings: not archived, and past checkout (`pending` never paid). */
+const realBookings = (columns: string, options?: Record<string, unknown>): Query =>
+  from('bookings').select(columns, options).is('deleted_at', null).neq('status', 'pending');
+
+function inFilter(query: Query, filter: BookingFilter): Query {
+  if (filter === 'all') return query;
+  // Same rule as isFailedCharge() in ./bookings.ts.
+  if (filter === 'failed') return query.eq('remaining_balance_status', 'failed').in('status', ['confirmed', 'completed']);
+  return query.eq('status', filter);
+}
+
+async function countBookings(filter: BookingFilter): Promise<number> {
+  const { count: n, error } = await inFilter(realBookings('id', { count: 'exact', head: true }), filter);
+  if (error) throw new Error(`[admin/bookings] count ${filter}: ${error.message}`);
+  return n ?? 0;
+}
+
+async function countEveryFilter(): Promise<BookingCounts> {
+  const counts = await Promise.all(BOOKING_FILTERS.map(countBookings));
+  return Object.fromEntries(BOOKING_FILTERS.map((f, i) => [f, counts[i]])) as BookingCounts;
+}
+
+/** The first `limit` bookings of a filter, newest tour date first, and how many there are. */
+async function bookingsPage(filter: BookingFilter, limit: number): Promise<{ records: BookingRecord[]; total: number }> {
+  const { data, error, count: total } = await inFilter(realBookings(BOOKING_SELECT, { count: 'exact' }), filter)
+    .order('date', { ascending: false })
+    .order('time_slot', { ascending: false })
+    .range(0, limit - 1);
+  if (error) throw new Error(`[admin/bookings] ${error.message}`);
+  return { records: ((data ?? []) as JoinedBooking[]).map(toRecord), total: total ?? 0 };
+}
+
+/**
+ * The search, in the database (§8.4: filtering the first 100 rows in the browser
+ * misses the rest without saying so). PostgREST can't OR across a booking and
+ * its customer, so it runs three queries and ./bookings.ts joins them. Each one
+ * returns up to 1,000 matches (PostgREST's cap), years away at FMBGT's volume.
+ */
+async function searchBookings(
+  filter: BookingFilter,
+  q: string,
+  limit: number,
+): Promise<{ records: BookingRecord[]; total: number; counts: BookingCounts }> {
+  // Quoted: the value may hold `.` or `:` (an email, a time), which a logic tree reads as syntax.
+  const like = `"%${q}%"`;
+  const MATCH = 'id, status, date, time_slot, remaining_balance_status';
+  const matches = (
+    await Promise.all([
+      rows<BookingMatch>(
+        'bookings',
+        realBookings(`${MATCH}, customers!inner(name)`).or(`name.ilike.${like},email.ilike.${like},phone.ilike.${like}`, {
+          referencedTable: 'customers',
+        }),
+      ),
+      rows<BookingMatch>('bookings', realBookings(`${MATCH}, locations!inner(name)`).ilike('locations.name', `%${q}%`)),
+      rows<BookingMatch>(
+        'bookings',
+        realBookings(MATCH).or(['zip_code', 'marketing_source', 'discount_code', 'trail_type'].map((c) => `${c}.ilike.${like}`).join(',')),
+      ),
+    ])
+  ).flat();
+
+  const { ids, total, counts } = searchResults(matches, filter, limit);
+  if (ids.length === 0) return { records: [], total, counts };
+  const found = await rows<JoinedBooking>('bookings', from('bookings').select(BOOKING_SELECT).in('id', ids));
+  const byId = new Map(found.map((row) => [row.id, toRecord(row)]));
+  return { records: ids.flatMap((id) => byId.get(id) ?? []), total, counts };
+}
+
+/** The waivers of some bookings: filed under the booking, or under its checkout session. */
+async function loadWaivers<W extends Pick<WaiverRecord, 'booking_id' | 'session_id'>>(
+  bookings: readonly Pick<BookingRecord, 'id' | 'waiver_session_id'>[],
+  columns: string,
+): Promise<W[]> {
+  if (bookings.length === 0) return [];
+  const ids = bookings.map((b) => b.id).join(',');
+  const sessions = [...new Set(bookings.map((b) => b.waiver_session_id).filter(Boolean))].join(',');
+  const filter = sessions ? `booking_id.in.(${ids}),session_id.in.(${sessions})` : `booking_id.in.(${ids})`;
+  return rows<W>('bookings', from('waiver_records').select(columns).or(filter).order('agreed_at', { ascending: true }));
+}
+
+/** The waiver PDFs and signatures live in a private bucket: a link is a signed URL, valid for a day. */
+async function signedWaiverUrl(pathOrUrl: string | null): Promise<string | null> {
+  const path = extractWaiverStoragePath(pathOrUrl);
+  if (!path) return null;
+  const { data, error } = await getSupabaseAdmin().storage.from('waivers').createSignedUrl(path, 60 * 60 * 24);
+  if (error) {
+    // A missing file shouldn't take the page down: the waiver shows without its link.
+    console.error('[admin/bookings] Failed to sign a waiver URL:', error.message);
+    return null;
+  }
+  return data?.signedUrl ?? null;
+}
+
+function signWaivers(waivers: readonly WaiverRecord[]): Promise<WaiverRecord[]> {
+  return Promise.all(
+    waivers.map(async (w) => ({ ...w, pdf_url: await signedWaiverUrl(w.pdf_url), signature_url: await signedWaiverUrl(w.signature_url) })),
+  );
+}
+
+async function loadReviews(bookingIds: readonly string[]): Promise<Map<string, ReviewEnrollment>> {
+  if (bookingIds.length === 0) return new Map();
+  const enrollments = await rows<ReviewEnrollment>(
+    'bookings',
+    from('booking_review_request_enrollments').select(REVIEW_COLUMNS).in('booking_id', bookingIds).order('created_at', { ascending: false }),
+  );
+  return latestReviewByBooking(enrollments);
+}
+
+export type BookingList = {
+  records: BookingRecord[];
+  /** Rows of the active filter (and search), not just the ones loaded. */
+  total: number;
+  /** Every filter's size, over the search when there is one. */
+  counts: BookingCounts;
+  /** Signed waivers per booking, for the "No waivers" flag. */
+  waiverCounts: Map<string, number>;
+};
+
+export async function loadBookingList({ filter, q, limit }: { filter: BookingFilter; q: string; limit: number }): Promise<BookingList> {
+  const { records, total, counts } = q
+    ? await searchBookings(filter, q, limit)
+    : await Promise.all([bookingsPage(filter, limit), countEveryFilter()]).then(([page, all]) => ({ ...page, counts: all }));
+  const waivers = groupWaivers(records, await loadWaivers<Pick<WaiverRecord, 'booking_id' | 'session_id'>>(records, 'booking_id, session_id'));
+  return { records, total, counts, waiverCounts: new Map([...waivers].map(([id, list]) => [id, list.length])) };
+}
+
+/** One booking for the drawer, with its waivers' signed links and its review request. Null if it doesn't exist or was archived. */
+export async function loadBookingDetail(
+  id: string,
+): Promise<{ record: BookingRecord; waivers: WaiverRecord[]; review: ReviewEnrollment | null } | null> {
+  const found = await rows<JoinedBooking>('bookings', from('bookings').select(BOOKING_SELECT).eq('id', id).is('deleted_at', null).limit(1));
+  if (!found[0]) return null;
+  const record = toRecord(found[0]);
+  const [waivers, reviews] = await Promise.all([loadWaivers<WaiverRecord>([record], WAIVER_COLUMNS), loadReviews([id])]);
+  return { record, waivers: await signWaivers(groupWaivers([record], waivers).get(id) ?? []), review: reviews.get(id) ?? null };
+}
+
+/**
+ * The legacy list on /admin, in the shape AdminClient reads: the newest 100,
+ * every waiver signed, the latest review request.
+ * TEMPORARY — it goes away with that list in phase 2, step 3b-2.
+ */
+export async function loadLegacyBookings(status: string | undefined) {
+  const { records } = await bookingsPage(parseBookingFilter(status), 100);
+  const [waivers, reviews] = await Promise.all([
+    loadWaivers<WaiverRecord>(records, WAIVER_COLUMNS).then(signWaivers),
+    loadReviews(records.map((r) => r.id)),
+  ]);
+  const byBooking = groupWaivers(records, waivers);
+  return records.map((r) => ({
+    ...r,
+    // AdminClient's types say these are never null.
+    time_slot: r.time_slot ?? '',
+    duration_hours: r.duration_hours ?? 0,
+    bike_rental: r.bike_rental ?? 'none',
+    participant_info: r.participant_info as { name: string; bike_rental?: string; height_inches?: number }[] | null,
+    location_name: r.location_name ?? '—',
+    customer_name: r.customer_name ?? '—',
+    customer_email: r.customer_email ?? '—',
+    waiver_records: (byBooking.get(r.id) ?? []).map((w) => ({ ...w, participants_covered: w.participants_covered ?? [] })),
+    review_request_enrollment: reviews.get(r.id) ?? null,
+  }));
+}
+
+// ─── The menu's badges (§5.3) ───────────────────────────────────────────────
+
+/** Seeded by the panel layout and refreshed through /api/admin/badges. */
+export async function loadNavBadges(): Promise<NavBadges> {
+  return { bookings: { count: await countBookings('failed'), tone: 'red' } };
 }
