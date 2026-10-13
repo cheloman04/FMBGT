@@ -61,7 +61,7 @@ export function Drawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60]">
+    <div className="fixed inset-0 z-[60] text-left">
       <div aria-hidden="true" onClick={close} className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" />
       <div
         ref={panelRef}

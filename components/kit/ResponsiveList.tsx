@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { isEmptyCell } from "./_list";
 import { cx } from "./cx";
 
 /**
@@ -30,6 +31,13 @@ export type Column<T> = {
    * enlace; esto sube la celda por encima de él para que sus controles respondan.
    */
   interactive?: boolean;
+  /**
+   * Lo que pinta la TABLA cuando la celda está vacía (`null`, `undefined`, `false`
+   * o `""`; un `0` es un dato). Por defecto un "—" apagado; en la columna de
+   * acciones, nada. En el teléfono una celda vacía se omite siempre: un "—" suelto
+   * al final de la línea de metadatos no dice nada.
+   */
+  empty?: ReactNode;
 };
 
 const ALIGN = { left: "text-left", right: "text-right" } as const;
@@ -71,6 +79,13 @@ export function ResponsiveList<T>({
   const role = (col: Column<T>, i: number): MobileRole => col.mobile ?? (i === 0 ? "primary" : "meta");
   // La columna que lleva el enlace de la fila: la primaria.
   const linkIndex = Math.max(0, columns.findIndex((c, i) => role(c, i) === "primary"));
+  /** El contenido de la celda en la tabla, con su relleno si está vacía. */
+  const tableCell = (col: Column<T>, i: number, row: T): ReactNode => {
+    const content = col.cell(row);
+    if (!isEmptyCell(content)) return content;
+    if (col.empty !== undefined) return col.empty;
+    return role(col, i) === "actions" ? null : <span className="text-fg-muted">—</span>;
+  };
 
   return (
     <div>
@@ -103,7 +118,7 @@ export function ResponsiveList<T>({
                 // sobre ella entera (`after:inset-0`).
                 <tr key={rowKey(row)} className={cx("relative border-b border-hairline", href && "hover:bg-surface-muted")}>
                   {columns.map((col, i) => {
-                    const content = col.cell(row);
+                    const content = tableCell(col, i, row);
                     return (
                       <td
                         key={col.key}
@@ -142,7 +157,13 @@ export function ResponsiveList<T>({
       <ul className="divide-y divide-hairline border-b border-hairline md:hidden" aria-label={caption}>
         {rows.map((row) => {
           const href = rowHref?.(row);
-          const pick = (r: MobileRole) => columns.filter((c, i) => role(c, i) === r);
+          // Las celdas de cada papel, ya renderizadas y sin las vacías.
+          const pick = (r: MobileRole) =>
+            columns.flatMap((c, i) => {
+              if (role(c, i) !== r) return [];
+              const content = c.cell(row);
+              return isEmptyCell(content) ? [] : [{ key: c.key, content }];
+            });
           const primary = pick("primary");
           const secondary = pick("secondary");
           const meta = pick("meta");
@@ -155,24 +176,24 @@ export function ResponsiveList<T>({
                   {href ? (
                     <Link href={href} className="after:absolute after:inset-0 focus-visible:outline-none">
                       {primary.map((c) => (
-                        <span key={c.key}>{c.cell(row)}</span>
+                        <span key={c.key}>{c.content}</span>
                       ))}
                     </Link>
                   ) : (
-                    primary.map((c) => <span key={c.key}>{c.cell(row)}</span>)
+                    primary.map((c) => <span key={c.key}>{c.content}</span>)
                   )}
                 </div>
                 {status.length ? (
                   <div className="relative z-[1] flex flex-shrink-0 items-center gap-1.5">
                     {status.map((c) => (
-                      <span key={c.key}>{c.cell(row)}</span>
+                      <span key={c.key}>{c.content}</span>
                     ))}
                   </div>
                 ) : null}
               </div>
               {secondary.map((c) => (
                 <div key={c.key} className="text-sm text-fg-2">
-                  {c.cell(row)}
+                  {c.content}
                 </div>
               ))}
               {meta.length ? (
@@ -180,7 +201,7 @@ export function ResponsiveList<T>({
                   {meta.map((c, i) => (
                     <span key={c.key} className="inline-flex items-center gap-1.5">
                       {i > 0 ? <span aria-hidden="true">·</span> : null}
-                      {c.cell(row)}
+                      {c.content}
                     </span>
                   ))}
                 </div>
@@ -188,7 +209,7 @@ export function ResponsiveList<T>({
               {actions.length ? (
                 <div className="relative z-[1] mt-1.5 flex flex-wrap gap-2">
                   {actions.map((c) => (
-                    <div key={c.key}>{c.cell(row)}</div>
+                    <div key={c.key}>{c.content}</div>
                   ))}
                 </div>
               ) : null}

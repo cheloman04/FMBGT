@@ -40,14 +40,14 @@ export type FinancialEventRow = {
   severity: StatusMeta;
   attention: boolean;
   bookingId: string | null;
-  amount: string;
-  status: string;
-  message: string;
+  amount: string | null;
+  status: string | null;
+  message: string | null;
 };
 
 /** Amounts are cents. USD goes through the app's one formatter; anything else keeps its currency. */
-export function formatEventAmount(amount: number | null, currency: string | null): string {
-  if (amount === null || amount === undefined) return '—';
+export function formatEventAmount(amount: number | null, currency: string | null): string | null {
+  if (amount === null || amount === undefined) return null;
   const code = currency?.toUpperCase() || 'USD';
   if (code === 'USD') return formatPrice(amount);
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: code }).format(amount / 100);
@@ -63,8 +63,8 @@ export function toFinancialEventRow(event: FinancialEventRecord): FinancialEvent
     attention: event.requires_attention,
     bookingId: event.booking_id,
     amount: formatEventAmount(event.amount, event.currency),
-    status: event.status ?? '—',
-    message: event.message ?? '—',
+    status: event.status,
+    message: event.message,
   };
 }
 

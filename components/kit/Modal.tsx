@@ -44,7 +44,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-canvas/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-canvas/70 p-4 text-left backdrop-blur-sm"
       onClick={onClose}
     >
       <div

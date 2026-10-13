@@ -59,15 +59,18 @@ const COLUMNS: Column<FinancialEventRow>[] = [
         >
           {r.bookingId.slice(0, 8)}
         </Link>
-      ) : (
-        '—'
-      ),
+      ) : null,
     interactive: true,
     width: 'w-28',
   },
   { key: 'amount', header: 'Amount', cell: (r) => r.amount, align: 'right', width: 'w-28' },
   { key: 'status', header: 'Status', cell: (r) => r.status, width: 'w-28' },
-  { key: 'details', header: 'Details', cell: (r) => <span className="line-clamp-3 max-w-md">{r.message}</span>, mobile: 'secondary' },
+  {
+    key: 'details',
+    header: 'Details',
+    cell: (r) => (r.message ? <span className="line-clamp-3 max-w-md">{r.message}</span> : null),
+    mobile: 'secondary',
+  },
 ];
 
 /** The strip doubles as the filter: each figure links to its view (§4.7). */
