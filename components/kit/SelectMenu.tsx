@@ -182,7 +182,7 @@ export function SelectMenu({
             ref={measureMenu}
             style={placement.shiftX ? { transform: `translateX(${placement.shiftX}px)` } : undefined}
             className={cx(
-              "kit-elevated absolute right-0 z-40 w-max min-w-full max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl p-1.5",
+              "kit-elevated absolute right-0 z-40 w-max min-w-full max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl p-1.5 text-left",
               placement.dropUp ? "bottom-full mb-2" : "top-full mt-2",
             )}
           >

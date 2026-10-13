@@ -50,9 +50,7 @@ export function GiftCardActions({ id, code, status }: { id: string; code: string
           {error}
         </p>
       ) : null}
-      {/* The kit's Modal renders in place and inherits the right-aligned cell's
-          text-align; reset it until the kit sets text-left itself. */}
-      <div className="text-left">{dialog}</div>
+      {dialog}
     </div>
   );
 }

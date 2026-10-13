@@ -13,9 +13,9 @@ const COLUMNS: Column<PartnerRow>[] = [
   { key: 'partner', header: 'Partner', cell: (r) => r.partner },
   { key: 'code', header: 'Code', cell: (r) => <CopyCode code={r.code} />, mobile: 'secondary', interactive: true },
   { key: 'discount', header: 'Discount', cell: (r) => r.discount, align: 'right', width: 'w-24' },
-  { key: 'uses', header: 'Uses', cell: (r) => (r.uses === null ? '—' : r.uses), align: 'right', width: 'w-20' },
+  { key: 'uses', header: 'Uses', cell: (r) => r.uses, align: 'right', width: 'w-20' },
   { key: 'status', header: 'Status', cell: (r) => <StatusBadge meta={r.statusMeta} size="sm" />, mobile: 'status', width: 'w-36' },
-  { key: 'notes', header: 'Notes', cell: (r) => <span className="line-clamp-2 text-xs text-fg-muted">{r.notes ?? '—'}</span>, mobile: 'hidden' },
+  { key: 'notes', header: 'Notes', cell: (r) => (r.notes ? <span className="line-clamp-2 text-xs text-fg-muted">{r.notes}</span> : null), mobile: 'hidden' },
   {
     key: 'actions',
     header: '',

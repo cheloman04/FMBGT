@@ -98,7 +98,7 @@ export function FilterSheet({
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={dialogLabel}>
+        <div className="fixed inset-0 z-50 text-left" role="dialog" aria-modal="true" aria-label={dialogLabel}>
           <button
             type="button"
             aria-label={labels.closeBackdrop}

@@ -24,13 +24,13 @@ const COLUMNS: Column<GiftCardRow>[] = [
   { key: 'status', header: 'Status', cell: (r) => <StatusBadge meta={r.statusMeta} size="sm" />, mobile: 'status', width: 'w-32' },
   { key: 'recipient', header: 'Recipient', cell: (r) => r.recipient },
   { key: 'issued', header: 'Issued', cell: (r) => r.issued, width: 'w-32' },
-  // Desktop only: on a phone the badge already says "Redeemed", and an unredeemed
-  // card would end its meta line with a lone dash.
-  { key: 'redeemed', header: 'Redeemed', cell: (r) => r.redeemed ?? '—', mobile: 'hidden' },
+  { key: 'redeemed', header: 'Redeemed', cell: (r) => r.redeemed },
   {
     key: 'actions',
     header: '',
-    cell: (r) => <GiftCardActions id={r.id} code={r.code} status={r.status} />,
+    // Reserved and redeemed cards have no action: an empty cell, so the phone row
+    // doesn't keep a gap for them.
+    cell: (r) => (r.status === 'active' || r.status === 'void' ? <GiftCardActions id={r.id} code={r.code} status={r.status} /> : null),
     align: 'right',
     mobile: 'actions',
     interactive: true,

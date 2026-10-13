@@ -104,7 +104,7 @@ describe('financial log', () => {
     expect(formatEventAmount(12345, 'usd')).toBe('$123.45');
     expect(formatEventAmount(12345, null)).toBe('$123.45');
     expect(formatEventAmount(500, 'EUR')).toBe('€5.00');
-    expect(formatEventAmount(null, 'USD')).toBe('—');
+    expect(formatEventAmount(null, 'USD')).toBeNull();
   });
 
   it('an unknown severity falls back to info instead of crashing the page', () => {
@@ -126,6 +126,7 @@ describe('financial log', () => {
     });
     expect(row.severity).toEqual({ label: 'Info', tone: 'gray' });
     expect(row.when).toBe('Oct 11, 2026, 6:43 PM');
-    expect(row.status).toBe('—');
+    // No status: the list draws "—" in the table and leaves it out on a phone.
+    expect(row.status).toBeNull();
   });
 });

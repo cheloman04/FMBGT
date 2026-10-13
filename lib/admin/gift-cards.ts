@@ -29,7 +29,7 @@ export type GiftCardRow = {
   amount: string;
   status: GiftCardStatus;
   statusMeta: StatusMeta;
-  recipient: string;
+  recipient: string | null;
   /** "$80.00 on Oct 3, 2026", or null if not redeemed. */
   redeemed: string | null;
   issued: string;
@@ -44,7 +44,7 @@ export function toGiftCardRow(card: GiftCardRecord): GiftCardRow {
     amount: formatPrice(card.amount_cents),
     status: card.status,
     statusMeta: GIFT_CARD_STATUS[card.status],
-    recipient: card.recipient_name || card.recipient_email || '—',
+    recipient: card.recipient_name || card.recipient_email || null,
     redeemed:
       card.status === 'redeemed'
         ? `${formatPrice(redeemedCents)}${card.redeemed_at ? ` on ${formatFloridaDateOnly(card.redeemed_at)}` : ''}`
