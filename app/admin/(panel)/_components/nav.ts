@@ -7,6 +7,9 @@ export const ADMIN_NAV = defineNav([
   { href: '/admin', label: 'Dashboard', exact: true },
   // The badge counts the balance charges that failed and can be retried.
   { href: '/admin/bookings', label: 'Bookings', badge: 'bookings' },
+  // Instagram, Messenger and WhatsApp DMs. Hidden until a messaging channel has
+  // an active account in the hub (`conversationsVisible()` in the layout).
+  { href: '/admin/conversations', label: 'Conversations', feature: 'conversations' },
   { href: '/admin/manual-booking', label: 'Manual booking' },
   { href: '/admin/fin-log', label: 'Financial log' },
   { href: '/admin/referrals', label: 'Referrals' },

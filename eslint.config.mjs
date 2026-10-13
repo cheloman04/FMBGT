@@ -35,6 +35,10 @@ const eslintConfig = defineConfig([
       "app/admin/(panel)/bookings/*.tsx",
       "app/admin/(panel)/bookings/_components/**/*.tsx",
       "app/api/admin/badges/*.ts",
+      // The inbox (the kit's `conversations` module): its page and its three
+      // proxy routes. `**` crosses the [id] folders without naming them.
+      "app/admin/(panel)/conversations/**/*.tsx",
+      "app/api/admin/conversations/**/*.ts",
     ],
   }),
   // Override default ignores of eslint-config-next.
