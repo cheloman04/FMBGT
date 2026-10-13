@@ -209,7 +209,13 @@ export function DatePicker({
           aria-expanded={open}
           onClick={() => (open ? setOpen(false) : openCalendar())}
           onKeyDown={(event) => {
-            if (event.key === "Escape") setOpen(false);
+            // Cerrar el calendario es SU Escape: `preventDefault` evita que cierre
+            // también el diálogo que lo contiene (`useDialogBehavior`). Cerrado, el
+            // Escape sigue siendo del diálogo.
+            if (event.key === "Escape" && open) {
+              event.preventDefault();
+              setOpen(false);
+            }
             if ((event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") && !open) {
               event.preventDefault();
               openCalendar();
@@ -237,6 +243,7 @@ export function DatePicker({
               aria-label={ariaLabel}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
+                  event.preventDefault();
                   setOpen(false);
                   focusTrigger();
                 }

@@ -1,6 +1,8 @@
+import { redirect } from 'next/navigation';
 import { PageHeader, PageShell } from '@/components/kit';
 import { requireOperator } from '@/lib/admin/auth';
-import { loadLeadsWithPaymentSignal, loadLegacyBookings, loadNextBooking, loadOverview } from '@/lib/admin/loaders';
+import { legacyBookingsUrl } from '@/lib/admin/bookings';
+import { loadLeadsWithPaymentSignal, loadNextBooking, loadOverview } from '@/lib/admin/loaders';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { LegacyArea } from '../_components/LegacyArea';
 import { AdminOverview } from './_components/Overview';
@@ -188,17 +190,20 @@ export default async function AdminPage({ searchParams }: PageProps) {
   await requireOperator();
 
   const { status, leadId } = await searchParams;
-  const isLeadsView = status === 'leads' || !!leadId;
-  const isTrashView = status === 'trash';
-  const view = isLeadsView ? 'leads' : status ?? 'all';
+  // The bookings views moved to /admin/bookings: an old link (a bookmark, an
+  // alert) lands on the same view there.
+  const moved = legacyBookingsUrl(status);
+  if (moved) redirect(moved);
 
-  const [overview, next, bookings, leads, trashedBookings, trashedLeads] = await Promise.all([
+  // Below the overview: the leads, or the trash (until step 3c moves them too).
+  const view = status === 'trash' && !leadId ? 'trash' : 'leads';
+
+  const [overview, next, leads, trashedBookings, trashedLeads] = await Promise.all([
     loadOverview(),
     loadNextBooking(),
-    isLeadsView || isTrashView ? Promise.resolve([]) : loadLegacyBookings(status),
-    isLeadsView ? getLeads() : Promise.resolve([]),
-    isTrashView ? getTrashedBookings() : Promise.resolve([]),
-    isTrashView ? getTrashedLeads() : Promise.resolve([]),
+    view === 'leads' ? getLeads() : Promise.resolve([]),
+    view === 'trash' ? getTrashedBookings() : Promise.resolve([]),
+    view === 'trash' ? getTrashedLeads() : Promise.resolve([]),
   ]);
 
   return (
@@ -206,8 +211,8 @@ export default async function AdminPage({ searchParams }: PageProps) {
       <PageHeader eyebrow="Overview" title="Dashboard" subtitle="Money, the next tour and what needs you. Times in Eastern." />
       <AdminOverview stats={overview} next={next} view={view} />
 
-      {/* The bookings, leads and trash lists: still the legacy client, until
-          they move to their own routes (phase 2, steps 3b and 3c). */}
+      {/* The leads and trash lists: still the legacy client, until they move
+          to their own routes (phase 2, step 3c). Bookings are at /admin/bookings. */}
       <div className="mt-10">
         <LegacyArea>
           {/* The key remounts the client when the view changes. It copies its
@@ -216,7 +221,6 @@ export default async function AdminPage({ searchParams }: PageProps) {
               previous view's list. */}
           <AdminClient
             key={`${view}:${leadId ?? ''}`}
-            bookings={bookings}
             leads={leads}
             currentStatus={view}
             initialLeadId={leadId ?? null}

@@ -1,7 +1,15 @@
 import type { ReactNode } from 'react';
-import { EmptyState, Section, StatusBadge, buttonClasses } from '@/components/kit';
-import type { BookingDetailView } from '@/lib/admin/bookings';
-import { SIZING_STATUS } from '@/lib/admin/status-meta';
+import { EmptyState, Section, StatusBadge, TONE_CLASSES, buttonClasses, type SelectMenuOption } from '@/components/kit';
+import { STATUS_CHOICES, type BookingDetailView } from '@/lib/admin/bookings';
+import { BOOKING_STATUS, SIZING_STATUS } from '@/lib/admin/status-meta';
+import { ArchiveBooking, ChangeStatus, MarkReviewReceived, RetryCalendar, RetryCharge, SendConfirmation } from './BookingActions';
+
+/** The status menu: the four an operator sets, each with its dot. */
+const STATUS_OPTIONS: SelectMenuOption[] = STATUS_CHOICES.map((value) => ({
+  value,
+  label: BOOKING_STATUS[value].label,
+  dot: TONE_CLASSES[BOOKING_STATUS[value].tone].dot,
+}));
 
 const LINK = 'text-fg underline decoration-hairline underline-offset-4 hover:decoration-fg-muted';
 
@@ -21,10 +29,20 @@ function Facts({ facts }: { facts: { label: string; value: ReactNode }[] }) {
 
 /**
  * The quick view of one booking in the list's drawer (?booking=<id>): what the
- * old phone sheet showed, read-only. Editing and the money actions live on the
- * booking page (Open / Edit, in the drawer's footer).
+ * old phone sheet and table row showed, each action next to what it fixes.
+ * Editing the booking and the other money actions live on the booking page
+ * (Open / Edit, in the drawer's footer).
  */
-export function BookingQuickView({ booking }: { booking: BookingDetailView }) {
+export function BookingQuickView({ booking, closeHref }: { booking: BookingDetailView; closeHref: string }) {
+  const { actions } = booking;
+  /** The button that fixes a line of "Calendar and messages", if there is one. */
+  const followUp: Record<string, ReactNode> = {
+    calendar: actions.retryCalendar ? <RetryCalendar bookingId={booking.id} /> : null,
+    email: actions.confirmationEmail ? (
+      <SendConfirmation bookingId={booking.id} mode={actions.confirmationEmail.mode} to={actions.confirmationEmail.to} />
+    ) : null,
+    review: actions.markReview ? <MarkReviewReceived enrollmentId={actions.markReview.enrollmentId} /> : null,
+  };
   const contact: { label: string; value: ReactNode }[] = [
     {
       label: 'Email',
@@ -85,6 +103,11 @@ export function BookingQuickView({ booking }: { booking: BookingDetailView }) {
 
       <Section title="Payment" action={booking.balance ? <StatusBadge meta={booking.balance} size="sm" /> : undefined}>
         <Facts facts={booking.payment} />
+        {actions.retryCharge ? (
+          <div className="mt-4">
+            <RetryCharge bookingId={booking.id} amount={actions.retryCharge.amount} customer={booking.customer} />
+          </div>
+        ) : null}
       </Section>
 
       <Section title="Calendar and messages">
@@ -96,6 +119,7 @@ export function BookingQuickView({ booking }: { booking: BookingDetailView }) {
                 <StatusBadge meta={item.meta} size="sm" />
               </div>
               {item.detail ? <p className="mt-1 break-words text-xs text-fg-muted">{item.detail}</p> : null}
+              {followUp[item.key] ? <div className="mt-2">{followUp[item.key]}</div> : null}
             </li>
           ))}
         </ul>
@@ -129,6 +153,13 @@ export function BookingQuickView({ booking }: { booking: BookingDetailView }) {
         ) : (
           <EmptyState title="No waivers signed yet. Riders sign at checkout, or through the waiver link on the booking page." />
         )}
+      </Section>
+
+      <Section title="Manage" subtitle="Each change says what it sets off before it happens.">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <ChangeStatus bookingId={booking.id} status={actions.status} customer={booking.customer} options={STATUS_OPTIONS} />
+          <ArchiveBooking bookingId={booking.id} customer={booking.customer} closeHref={closeHref} />
+        </div>
       </Section>
     </div>
   );

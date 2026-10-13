@@ -13,6 +13,7 @@ vi.mock('@/components/kit', async () => ({
 
 const {
   bikeMix,
+  bookingActions,
   bookingFilterMetrics,
   bookingFilterOptions,
   bookingRiders,
@@ -21,6 +22,7 @@ const {
   extractWaiverStoragePath,
   groupWaivers,
   latestReviewByBooking,
+  legacyBookingsUrl,
   parseBookingFilter,
   parseBookingId,
   parsePage,
@@ -405,5 +407,46 @@ describe('the quick view of the drawer', () => {
     );
     expect(view.waivers[0]?.coverage).toBe('Guardian (parent) for Kid');
     expect(view.sizing).toEqual({ label: '2 sizes missing', tone: 'amber' });
+  });
+});
+
+describe('what the drawer offers', () => {
+  it('a confirmed tour: calendar retry only without a Cal event, and the confirmation email', () => {
+    expect(bookingActions(record({}), null)).toEqual({
+      status: 'confirmed',
+      retryCharge: null,
+      retryCalendar: false,
+      confirmationEmail: { mode: 'resend', to: 'jane@example.com' },
+      markReview: null,
+    });
+    const failing = bookingActions(record({ cal_booking_status: 'failed', webhook_sent: false }), null);
+    expect(failing.retryCalendar).toBe(true);
+    expect(failing.confirmationEmail?.mode).toBe('send');
+  });
+
+  it('retrying a charge needs a failed balance on a tour that happens, behind a paid deposit', () => {
+    expect(bookingActions(record({ remaining_balance_status: 'failed' }), null).retryCharge).toEqual({ amount: '$100.00' });
+    expect(bookingActions(record({ status: 'completed', remaining_balance_status: 'failed' }), null).retryCharge).not.toBeNull();
+    expect(bookingActions(record({ status: 'cancelled', remaining_balance_status: 'failed' }), null).retryCharge).toBeNull();
+    expect(bookingActions(record({ remaining_balance_status: 'failed', deposit_payment_status: null }), null).retryCharge).toBeNull();
+  });
+
+  it('after the tour: no calendar or email, and the review only while its request runs', () => {
+    const completed = record({ status: 'completed', cal_booking_status: 'failed', webhook_sent: false });
+    expect(bookingActions(completed, null)).toMatchObject({ retryCalendar: false, confirmationEmail: null, markReview: null });
+    expect(bookingActions(completed, review({ status: 'active' })).markReview).toEqual({ enrollmentId: 'r1' });
+    expect(bookingActions(completed, review({ status: 'completed' })).markReview).toEqual({ enrollmentId: 'r1' });
+    expect(bookingActions(completed, review({ status: 'reviewed' })).markReview).toBeNull();
+    expect(bookingActions(completed, review({ status: 'cancelled' })).markReview).toBeNull();
+    expect(bookingActions(record({ status: 'confirmed' }), review({ status: 'active' })).markReview).toBeNull();
+  });
+
+  it('the old /admin?status= bookings links go to the new route; the rest stay', () => {
+    expect(legacyBookingsUrl('all')).toBe('/admin/bookings');
+    expect(legacyBookingsUrl('confirmed')).toBe('/admin/bookings?status=confirmed');
+    expect(legacyBookingsUrl(['refunded'])).toBe('/admin/bookings?status=refunded');
+    expect(legacyBookingsUrl('leads')).toBeNull();
+    expect(legacyBookingsUrl('trash')).toBeNull();
+    expect(legacyBookingsUrl(undefined)).toBeNull();
   });
 });

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { getBookingLocationMeta } from '@/lib/location-meta';
@@ -16,11 +15,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const cookieStore = await cookies();
-  const adminUser = await getAdminUserFromCookieStore(cookieStore);
-  if (!adminUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // The session first, before any work: an API answers 401, never a redirect.
+  const adminUser = await getOperator();
+  if (!adminUser) return unauthorized();
 
   const { id: bookingId } = await params;
   if (!bookingId) {

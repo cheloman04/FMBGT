@@ -11,7 +11,7 @@ import { FAILED_CHARGE } from '@/lib/admin/status-meta';
 
 /**
  * The top of /admin: the business pulse, what needs the operator, and the next
- * tour. Server-rendered; the lists below it are still the legacy client.
+ * tour. Server-rendered; the leads and trash below it are still the legacy client.
  */
 export function AdminOverview({
   stats,
@@ -30,14 +30,21 @@ export function AdminOverview({
 
       <div className="mt-10 space-y-10">
         {stats.failedCharges > 0 ? (
-          <Section title="Needs attention">
+          <Section
+            title="Needs attention"
+            action={
+              <Link href="/admin/bookings?status=failed" className={buttonClasses('secondary', 'sm')}>
+                Show {stats.failedCharges === 1 ? 'it' : 'them'}
+              </Link>
+            }
+          >
             <div role="status" className="flex flex-wrap items-center gap-3">
               <StatusBadge meta={FAILED_CHARGE} size="sm" />
               <p className="text-sm text-fg-2">
                 {stats.failedCharges === 1
                   ? 'The balance charge of 1 booking failed.'
                   : `The balance charges of ${stats.failedCharges} bookings failed.`}{' '}
-                Find them in the list below by their failed balance, open them and retry the charge.
+                Open {stats.failedCharges === 1 ? 'it' : 'each one'} in Bookings and retry the charge.
               </p>
             </div>
           </Section>

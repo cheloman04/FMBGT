@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { cancelBookingCalendarEvent } from '@/lib/booking-calendar';
 
@@ -39,16 +38,14 @@ function bookingHasFinancialHistory(booking: {
 }
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
-  const adminUser = await getAdminUserFromCookieStore(cookieStore);
-  if (!adminUser) {
-    return NextResponse.json({ success: false, reason: 'unauthorized' }, { status: 401 });
-  }
+  // The session first, before any work: an API answers 401, never a redirect.
+  const adminUser = await getOperator();
+  if (!adminUser) return unauthorized();
 
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
   const parsed = Schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ success: false, reason: 'invalid_request' }, { status: 400 });
+    return NextResponse.json({ success: false, reason: 'invalid_request', error: 'Invalid request' }, { status: 400 });
   }
 
   const { booking_id } = parsed.data;
@@ -66,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   if (bookingError || !booking) {
     console.error(`[DELETE_BOOKING_ERROR] booking_id=${booking_id} not found`);
-    return NextResponse.json({ success: false, reason: 'booking_not_found' }, { status: 404 });
+    return NextResponse.json({ success: false, reason: 'booking_not_found', error: 'Booking not found. It may have been deleted already.' }, { status: 404 });
   }
 
   // Booking has payment/fulfillment history — soft delete (archive) instead of hard delete
@@ -85,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (archiveError) {
       console.error(`[DELETE_BOOKING_ERROR] booking_id=${booking_id} archive failed:`, archiveError);
       return NextResponse.json(
-        { success: false, reason: 'archive_failed', booking_id },
+        { success: false, reason: 'archive_failed', booking_id, error: 'The booking could not be archived. Try again.' },
         { status: 500 }
       );
     }
@@ -131,7 +128,7 @@ export async function POST(req: NextRequest) {
   if (waiverDeleteError) {
     console.error(`[DELETE_BOOKING_ERROR] booking_id=${booking_id} waiver cleanup failed:`, waiverDeleteError);
     return NextResponse.json(
-      { success: false, reason: 'waiver_cleanup_failed', booking_id },
+      { success: false, reason: 'waiver_cleanup_failed', booking_id, error: "The booking's waivers could not be removed, so it was kept. Try again." },
       { status: 500 }
     );
   }
@@ -144,7 +141,7 @@ export async function POST(req: NextRequest) {
   if (deleteError) {
     console.error(`[DELETE_BOOKING_ERROR] booking_id=${booking_id} hard delete failed:`, deleteError);
     return NextResponse.json(
-      { success: false, reason: 'delete_failed', booking_id },
+      { success: false, reason: 'delete_failed', booking_id, error: 'The booking could not be deleted. Try again.' },
       { status: 500 }
     );
   }
