@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { requireAdminUser } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 import { FAM_CODE } from '@/lib/discounts';
 
 const CreateSchema = z.object({
@@ -24,8 +24,9 @@ const DeleteSchema = z.object({
 
 // GET — list all referral partners
 export async function GET() {
+  const operator = await getOperator();
+  if (!operator) return unauthorized();
   try {
-    await requireAdminUser();
     const supabase = getSupabaseAdmin();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,8 +45,9 @@ export async function GET() {
 
 // POST — create a new referral partner
 export async function POST(req: NextRequest) {
+  const operator = await getOperator();
+  if (!operator) return unauthorized();
   try {
-    await requireAdminUser();
     const body = await req.json();
     const parsed = CreateSchema.safeParse(body);
     if (!parsed.success) {
@@ -97,8 +99,9 @@ export async function POST(req: NextRequest) {
 
 // PATCH — update active status, percentage, or notes
 export async function PATCH(req: NextRequest) {
+  const operator = await getOperator();
+  if (!operator) return unauthorized();
   try {
-    await requireAdminUser();
     const body = await req.json();
     const parsed = UpdateSchema.safeParse(body);
     if (!parsed.success) {
@@ -127,8 +130,9 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE — permanently remove an INACTIVE referral partner (hygiene)
 export async function DELETE(req: NextRequest) {
+  const operator = await getOperator();
+  if (!operator) return unauthorized();
   try {
-    await requireAdminUser();
     const body = await req.json();
     const parsed = DeleteSchema.safeParse(body);
     if (!parsed.success) {

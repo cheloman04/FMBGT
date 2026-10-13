@@ -22,6 +22,10 @@ const eslintConfig = defineConfig([
       "app/admin/(panel)/error.tsx",
       "app/admin/(panel)/_components/**/*.ts",
       "app/admin/(panel)/_components/**/*.tsx",
+      // Phase 2, step 2: the three small pages.
+      "app/admin/(panel)/gift-cards/**/*.tsx",
+      "app/admin/(panel)/referrals/**/*.tsx",
+      "app/admin/(panel)/fin-log/**/*.tsx",
       "lib/admin/**/*.ts",
     ],
   }),
