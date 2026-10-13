@@ -1,7 +1,28 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { NextResponse } from 'next/server';
 import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
 import { ADMIN_PATH_HEADER, loginPathFor } from './login-path';
+
+/**
+ * For /api/admin route handlers: the signed-in operator, or null.
+ *
+ * An API never redirects — it answers 401 and the kit's API client sends the
+ * operator to the login page. Call it BEFORE any try/catch:
+ *
+ *   const operator = await getOperator();
+ *   if (!operator) return unauthorized();
+ *
+ * (`requireAdminUser()` inside a try is how gift cards and referrals answered a
+ * stale session with a 500: its redirect is a thrown error, and the catch ate it.)
+ */
+export async function getOperator() {
+  return getAdminUserFromCookieStore(await cookies());
+}
+
+export function unauthorized() {
+  return NextResponse.json({ error: 'Your session expired. Sign in again.' }, { status: 401 });
+}
 
 /**
  * The guard of the operator area (KIGARU_DASHBOARD_STANDARD_V1.md §5.4), called

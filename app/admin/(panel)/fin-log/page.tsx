@@ -1,180 +1,130 @@
 import Link from 'next/link';
-import { requireAdminUser } from '@/lib/admin-auth';
-import { formatFloridaDateTime } from '@/lib/display-time';
-import { getSupabaseAdmin } from '@/lib/supabase';
-import { PageHeader } from '@/components/kit';
-import { LegacyArea } from '../../_components/LegacyArea';
+import {
+  EmptyState,
+  MetricStrip,
+  PageHeader,
+  PageShell,
+  ResponsiveList,
+  Section,
+  StatusBadge,
+  type Column,
+  type Metric,
+} from '@/components/kit';
+import { requireOperator } from '@/lib/admin/auth';
+import {
+  FIN_LOG_EMPTY,
+  parseFinLogView,
+  toFinancialEventRow,
+  type FinLogCounts,
+  type FinLogView,
+  type FinancialEventRow,
+} from '@/lib/admin/fin-log';
+import { loadFinancialLog } from '@/lib/admin/loaders';
+import { NEEDS_ATTENTION } from '@/lib/admin/status-meta';
 
-type FinancialEventRow = {
-  id: string;
-  event_name: string;
-  event_category: string;
-  severity: 'info' | 'warning' | 'error' | 'critical';
-  entity_type: string;
-  entity_id: string;
-  booking_id: string | null;
-  lead_id: string | null;
-  stripe_session_id: string | null;
-  payment_intent_id: string | null;
-  amount: number | null;
-  currency: string | null;
-  status: string | null;
-  requires_attention: boolean;
-  message: string | null;
-  metadata: Record<string, unknown> | null;
-  occurred_at: string;
-  created_at: string;
+export const metadata = { title: 'Financial log | Admin' };
+export const dynamic = 'force-dynamic';
+
+const COLUMNS: Column<FinancialEventRow>[] = [
+  {
+    key: 'event',
+    header: 'Event',
+    cell: (r) => (
+      <>
+        <span className="block">{r.name}</span>
+        <span className="block text-xs font-normal text-fg-muted">{r.category}</span>
+      </>
+    ),
+  },
+  { key: 'when', header: 'When', cell: (r) => r.when, width: 'w-44' },
+  {
+    key: 'severity',
+    header: 'Severity',
+    cell: (r) => (
+      <span className="inline-flex flex-wrap gap-1.5">
+        <StatusBadge meta={r.severity} size="sm" />
+        {r.attention ? <StatusBadge meta={NEEDS_ATTENTION} size="sm" /> : null}
+      </span>
+    ),
+    mobile: 'status',
+  },
+  {
+    key: 'booking',
+    header: 'Booking',
+    cell: (r) =>
+      r.bookingId ? (
+        <Link
+          href={`/admin/bookings/${r.bookingId}`}
+          className="font-mono text-xs text-fg underline decoration-hairline underline-offset-4 hover:decoration-fg-muted"
+        >
+          {r.bookingId.slice(0, 8)}
+        </Link>
+      ) : (
+        '—'
+      ),
+    interactive: true,
+    width: 'w-28',
+  },
+  { key: 'amount', header: 'Amount', cell: (r) => r.amount, align: 'right', width: 'w-28' },
+  { key: 'status', header: 'Status', cell: (r) => r.status, width: 'w-28' },
+  { key: 'details', header: 'Details', cell: (r) => <span className="line-clamp-3 max-w-md">{r.message}</span>, mobile: 'secondary' },
+];
+
+/** The strip doubles as the filter: each figure links to its view (§4.7). */
+function viewMetrics(counts: FinLogCounts, active: FinLogView): Metric[] {
+  const tile = (view: FinLogView, label: string, sub: string): Metric => ({
+    key: view,
+    label,
+    value: String(counts[view]),
+    sub,
+    href: view === 'all' ? '/admin/fin-log' : `/admin/fin-log?view=${view}`,
+    active: view === active,
+  });
+  return [
+    tile('all', 'All events', 'Payments, refunds, ops'),
+    tile('attention', 'Needs attention', 'Flagged for a person'),
+    tile('critical', 'Critical', 'Highest severity'),
+    tile('reconciliation', 'Reconciliation', 'Matches and corrections'),
+  ];
+}
+
+const SECTION_TITLE: Record<FinLogView, string> = {
+  all: 'Event stream',
+  attention: 'Needs attention',
+  critical: 'Critical events',
+  reconciliation: 'Reconciliation events',
 };
 
-function formatMoney(amount: number | null, currency: string | null) {
-  if (amount === null || amount === undefined) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency?.toUpperCase() || 'USD',
-  }).format(amount / 100);
-}
-
-function severityBadgeClassName(severity: FinancialEventRow['severity']) {
-  if (severity === 'critical') return 'border-red-500/30 bg-red-500/15 text-red-200';
-  if (severity === 'error') return 'border-amber-500/30 bg-amber-500/15 text-amber-200';
-  if (severity === 'warning') return 'border-yellow-500/30 bg-yellow-500/15 text-yellow-200';
-  return 'border-green-500/25 bg-green-500/10 text-green-200';
-}
-
-async function getFinancialEvents() {
-  const supabase = getSupabaseAdmin();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from('financial_event_logs')
-    .select('*')
-    .order('occurred_at', { ascending: false })
-    .limit(200);
-
-  if (error) {
-    console.error('[admin/fin-log] Failed to fetch financial events:', error.message);
-    return [] as FinancialEventRow[];
-  }
-
-  return (data ?? []) as FinancialEventRow[];
-}
-
-export default async function AdminFinLogPage() {
-  await requireAdminUser();
-  const events = await getFinancialEvents();
-
-  const attentionCount = events.filter((event) => event.requires_attention).length;
-  const criticalCount = events.filter((event) => event.severity === 'critical').length;
-  const reconciliationCount = events.filter((event) => event.event_category === 'reconciliation').length;
+export default async function FinLogPage({ searchParams }: { searchParams: Promise<{ view?: string | string[] }> }) {
+  await requireOperator();
+  const view = parseFinLogView((await searchParams).view);
+  const { events, counts, limit } = await loadFinancialLog(view);
+  const rows = events.map(toFinancialEventRow);
+  const total = counts[view];
 
   return (
-    <LegacyArea>
-      <div className="bg-background text-foreground">
-        <div className="relative mx-auto max-w-7xl px-4 py-6 sm:py-8">
-          <PageHeader title="Financial log" subtitle="Append-only payment, reconciliation, and support event ledger" />
+    <PageShell>
+      <PageHeader
+        eyebrow="Money"
+        title="Financial log"
+        subtitle="Append-only ledger of payments, reconciliations and support events. Times in Eastern."
+      />
+      <MetricStrip metrics={viewMetrics(counts, view)} />
 
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:mb-5 sm:grid-cols-4 sm:gap-4">
-            {[
-              { label: 'Total Events', value: events.length },
-              { label: 'Needs Attention', value: attentionCount },
-              { label: 'Critical', value: criticalCount },
-              { label: 'Reconciliation', value: reconciliationCount },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="group relative min-h-[104px] overflow-hidden rounded-2xl border border-border/70 bg-card/90 p-4 shadow-[0_10px_28px_rgba(0,0,0,0.12)] sm:min-h-[118px]"
-              >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_42%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_40%)]" />
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  {stat.label}
-                </p>
-                <p className="relative mt-4 text-3xl font-bold text-foreground">{stat.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/88 shadow-[0_18px_40px_rgba(23,26,20,0.08)] backdrop-blur-sm dark:shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.05),transparent_36%),radial-gradient(circle_at_top_left,rgba(59,130,246,0.04),transparent_28%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.10),transparent_32%),radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_26%)]" />
-            <div className="relative border-b border-border/70 px-4 py-4 sm:px-5">
-              <h2 className="text-lg font-semibold text-foreground">Event Stream</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Immutable finance and ops events, newest first.
-              </p>
-            </div>
-
-            <div className="relative hidden overflow-x-auto lg:block">
-              <table className="min-w-full divide-y divide-border/70 text-sm">
-                <thead className="bg-background/30 text-left text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3">When</th>
-                    <th className="px-4 py-3">Event</th>
-                    <th className="px-4 py-3">Severity</th>
-                    <th className="px-4 py-3">Booking</th>
-                    <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Details</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {events.map((event) => (
-                    <tr key={event.id} className="align-top transition-colors hover:bg-background/35">
-                      <td className="px-4 py-4 text-muted-foreground">{formatFloridaDateTime(event.occurred_at)}</td>
-                      <td className="px-4 py-4">
-                        <p className="font-medium text-foreground">{event.event_name}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{event.event_category}</p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${severityBadgeClassName(event.severity)}`}>
-                          {event.severity}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        {event.booking_id ? (
-                          <Link href={`/admin/bookings/${event.booking_id}`} className="text-green-300 hover:text-green-200">
-                            {event.booking_id.slice(0, 8)}...
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-foreground">{formatMoney(event.amount, event.currency)}</td>
-                      <td className="px-4 py-4 text-muted-foreground">{event.status ?? '—'}</td>
-                      <td className="px-4 py-4">
-                        <p className="max-w-md text-sm text-foreground">{event.message ?? '—'}</p>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="relative grid gap-3 p-4 lg:hidden">
-              {events.map((event) => (
-                <div
-                  key={event.id}
-                  className="relative overflow-hidden rounded-2xl border border-border/70 bg-background/55 p-4 shadow-[0_10px_22px_rgba(0,0,0,0.12)]"
-                >
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.05),transparent_42%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_40%)]" />
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-foreground">{event.event_name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{formatFloridaDateTime(event.occurred_at)}</p>
-                    </div>
-                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityBadgeClassName(event.severity)}`}>
-                      {event.severity}
-                    </span>
-                  </div>
-                  <div className="relative mt-3 grid gap-2 text-sm">
-                    <p className="text-muted-foreground">Amount: <span className="text-foreground">{formatMoney(event.amount, event.currency)}</span></p>
-                    <p className="text-muted-foreground">Status: <span className="text-foreground">{event.status ?? '—'}</span></p>
-                    <p className="text-muted-foreground">Booking: <span className="text-foreground">{event.booking_id ?? '—'}</span></p>
-                    <p className="text-foreground">{event.message ?? '—'}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      <div className="mt-10">
+        <Section
+          title={SECTION_TITLE[view]}
+          subtitle={total > limit ? `The newest ${limit} of ${total}, newest first.` : 'Newest first.'}
+        >
+          <ResponsiveList
+            rows={rows}
+            columns={COLUMNS}
+            rowKey={(r) => r.id}
+            caption={SECTION_TITLE[view]}
+            empty={<EmptyState title={FIN_LOG_EMPTY[view]} />}
+          />
+        </Section>
       </div>
-    </LegacyArea>
+    </PageShell>
   );
 }

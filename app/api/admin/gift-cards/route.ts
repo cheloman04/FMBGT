@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { randomInt } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { requireAdminUser } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 
 const GIFT_CARD_COLUMNS =
   'id, code, amount_cents, status, recipient_name, recipient_email, purchaser_name, notes, ' +
@@ -38,8 +38,9 @@ function generateGiftCardCode(): string {
 
 // GET — list all gift cards (newest first)
 export async function GET() {
+  const operator = await getOperator();
+  if (!operator) return unauthorized();
   try {
-    await requireAdminUser();
     const supabase = getSupabaseAdmin();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
@@ -57,8 +58,9 @@ export async function GET() {
 
 // POST — mint a new gift card
 export async function POST(req: NextRequest) {
+  const operator = await getOperator();
+  if (!operator) return unauthorized();
   try {
-    const admin = await requireAdminUser();
     const body = await req.json();
     const parsed = CreateSchema.safeParse(body);
     if (!parsed.success) {
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
         recipient_email: recipient_email?.trim() || null,
         purchaser_name: purchaser_name?.trim() || null,
         notes: notes?.trim() || null,
-        created_by: admin.email ?? null,
+        created_by: operator.email ?? null,
         status: 'active',
       })
       .select(GIFT_CARD_COLUMNS)
@@ -128,8 +130,9 @@ export async function POST(req: NextRequest) {
 
 // PATCH — void an active card, or edit notes
 export async function PATCH(req: NextRequest) {
+  const operator = await getOperator();
+  if (!operator) return unauthorized();
   try {
-    await requireAdminUser();
     const body = await req.json();
     const parsed = UpdateSchema.safeParse(body);
     if (!parsed.success) {
@@ -183,8 +186,9 @@ export async function PATCH(req: NextRequest) {
 // DELETE — permanently remove a VOID gift card (hygiene). Redeemed cards are
 // kept as history; active/reserved cards must be voided first.
 export async function DELETE(req: NextRequest) {
+  const operator = await getOperator();
+  if (!operator) return unauthorized();
   try {
-    await requireAdminUser();
     const body = await req.json();
     const parsed = DeleteSchema.safeParse(body);
     if (!parsed.success) {
