@@ -51,7 +51,7 @@ export function PageHeader({
   titleAside,
   icon,
   actions,
-  actionsFill = false,
+  actionsFill = true,
   actionsSpread = false,
   spacing = "mb-6",
   as = "h1",
@@ -65,7 +65,11 @@ export function PageHeader({
   icon?: ReactNode;
   /** Botones o selectores a la derecha del título. Una sola acción primaria. */
   actions?: ReactNode;
-  /** En el teléfono las acciones ocupan la fila entera. */
+  /**
+   * En el teléfono (por debajo de `sm`, 640px: §1) las acciones van en su propia
+   * línea, a todo el ancho: un `PeriodFilter` se reparte la fila y un botón queda a
+   * su ancho, a la izquierda. `false` las deja a su ancho, junto al título si caben.
+   */
   actionsFill?: boolean;
   /** Las acciones se reparten a lo ancho (`justify-between`). */
   actionsSpread?: boolean;

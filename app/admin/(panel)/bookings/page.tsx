@@ -44,6 +44,10 @@ const PATH = '/admin/bookings';
 
 type Params = Record<string, string | string[] | undefined>;
 
+// The list turns into a table from 672px of its own width (`tableFrom="md"`, a
+// container query: the side menu, open or folded, decides as much as the
+// screen). Below, rows. The cells' `@2xl:` / `@max-2xl:` are that same line, so
+// the two must move together.
 const COLUMNS: Column<BookingRow>[] = [
   {
     key: 'customer',
@@ -51,23 +55,23 @@ const COLUMNS: Column<BookingRow>[] = [
     cell: (r) => (
       <>
         <span className="block">{r.customer}</span>
-        {/* From lg up: on a tablet the table needs the room, and the drawer has the email. */}
-        {r.email ? <span className="block text-xs font-normal text-fg-muted max-lg:hidden">{r.email}</span> : null}
+        {/* Only on a wide table: a narrow one needs the room, and the drawer has the email. */}
+        {r.email ? <span className="block text-xs font-normal text-fg-muted @max-3xl:hidden">{r.email}</span> : null}
       </>
     ),
   },
-  { key: 'when', header: 'Tour date', cell: (r) => <span className="xl:whitespace-nowrap">{r.when}</span>, mobile: 'secondary' },
+  { key: 'when', header: 'Tour date', cell: (r) => <span className="@4xl:whitespace-nowrap">{r.when}</span>, mobile: 'secondary' },
   {
     key: 'tour',
     header: 'Tour',
-    // One line on the phone ("Santos · MTB · 2h · 1 rider"), two in the table.
+    // One line in the rows ("Santos · MTB · 2h · 1 rider"), two in the table.
     cell: (r) => (
       <>
-        <span className="md:block">{r.location ?? '—'}</span>
-        <span aria-hidden="true" className="md:hidden">
+        <span className="@2xl:block">{r.location ?? '—'}</span>
+        <span aria-hidden="true" className="@2xl:hidden">
           ·
         </span>
-        <span className="text-xs text-fg-muted md:block">{r.tour}</span>
+        <span className="text-xs text-fg-muted @2xl:block">{r.tour}</span>
       </>
     ),
   },
@@ -76,8 +80,8 @@ const COLUMNS: Column<BookingRow>[] = [
     header: 'Total',
     cell: (r) => (
       <>
-        <span className="md:block">{r.total}</span>
-        <span className="block text-xs text-fg-muted max-md:hidden">{r.payment}</span>
+        <span className="@2xl:block">{r.total}</span>
+        <span className="block text-xs text-fg-muted @max-2xl:hidden">{r.payment}</span>
       </>
     ),
     align: 'right',
@@ -86,8 +90,8 @@ const COLUMNS: Column<BookingRow>[] = [
     key: 'status',
     header: 'Status',
     cell: (r) => (
-      // On the phone the badges sit right of the name: past two, they stack.
-      <span className="flex flex-wrap items-center justify-end gap-1 max-md:max-w-[10rem] md:justify-start">
+      // In the rows the badges sit right of the name: past two, they stack.
+      <span className="flex flex-wrap items-center justify-end gap-1 @max-2xl:max-w-[10rem] @2xl:justify-start">
         <StatusBadge meta={r.status} size="sm" />
         {r.flags.map((flag) => (
           <StatusBadge key={flag.label} meta={flag} size="sm" />
@@ -188,6 +192,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
             rowKey={(r) => r.id}
             rowHref={(r) => withParam(PATH, params, 'booking', r.id, { keepPage: true })}
             caption={FILTER_TITLE[filter]}
+            tableFrom="md"
             empty={<EmptyState title={bookingsEmpty(filter, q)} />}
           />
           {rows.length ? (
