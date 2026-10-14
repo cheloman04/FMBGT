@@ -38,6 +38,7 @@ export {
   type FieldChrome,
 } from "./Field";
 export { PasswordInput } from "./PasswordInput";
+export { Switch } from "./Switch";
 export { SelectMenu, type SelectMenuOption } from "./SelectMenu";
 export { DatePicker, type DatePickerLabels } from "./DatePicker";
 export {
@@ -96,6 +97,7 @@ export { AttachmentStrip } from "./conversations/AttachmentStrip";
 export {
   INBOX_LABELS,
   mergeLabels,
+  agentSwitchPlan,
   readPreview,
   readMessage,
   deliveryStatus,

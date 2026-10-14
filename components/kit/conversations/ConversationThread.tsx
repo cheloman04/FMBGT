@@ -7,17 +7,18 @@ import { cx } from "../cx";
 import { Drawer } from "../Drawer";
 import { Textarea } from "../Field";
 import { StatusBadge } from "../StatusBadge";
+import { Switch } from "../Switch";
 import { formatDateTime } from "../time";
 import { useConfirm } from "../useConfirm";
 import { AttachmentStrip } from "./AttachmentStrip";
 import {
+  agentSwitchPlan,
   authorOf,
   bubbleOf,
   channelName,
   contactName,
   deliveryStatus,
   fill,
-  handBackWarning,
   readMessage,
   whatsappWindowOpen,
   type InboxLabels,
@@ -26,12 +27,13 @@ import type { InboxChannel, InboxConversation, InboxHandlerResult, InboxSendResu
 import { usePolling } from "./usePolling";
 
 /**
- * Un hilo: los mensajes, responder y devolverlo al agente.
+ * Un hilo: los mensajes, responder, y el interruptor «AI agent».
  *
- * 🪤 RESPONDER Y DEVOLVER VAN JUNTOS, en el mismo bloque. Contestar desde aquí
- * CEDE el hilo (el hub lo marca `human` y el agente se calla); el botón de
- * devolver es el camino de vuelta. Uno sin el otro es una puerta que no se puede
- * desandar.
+ * 🪤 RESPONDER Y EL INTERRUPTOR VAN JUNTOS. Contestar desde aquí CEDE el hilo (el
+ * hub lo marca `human` y el agente se calla); el interruptor, siempre a la vista
+ * en la cabecera, dice quién lo lleva y es el camino de vuelta. Uno sin el otro es
+ * una puerta que no se puede desandar. También funciona al revés: apagarlo toma el
+ * hilo sin escribir, para callar al agente en ESE hilo.
  *
  * 🪤 SE MONTA CON `key={conversation.id}`. Sin ella, el «Sending…» o el borrador
  * de un hilo sobreviven al cambiar a otro, y una respuesta lenta del primero
@@ -73,7 +75,7 @@ export function ConversationThread({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [handingBack, setHandingBack] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const { confirm, dialog } = useConfirm();
   const endRef = useRef<HTMLDivElement>(null);
@@ -124,13 +126,13 @@ export function ConversationThread({
     setSending(false);
   }
 
-  async function handBack() {
-    const warning = handBackWarning(channel?.agent, conversation.channel, labels);
+  async function moveAgent(next: boolean) {
+    const plan = agentSwitchPlan(next, channel?.agent, conversation.channel, labels);
     if (
-      warning &&
+      plan.confirm &&
       !(await confirm({
         title: labels.handBackConfirmTitle,
-        description: warning,
+        description: plan.confirm,
         confirmLabel: labels.handBackConfirm,
         cancelLabel: labels.cancel,
         closeLabel: labels.close,
@@ -138,15 +140,15 @@ export function ConversationThread({
     ) {
       return;
     }
-    setHandingBack(true);
+    setSwitching(true);
     setSendError(null);
     setNotice(null);
-    const res = await api.patch<InboxHandlerResult>(url, { handler: "agent" });
-    if (res.ok) setNotice(labels.handedBack);
+    const res = await api.patch<InboxHandlerResult>(url, { handler: plan.handler });
+    if (res.ok) setNotice(plan.handler === "agent" ? labels.handedBack : labels.tookOver);
     else if (res.status !== 401) setSendError(res.error);
     await load();
     onChanged();
-    setHandingBack(false);
+    setSwitching(false);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -164,6 +166,18 @@ export function ConversationThread({
       <span>{channelLabel}</span>
       {handler === "human" ? <StatusBadge meta={{ label: labels.handledByYou, tone: "gray" }} size="sm" dot={false} /> : null}
     </div>
+  );
+
+  // Quién lleva el hilo, siempre a la vista y en los dos sentidos.
+  const agentSwitch = (
+    <Switch
+      label={labels.agentSwitch}
+      stateLabels={{ on: labels.agentOn, off: labels.agentOff }}
+      checked={handler === "agent"}
+      loading={switching}
+      disabled={sending}
+      onChange={(next) => void moveAgent(next)}
+    />
   );
 
   let body: ReactNode;
@@ -228,14 +242,7 @@ export function ConversationThread({
 
   const composer = (
     <div className="w-full space-y-2.5">
-      {handler === "human" ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-fg-muted">{labels.handledByYou}</span>
-          <Button variant="secondary" size="sm" loading={handingBack} disabled={sending} onClick={() => void handBack()}>
-            {handingBack ? labels.handingBack : labels.handBack}
-          </Button>
-        </div>
-      ) : channel?.agent === "answering" ? (
+      {handler === "agent" && channel?.agent === "answering" ? (
         // Solo cuando contestar CAMBIA quién manda: repetido siempre, nadie lo lee.
         <p className="text-xs leading-relaxed text-fg-muted">{labels.takeoverWarning}</p>
       ) : null}
@@ -249,13 +256,13 @@ export function ConversationThread({
         rows={3}
         maxLength={4000}
         placeholder={labels.replyPlaceholder}
-        disabled={sending || handingBack}
+        disabled={sending || switching}
       />
       {sendError ? <p className="text-xs leading-relaxed text-tone-red">{sendError}</p> : null}
       {notice ? <p className="text-xs leading-relaxed text-fg-2">{notice}</p> : null}
       <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] text-fg-muted">{draft.trim() ? `${draft.trim().length}/4000` : ""}</span>
-        <Button loading={sending} disabled={!draft.trim() || handingBack} onClick={() => void send()}>
+        <Button loading={sending} disabled={!draft.trim() || switching} onClick={() => void send()}>
           {sending ? labels.sending : labels.send}
         </Button>
       </div>
@@ -265,7 +272,10 @@ export function ConversationThread({
   if (layout === "drawer") {
     return (
       <Drawer open title={contact} onClose={onClose} size="lg" closeLabel={labels.close} footer={composer}>
-        <div className="mb-4">{meta}</div>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {meta}
+          {agentSwitch}
+        </div>
         {body}
         <div ref={endRef} />
         {dialog}
@@ -280,6 +290,7 @@ export function ConversationThread({
           <h2 className="truncate text-sm font-semibold text-fg">{contact}</h2>
           <div className="mt-0.5">{meta}</div>
         </div>
+        <div className="shrink-0">{agentSwitch}</div>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {body}
