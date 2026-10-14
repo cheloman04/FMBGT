@@ -39,6 +39,7 @@ import type { TrashedBookingRecord, TrashedLeadRecord } from './trash';
 import type { FormLocation } from './booking-form';
 import type { BookingPageRecord, HistoryRecord } from './booking-page';
 import type { GiftCardRecord } from './gift-cards';
+import type { ManualBookingRecord } from './manual-bookings';
 import type { ReferralPartnerRecord } from './referrals';
 import {
   computeOverview,
@@ -399,6 +400,30 @@ export async function loadBookingForEdit(id: string): Promise<{ record: BookingP
     from('locations').select('id, name, tour_type, skill_levels').eq('active', true).eq('tour_type', record.trail_type).order('name'),
   );
   return { record, locations };
+}
+
+// ─── Manual bookings (/admin/manual-booking) ────────────────────────────────
+
+/** Every active location, for the form that creates a manual booking (it filters them by tour and skill). */
+export function loadFormLocations(): Promise<FormLocation[]> {
+  return rows<FormLocation>('manual-booking', from('locations').select('id, name, tour_type, skill_levels').eq('active', true).order('name'));
+}
+
+/** The manual bookings that aren't archived, most recently created first, with how many waivers each has. */
+export async function loadManualBookings(
+  limit: number,
+): Promise<{ records: ManualBookingRecord[]; total: number; waiverCounts: Map<string, number> }> {
+  const { data, error, count } = await from('bookings')
+    .select(`${BOOKING_SELECT}, waiver_accepted, waiver_link_token`, { count: 'exact' })
+    .eq('booking_source', 'manual')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .range(0, limit - 1);
+  if (error) throw new Error(`[admin/manual-booking] ${error.message}`);
+  // toRecord() keeps the extra columns: it only flattens the customer and the location.
+  const records = ((data ?? []) as JoinedBooking[]).map((b) => toRecord(b) as ManualBookingRecord);
+  const waivers = groupWaivers(records, await loadWaivers<Pick<WaiverRecord, 'booking_id' | 'session_id'>>(records, 'booking_id, session_id'));
+  return { records, total: count ?? 0, waiverCounts: new Map([...waivers].map(([id, list]) => [id, list.length])) };
 }
 
 // ─── Leads (/admin/leads) ───────────────────────────────────────────────────

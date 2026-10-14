@@ -6,10 +6,15 @@ vi.mock('@/lib/booking-money', () => import('../booking-money'));
 
 const {
   bikeOptions,
+  createdHref,
+  emptyManualForm,
   formProblem,
   heightOptions,
   initialForm,
+  locationOptions,
+  manualCreatePayload,
   manualEditPayload,
+  manualMoneyNote,
   newRider,
   onlineEditPayload,
   previewLines,
@@ -18,6 +23,7 @@ const {
   skillOptions,
   timeOptions,
   toCents,
+  withTour,
 } = await import('./booking-form');
 
 type Booking = Parameters<typeof initialForm>[0];
@@ -255,5 +261,128 @@ describe('after saving: the booking page says what happened', () => {
     expect(savedNotice({})).toBeNull();
     expect(savedNotice({ saved: 'yes' })).toBeNull();
     expect(savedNotice({ saved: '1', owed: 'lots', cal: '<b>' })).toEqual({ attention: false, lines: ['Booking updated.'] });
+  });
+});
+
+describe('a new manual booking', () => {
+  const locations = [
+    { id: 'santos', name: 'Santos', tour_type: 'mtb' as const, skill_levels: ['intermediate' as const, 'advanced' as const] },
+    { id: 'markham', name: 'Markham Woods', tour_type: 'mtb' as const, skill_levels: null },
+    { id: 'sanford', name: 'Sanford Riverfront', tour_type: 'paved' as const, skill_levels: null },
+  ];
+  const filled = () => ({
+    ...emptyManualForm(),
+    customer_name: 'Laura Walton',
+    customer_email: 'laura@example.com',
+    skill_level: 'beginner' as const,
+    location_id: 'markham',
+    date: '2026-10-24',
+    manual_total: '609.87',
+  });
+
+  it('starts as a mountain bike tour at 9 AM that emails the confirmation', () => {
+    expect(emptyManualForm()).toMatchObject({
+      trail_type: 'mtb',
+      time_slot: '09:00',
+      duration_hours: 2,
+      bike_rental: 'none',
+      riders: [],
+      manual_payment_method: 'cash',
+      send_confirmation: true,
+    });
+  });
+
+  it('offers the locations of its kind of tour that take its skill', () => {
+    expect(locationOptions(locations, 'mtb', '').map((l) => l.id)).toEqual(['santos', 'markham']);
+    // A location that doesn't list skills takes them all.
+    expect(locationOptions(locations, 'mtb', 'beginner').map((l) => l.id)).toEqual(['markham']);
+    expect(locationOptions(locations, 'paved', 'beginner').map((l) => l.id)).toEqual(['sanford']);
+  });
+
+  it('a change of tour: paved is two hours on rentals, and a location that no longer fits is cleared', () => {
+    const mtb = { ...filled(), duration_hours: 3, bike_rental: 'none' as const, riders: [{ name: 'Sam', bike_rental: 'electric' as const, height_inches: null }] };
+    const paved = withTour(mtb, { trail_type: 'paved' }, locations);
+    expect(paved).toMatchObject({ trail_type: 'paved', skill_level: '', location_id: '', duration_hours: 2, bike_rental: 'standard' });
+    expect(paved.riders).toEqual([{ name: 'Sam', bike_rental: 'electric', height_inches: null }]);
+    // A skill the location doesn't take clears it; one it takes keeps it.
+    expect(withTour({ ...filled(), location_id: 'santos', skill_level: 'advanced' }, { skill_level: 'beginner' }, locations).location_id).toBe('');
+    expect(withTour({ ...filled(), location_id: 'santos', skill_level: 'advanced' }, { skill_level: 'intermediate' }, locations).location_id).toBe('santos');
+  });
+
+  it('says what blocks it: its tour, and what was collected', () => {
+    expect(formProblem(filled(), true, true)).toBeNull();
+    expect(formProblem({ ...filled(), skill_level: '' }, true, true)).toBe('Pick the skill level.');
+    expect(formProblem({ ...filled(), trail_type: 'paved', skill_level: '' }, true, true)).toBeNull();
+    expect(formProblem({ ...filled(), location_id: '' }, true, true)).toBe('Pick the location.');
+    expect(formProblem({ ...filled(), manual_collected: 'abc' }, true, true)).toBe('Enter what was collected, or leave it empty.');
+    expect(formProblem({ ...filled(), manual_collected: '700' }, true, true)).toBe('What was collected can’t be more than the total.');
+    // An edit doesn't pick its tour: the same form passes without them.
+    expect(formProblem({ ...filled(), location_id: '', skill_level: '' }, true)).toBeNull();
+  });
+
+  it('what the API receives: trimmed, each rider with their bike, nothing collected is 0', () => {
+    const form = {
+      ...filled(),
+      customer_name: ' Laura Walton ',
+      customer_phone: ' ',
+      bike_rental: 'standard' as const,
+      rider_height_inches: 66,
+      riders: [{ name: ' Sam ', bike_rental: 'electric' as const, height_inches: 70 }],
+      admin_notes: ' ',
+    };
+    expect(manualCreatePayload(form)).toEqual({
+      customer_name: 'Laura Walton',
+      customer_email: 'laura@example.com',
+      customer_phone: undefined,
+      trail_type: 'mtb',
+      skill_level: 'beginner',
+      location_id: 'markham',
+      date: '2026-10-24',
+      time_slot: '09:00',
+      duration_hours: 2,
+      bike_rental: 'standard',
+      rider_height_inches: 66,
+      additional_participants: [{ name: 'Sam', bike_rental: 'electric', height_inches: 70 }],
+      total_cents: 60987,
+      amount_collected_cents: 0,
+      payment_method: 'cash',
+      admin_notes: undefined,
+      send_confirmation: true,
+    });
+    const paved = manualCreatePayload({ ...form, trail_type: 'paved', duration_hours: 3 });
+    expect(paved).toMatchObject({ skill_level: null, duration_hours: 2 });
+  });
+
+  it('under the price: what it will owe, or that the email says $0', () => {
+    expect(manualMoneyNote({ manual_total: '', manual_collected: '' })).toBeNull();
+    expect(manualMoneyNote({ manual_total: '100', manual_collected: '100' })).toBeNull();
+    expect(manualMoneyNote({ manual_total: '100', manual_collected: '150' })).toBeNull();
+    expect(manualMoneyNote({ manual_total: '0', manual_collected: '' })).toBe(
+      'The total is $0, and the confirmation email will say so. Enter the agreed price if there is one.',
+    );
+    expect(manualMoneyNote({ manual_total: '100', manual_collected: '' })).toBe(
+      'Nothing collected yet: this holds the date. It shows $100.00 due until you record the payment on the booking’s page.',
+    );
+    expect(manualMoneyNote({ manual_total: '100', manual_collected: '40' })).toBe(
+      '$40.00 collected now. It shows $60.00 due until you record the payment on the booking’s page.',
+    );
+  });
+
+  it('lands on its page, which says whether the calendar and the email went out', () => {
+    const ok = createdHref({ booking_id: 'b1', cal_booked: true, email_queued: true });
+    expect(ok).toBe('/admin/bookings/b1?created=1&cal=ok&email=sent');
+    expect(savedNotice(Object.fromEntries(new URL(ok, 'https://x').searchParams))).toEqual({
+      attention: false,
+      lines: ['Booking created.', 'The confirmation email with the waiver link was sent.'],
+    });
+    const held = createdHref({ booking_id: 'b1', cal_booked: false, email_queued: false });
+    expect(savedNotice(Object.fromEntries(new URL(held, 'https://x').searchParams))).toEqual({
+      attention: true,
+      lines: [
+        'Booking created.',
+        'The calendar event was NOT created, so the slot isn’t blocked: use Retry calendar below.',
+        'No email was sent: send it from this page when you’re ready.',
+      ],
+    });
   });
 });

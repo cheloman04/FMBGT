@@ -35,7 +35,8 @@ const CreateSchema = z
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
     time_slot: z.string().trim().min(1).max(20),
     duration_hours: z.number().int().min(1).max(8),
-    bike_rental: z.enum(['none', 'standard', 'electric']).default('none'),
+    bike_rental: BikeSchema.default('none'),
+    rider_height_inches: HeightSchema.nullish(),
     additional_participants: z.array(ParticipantSchema).max(20).default([]),
     // Agreed price for the tour. Omitted = fully paid with amount_collected_cents.
     total_cents: CentsSchema.optional(),
@@ -141,7 +142,13 @@ export async function POST(req: NextRequest) {
     const waiverLinkToken = randomUUID();
     const collectedCents = d.amount_collected_cents;
     const totalCents = d.total_cents ?? collectedCents;
-    const additional = d.additional_participants ?? [];
+    // Each rider keeps their own bike and height, like an edit stores them; one
+    // without a bike rides the lead's (the inventory trigger counts it that way).
+    const additional = (d.additional_participants ?? []).map((p) => ({
+      name: p.name,
+      ...(p.bike_rental ? { bike_rental: p.bike_rental } : {}),
+      ...(p.height_inches ? { height_inches: p.height_inches } : {}),
+    }));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: bookingData, error: bookingError } = await (supabase as any)
@@ -157,10 +164,10 @@ export async function POST(req: NextRequest) {
         time_slot: d.time_slot,
         duration_hours: d.duration_hours,
         bike_rental: d.bike_rental,
-        rider_height_inches: null,
+        rider_height_inches: d.rider_height_inches ?? null,
         addons: {},
         participant_count: 1 + additional.length,
-        participant_info: additional.length > 0 ? additional.map((p) => ({ name: p.name })) : null,
+        participant_info: additional.length > 0 ? additional : null,
         // Pricing — the total agreed off-platform (no online price calc).
         base_price: totalCents,
         addons_price: 0,
