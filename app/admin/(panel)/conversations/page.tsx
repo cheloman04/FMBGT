@@ -8,10 +8,6 @@ export const dynamic = 'force-dynamic';
 // FMBGT runs on Eastern time (§8.7).
 const TIME_ZONE = 'America/New_York';
 
-// Kit 0.6.0 names WhatsApp, Instagram, Messenger, SMS, web chat and TikTok. FMBGT
-// also has a Telegram account (where the AI agent gets tested), so it names it here.
-const LABELS = { channelNames: { telegram: 'Telegram' } };
-
 // The inbox (§9): Instagram, Messenger and WhatsApp DMs, read and answered here.
 // The first paint comes from the server; the island then re-reads the inbox and
 // the open thread every 15 s through /api/admin/conversations.
@@ -30,7 +26,6 @@ export default async function ConversationsPage() {
         endpoint="/api/admin/conversations"
         loginPath="/admin/login"
         timeZone={TIME_ZONE}
-        labels={LABELS}
       />
     </PageShell>
   );

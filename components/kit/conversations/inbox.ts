@@ -97,6 +97,7 @@ export type InboxLabels = {
   // Entrega de lo que se manda
   deliverySending: string;
   deliverySent: string;
+  deliverySentNoReceipts: string;
   deliveryDelivered: string;
   deliveryRead: string;
   deliveryFailed: string;
@@ -185,6 +186,7 @@ export const INBOX_LABELS: InboxLabels = {
 
   deliverySending: "Sending…",
   deliverySent: "Sent, not confirmed",
+  deliverySentNoReceipts: "Sent",
   deliveryDelivered: "Delivered",
   deliveryRead: "Read",
   deliveryFailed: "Not delivered",
@@ -198,6 +200,7 @@ export const INBOX_LABELS: InboxLabels = {
     sms: "SMS",
     webchat: "Web chat",
     tiktok: "TikTok",
+    telegram: "Telegram",
   },
 };
 
@@ -323,6 +326,23 @@ export function previewLine(last: InboxPreview, labels: InboxLabels): Reading & 
 // -----------------------------------------------------------------------------
 
 /**
+ * Los canales de los que el hub NO recibe acuses de entrega: en ellos `sent` es
+ * lo último que se sabrá de un saliente. Medido en senzai-v1 (su gemela es
+ * `expectsDeliverySignal`, en `src/lib/channels/delivery-reconcile.ts`):
+ *   • instagram, messenger → la app de Meta no está suscrita a `message_deliveries`.
+ *   • telegram             → la Bot API no da acuses.
+ *   • webchat              → la fila guardada ES la entrega: el widget la lee.
+ * WhatsApp (Cloud y Twilio) y SMS (Twilio) sí traen acuses, y no están aquí.
+ *
+ * 🪤 ES LA LISTA DE LOS QUE NO TIENEN, no la de los que tienen: un canal que no
+ * está aquí cuenta como «con acuse» y su `sent` sigue diciendo «not confirmed».
+ * Es el lado seguro: equivocarse así cuesta una etiqueta de más; al revés, un
+ * acuse perdido pasaría por entregado. Cuando el hub empiece a consumir los
+ * acuses de un canal, se quita de aquí.
+ */
+const NO_DELIVERY_RECEIPTS: ReadonlySet<string> = new Set(["instagram", "messenger", "telegram", "webchat"]);
+
+/**
  * Qué se dice bajo un saliente, o `null` (un entrante no lleva nada).
  *
  * 🪤 `sent` NO ES `delivered`. `sent` es «la plataforma lo aceptó en cola»; en
@@ -331,8 +351,16 @@ export function previewLine(last: InboxPreview, labels: InboxLabels): Reading & 
  * no comparte tono con «Delivered» (verde) ni con «Sending…» (azul, se resolverá
  * solo). Un estado que el kit no conoce se enseña crudo, en rojo: callarlo lo
  * haría pasar por bueno.
+ *
+ * 🪤 Y EN UN CANAL SIN ACUSES (`NO_DELIVERY_RECEIPTS`) ESO NO SE DICE: todos sus
+ * salientes se quedan en `sent`, y la duda pintada en cada burbuja enseña a no
+ * leerla en WhatsApp, que es donde importa. Ahí dice «Sent», con el mismo tono.
  */
-export function deliveryStatus(m: Pick<InboxMessage, "direction" | "status" | "error">, labels: InboxLabels): StatusMeta | null {
+export function deliveryStatus(
+  m: Pick<InboxMessage, "direction" | "status" | "error">,
+  channel: string,
+  labels: InboxLabels,
+): StatusMeta | null {
   if (m.direction !== "outbound") return null;
   switch (m.status) {
     case "queued":
@@ -340,7 +368,7 @@ export function deliveryStatus(m: Pick<InboxMessage, "direction" | "status" | "e
     case "sending":
       return { label: labels.deliverySending, tone: "blue" };
     case "sent":
-      return { label: labels.deliverySent, tone: "gray" };
+      return { label: NO_DELIVERY_RECEIPTS.has(channel) ? labels.deliverySentNoReceipts : labels.deliverySent, tone: "gray" };
     case "delivered":
       return { label: labels.deliveryDelivered, tone: "green" };
     case "read":

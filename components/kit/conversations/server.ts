@@ -294,8 +294,11 @@ export async function fetchMedia(
  */
 const EXCLUDED_CHANNELS = new Set(["voice"]);
 
-/** El orden de las pestañas. Un canal que no está aquí va al final, por nombre. */
-const CHANNEL_ORDER = ["whatsapp", "instagram", "messenger", "sms", "webchat", "tiktok"];
+/**
+ * El orden de las pestañas. Un canal que no está aquí va al final, por nombre.
+ * Telegram, el último: es el banco de pruebas del agente, sin clientes detrás.
+ */
+const CHANNEL_ORDER = ["whatsapp", "instagram", "messenger", "sms", "webchat", "tiktok", "telegram"];
 
 function channelRank(channel: string): number {
   const i = CHANNEL_ORDER.indexOf(channel);

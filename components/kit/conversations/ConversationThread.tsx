@@ -187,7 +187,7 @@ export function ConversationThread({
         <ol className="space-y-2.5">
           {thread.messages.map((m) => {
             const reading = readMessage(m, labels);
-            const delivery = deliveryStatus(m, labels);
+            const delivery = deliveryStatus(m, conversation.channel, labels);
             return (
               <li key={m.id} className={bubbleOf(m.sender)}>
                 <p className="flex items-baseline justify-between gap-3 text-[11px] text-fg-muted">
