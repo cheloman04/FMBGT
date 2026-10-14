@@ -13,7 +13,7 @@ import { alertCalendarFailure } from '@/lib/booking-calendar';
 import { sharedTourExists } from '@/lib/shared-tours';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
-import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
+import { convertLead } from '@/lib/lead-conversion';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
@@ -67,23 +67,7 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
 
   // 2. Convert the lead → booking (if linked).
   if (booking.lead_id) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from('leads')
-        .update({
-          status: 'converted',
-          booking_id: bookingId,
-          converted_at: occurredAt,
-          last_step_completed: 'booking_confirmed',
-          last_activity_at: occurredAt,
-          updated_at: occurredAt,
-        })
-        .eq('id', booking.lead_id);
-      await cancelActiveFollowUpForConversion(booking.lead_id);
-    } catch (e) {
-      console.error('[free-booking] lead conversion failed:', (e as Error).message);
-    }
+    await convertLead(booking.lead_id, bookingId, { source: 'free-booking' });
   }
   if (booking.booking_session_id) {
     try {
