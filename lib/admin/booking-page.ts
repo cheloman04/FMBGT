@@ -174,6 +174,14 @@ export type BookingPageView = {
   history: HistoryRow[];
 };
 
+/**
+ * The link riders sign the waiver at (a kiosk on site, or sent) while someone
+ * still has to: null once the signatures cover every rider.
+ */
+export function waiverLinkUrl(b: Pick<BookingPageRecord, 'waiver_accepted' | 'waiver_link_token'>, appUrl: string): string | null {
+  return !b.waiver_accepted && b.waiver_link_token ? `${appUrl.replace(/\/$/, '')}/waiver/${b.waiver_link_token}` : null;
+}
+
 export function toBookingPage(
   b: BookingPageRecord,
   waivers: readonly WaiverRecord[],
@@ -193,7 +201,7 @@ export function toBookingPage(
     money: moneyActions(b),
     waiver: {
       coverage: waivers.length ? (covered ? WAIVER_COVERAGE.covered : WAIVER_COVERAGE.needed) : null,
-      url: !covered && b.waiver_link_token ? `${appUrl.replace(/\/$/, '')}/waiver/${b.waiver_link_token}` : null,
+      url: waiverLinkUrl(b, appUrl),
     },
     notes: b.admin_notes?.trim() || null,
     history: historyRows(history),
