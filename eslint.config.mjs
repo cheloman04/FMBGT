@@ -38,6 +38,10 @@ const eslintConfig = defineConfig([
       // Phase 2, step 3c-1: the leads list. Step 3c-2: the Trash.
       "app/admin/(panel)/leads/**/*.tsx",
       "app/admin/(panel)/trash/**/*.tsx",
+      // The inbox (the kit's `conversations` module): its page and its three
+      // proxy routes. `**` crosses the [id] folders without naming them.
+      "app/admin/(panel)/conversations/**/*.tsx",
+      "app/api/admin/conversations/**/*.ts",
     ],
   }),
   // Override default ignores of eslint-config-next.

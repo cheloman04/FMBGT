@@ -1,6 +1,7 @@
 import Image from 'next/image';
-import { AppShell, ShellFooterAction } from '@/components/kit';
+import { AppShell, ShellFooterAction, visibleNav } from '@/components/kit';
 import { requireOperator } from '@/lib/admin/auth';
+import { conversationsVisible } from '@/lib/admin/conversations';
 import { loadNavBadges } from '@/lib/admin/loaders';
 import { ADMIN_ICONS, PASSWORD_ICON, SIGN_OUT_ICON } from './_components/icons';
 import { ADMIN_NAV } from './_components/nav';
@@ -12,15 +13,21 @@ const LOGO_URL =
 // (panel) is guarded here once and drawn inside the shell.
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   await requireOperator();
-  // A counter that fails to load shouldn't take the whole admin down: no badge.
-  const badges = await loadNavBadges().catch((error: unknown) => {
-    console.error('[admin] nav badges:', error);
-    return {};
-  });
+  const [badges, inbox] = await Promise.all([
+    // A counter that fails to load shouldn't take the whole admin down: no badge.
+    loadNavBadges().catch((error: unknown) => {
+      console.error('[admin] nav badges:', error);
+      return {};
+    }),
+    // "Conversations" shows once a messaging channel is connected in the hub. It
+    // never throws, keeps its answer for a minute, and a hub that fails or is slow
+    // (2.5 s) leaves the entry visible.
+    conversationsVisible(),
+  ]);
 
   return (
     <AppShell
-      nav={ADMIN_NAV}
+      nav={visibleNav(ADMIN_NAV, inbox ? ['conversations'] : [])}
       icons={ADMIN_ICONS}
       // The full name is on the logo; the sidebar fits ~110px of text.
       brand={<span className="text-[13px] font-semibold tracking-tight">Florida MTB</span>}
