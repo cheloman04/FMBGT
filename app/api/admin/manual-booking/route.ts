@@ -12,6 +12,7 @@ import {
   updateManualBooking,
 } from '@/lib/manual-booking';
 import { getAppUrl } from '@/lib/app-url';
+import { findOpenLeadsByEmail } from '@/lib/lead-conversion';
 
 const BikeSchema = z.enum(['none', 'standard', 'electric']);
 const HeightSchema = z.number().int().min(36).max(90);
@@ -128,6 +129,10 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     const tourId = (tourData as { id: string } | null)?.id ?? null;
 
+    // The customer may have started the online flow first: link their open lead
+    // (most recently active) so finalizeManualBooking converts it.
+    const [lead] = await findOpenLeadsByEmail(d.customer_email);
+
     const waiverSessionId = randomUUID();
     const waiverLinkToken = randomUUID();
     const collectedCents = d.amount_collected_cents;
@@ -139,6 +144,7 @@ export async function POST(req: NextRequest) {
       .from('bookings')
       .insert({
         customer_id: customerId,
+        lead_id: lead?.id ?? null,
         tour_id: tourId,
         location_id: d.location_id,
         trail_type: d.trail_type,
@@ -193,7 +199,7 @@ export async function POST(req: NextRequest) {
 
     const booking = bookingData as { id: string; created_at: string };
 
-    // Finalize: Cal.com event, confirmation email w/ waiver link, Senzai, Fin Log.
+    // Finalize: lead conversion, Cal.com event, confirmation email w/ waiver link, Senzai, Fin Log.
     const result = await finalizeManualBooking(booking.id, { sendConfirmation: d.send_confirmation });
 
     return NextResponse.json(
