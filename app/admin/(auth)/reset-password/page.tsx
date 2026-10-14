@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { BackLink, Button, PageHeader, PasswordInput, buttonClasses } from '@/components/kit';
 import { getSupabaseClient } from '@/lib/supabase';
 
+// Where the reset email's link lands: its tokens come in the hash (or the query).
 function readTokenPayload() {
   if (typeof window === 'undefined') return null;
 
@@ -20,7 +21,7 @@ function readTokenPayload() {
 export default function AdminResetPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [status, setStatus] = useState('');
+  const [done, setDone] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
@@ -32,12 +33,11 @@ export default function AdminResetPasswordPage() {
 
     const prepareSession = async () => {
       if (!tokenPayload) {
-        setError('This reset link is missing required tokens. Request a new password reset email.');
+        setError('This reset link is missing its tokens. Request a new reset email.');
         return;
       }
 
-      const supabase = getSupabaseClient();
-      const { error: sessionError } = await supabase.auth.setSession(tokenPayload);
+      const { error: sessionError } = await getSupabaseClient().auth.setSession(tokenPayload);
       if (!active) return;
 
       if (sessionError) {
@@ -54,114 +54,85 @@ export default function AdminResetPasswordPage() {
     };
   }, [tokenPayload]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
     if (!sessionReady) return;
 
     setError('');
-    setStatus('');
-
-    if (password.length < 8) {
-      setError('Use at least 8 characters for the new password.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
+    if (password.length < 8) return setError('Use at least 8 characters for the new password.');
+    if (password !== confirmPassword) return setError('The two passwords don’t match.');
 
     setLoading(true);
     try {
-      const supabase = getSupabaseClient();
-      const { error: updateError } = await supabase.auth.updateUser({ password });
-      if (updateError) {
-        setError(updateError.message);
-      } else {
-        setStatus('Password updated successfully. You can now sign in to the admin dashboard.');
-      }
+      const { error: updateError } = await getSupabaseClient().auth.updateUser({ password });
+      if (updateError) setError(updateError.message);
+      else setDone(true);
     } catch {
-      setError('Unable to update the password right now. Please try again.');
+      setError('The password could not be updated right now. Try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  if (done) {
+    return (
+      <>
+        <PageHeader eyebrow="Admin" title="Password updated" subtitle="Sign in with the new password." />
+        <Link href="/admin/login" className={buttonClasses('primary', 'md', 'w-full')}>
+          Sign in
+        </Link>
+      </>
+    );
+  }
+
+  // A link that can't be used (no tokens, expired, already used): no form, the way to a new one.
+  if (error && !sessionReady) {
+    return (
+      <>
+        <BackLink href="/admin/login" label="Sign in" />
+        <PageHeader eyebrow="Admin" title="Set a new password" />
+        <p role="alert" className="mb-4 text-sm text-tone-red">
+          {error}
+        </p>
+        <Link href="/admin/forgot-password" className={buttonClasses('primary', 'md', 'w-full')}>
+          Request a new link
+        </Link>
+      </>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <Image
-              src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
-              alt="Florida Mountain Bike Trail Guided Tours"
-              width={80}
-              height={80}
-              className="rounded-xl"
-              priority
-            />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground leading-tight">Create New Admin Password</h1>
-          <p className="text-muted-foreground mt-2 text-sm">Choose a new password for the admin account.</p>
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1.5">
-                New Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-1.5">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm"
-              />
-            </div>
-
-            {status && (
-              <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
-                {status}
-              </p>
-            )}
-
-            {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || !sessionReady}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
-            >
-              {loading ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
-
-          <div className="mt-5 text-center">
-            <Link href="/admin/login" className="text-sm font-medium text-green-600 hover:text-green-700">
-              Back to login
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
+    <>
+      <BackLink href="/admin/login" label="Sign in" />
+      <PageHeader eyebrow="Admin" title="Set a new password" subtitle="At least 8 characters." />
+      <form onSubmit={onSubmit} className="space-y-4">
+        <PasswordInput
+          label="New password"
+          required
+          autoComplete="new-password"
+          showLabel="Show password"
+          hideLabel="Hide password"
+          value={password}
+          onChange={setPassword}
+        />
+        <PasswordInput
+          label="Confirm the new password"
+          required
+          autoComplete="new-password"
+          showLabel="Show password"
+          hideLabel="Hide password"
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+        />
+        {error ? (
+          <p role="alert" className="text-sm text-tone-red">
+            {error}
+          </p>
+        ) : null}
+        <Button type="submit" loading={loading} disabled={!sessionReady} layout="w-full">
+          {loading ? 'Updating…' : 'Update password'}
+        </Button>
+      </form>
+    </>
   );
 }

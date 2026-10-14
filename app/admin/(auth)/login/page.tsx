@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState, type FormEvent } from 'react';
+import { Button, Input, PageHeader, PasswordInput } from '@/components/kit';
 
 // `next` is set by middleware.ts. Only same-origin /admin paths are honored, so the
 // login page can't be used to bounce someone to another site.
@@ -20,13 +20,13 @@ function safeNextPath(raw: string | null): string {
   }
 }
 
-// Set by AdminClient when an admin API call returns 401.
+// Set by the admin's API client and the panel guard when the session ran out (?expired=1).
 function SessionExpiredNotice() {
   const searchParams = useSearchParams();
   if (searchParams.get('expired') !== '1') return null;
   return (
-    <p className="mb-5 text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-      Your session expired. Please sign in again.
+    <p role="status" className="mb-5 rounded-lg border border-tone-amber/30 bg-tone-amber/10 px-3 py-2 text-sm text-tone-amber">
+      Your session expired. Sign in again to continue.
     </p>
   );
 }
@@ -40,118 +40,68 @@ export default function AdminLoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
     setLoading(true);
     setError('');
-
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
       if (res.ok) {
         // Read at submit time so the form itself doesn't need a Suspense boundary.
         router.push(safeNextPath(new URLSearchParams(window.location.search).get('next')));
-      } else {
-        setError('Incorrect email or password. Please try again.');
+        return;
       }
+      setError('Incorrect email or password. Try again.');
     } catch {
-      setError('Connection error. Please try again.');
-    } finally {
-      setLoading(false);
+      setError('Connection error. Try again.');
     }
-  };
+    setLoading(false);
+  }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-
-        {/* Logo + Branding */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <Image
-              src="https://nhgpxegozgljqebxqtnq.supabase.co/storage/v1/object/public/images/logos/fmbgt-logo.png"
-              alt="Florida Mountain Bike Trail Guided Tours"
-              width={80}
-              height={80}
-              className="rounded-xl"
-              priority
-            />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground leading-tight">
-            Welcome to Florida Mountain Bike Trail Guided Tours
-          </h1>
-          <p className="text-muted-foreground mt-2 text-sm">Client&apos;s Dashboard</p>
-        </div>
-
-        {/* Login Card */}
-        <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
-          <Suspense fallback={null}>
-            <SessionExpiredNotice />
-          </Suspense>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1.5">
-                Admin Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="username"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1.5">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                autoFocus
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
-              />
-            </div>
-
-            {error && (
-              <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-800 rounded-lg px-3 py-2">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || !email || !password}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-
-          <div className="mt-5 text-center">
-            <Link href="/admin/forgot-password" className="text-sm font-medium text-green-600 hover:text-green-700">
-              Forgot password?
-            </Link>
-          </div>
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          Florida Mountain Bike Trail Guided Tours &copy; {new Date().getFullYear()}
-        </p>
-      </div>
-    </div>
+    <>
+      <PageHeader eyebrow="Admin" title="Sign in" subtitle="The dashboard of Florida Mountain Bike Trail Guided Tours." />
+      <Suspense fallback={null}>
+        <SessionExpiredNotice />
+      </Suspense>
+      <form onSubmit={onSubmit} className="space-y-4">
+        <Input
+          label="Email"
+          type="email"
+          required
+          autoComplete="username"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <PasswordInput
+          label="Password"
+          required
+          autoComplete="current-password"
+          showLabel="Show password"
+          hideLabel="Hide password"
+          value={password}
+          onChange={setPassword}
+        />
+        {error ? (
+          <p role="alert" className="text-sm text-tone-red">
+            {error}
+          </p>
+        ) : null}
+        <Button type="submit" loading={loading} disabled={!email || !password} layout="w-full">
+          {loading ? 'Signing in…' : 'Sign in'}
+        </Button>
+      </form>
+      <Link
+        href="/admin/forgot-password"
+        className="mt-5 inline-block text-sm font-medium text-fg-2 underline underline-offset-2 hover:text-fg"
+      >
+        Forgot your password?
+      </Link>
+    </>
   );
 }
