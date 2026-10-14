@@ -30,10 +30,9 @@ const eslintConfig = defineConfig([
       // with the lists, stays out until 3b/3c).
       "app/admin/(panel)/page.tsx",
       "lib/admin/**/*.ts",
-      // Phase 2, step 3b-1: the bookings list. Only its own files: the booking
-      // page (bookings/*/…, still in <LegacyArea>) comes in with step 4.
-      "app/admin/(panel)/bookings/*.tsx",
-      "app/admin/(panel)/bookings/_components/**/*.tsx",
+      // Phase 2, step 3b-1: the bookings list; step 4a: the booking page and
+      // its edit page (bookings/[id]/…, written with `*` below), so all of it.
+      "app/admin/(panel)/bookings/**/*.tsx",
       "app/api/admin/badges/*.ts",
       // Phase 2, step 3c-1: the leads list. Step 3c-2: the Trash.
       "app/admin/(panel)/leads/**/*.tsx",

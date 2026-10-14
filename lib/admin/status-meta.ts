@@ -59,6 +59,12 @@ export const WAIVER_STATUS = {
   signed: { label: 'Signed', tone: 'green' },
 } satisfies Record<string, StatusMeta>;
 
+/** Whether the waiver covers every rider of the booking (bookings.waiver_accepted). */
+export const WAIVER_COVERAGE = {
+  covered: { label: 'Every rider covered', tone: 'green' },
+  needed: { label: 'Signature needed', tone: 'amber' },
+} satisfies Record<string, StatusMeta>;
+
 /** A rider who rents a bike needs a height to be fitted. */
 export const SIZING_STATUS = {
   missing: { label: 'Size missing', tone: 'amber' },
@@ -91,6 +97,12 @@ export const FINANCIAL_SEVERITY: Record<FinancialSeverity, StatusMeta> = {
 };
 
 export const NEEDS_ATTENTION: StatusMeta = { label: 'Needs attention', tone: 'amber' };
+
+/** A booking edit that saved: cleanly, or with something left to do (a calendar that failed, money owed…). */
+export const SAVE_OUTCOME = {
+  saved: { label: 'Saved', tone: 'green' },
+  check: { label: 'Saved · check', tone: 'amber' },
+} satisfies Record<string, StatusMeta>;
 
 /** How recently a lead was active: hot within a day, warm within three. Older says nothing. */
 export const LEAD_FRESHNESS = {

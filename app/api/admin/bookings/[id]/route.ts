@@ -7,8 +7,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { cookies } from 'next/headers';
-import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 import { editOnlineBooking } from '@/lib/booking-edit';
 
 const BikeSchema = z.enum(['none', 'standard', 'electric']);
@@ -38,8 +37,9 @@ const EditSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await getAdminUserFromCookieStore(await cookies());
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // The session first, before any work: an API answers 401, never a redirect.
+  const admin = await getOperator();
+  if (!admin) return unauthorized();
 
   const { id } = await params;
   const parsed = EditSchema.safeParse(await req.json().catch(() => null));

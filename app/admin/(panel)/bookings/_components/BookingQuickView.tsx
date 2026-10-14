@@ -32,8 +32,25 @@ function Facts({ facts }: { facts: { label: string; value: ReactNode }[] }) {
  * old phone sheet and table row showed, each action next to what it fixes.
  * Editing the booking and the other money actions live on the booking page
  * (Open / Edit, in the drawer's footer).
+ *
+ * The booking page (/admin/bookings/[id]) mounts this same view (§4: one view,
+ * never a copy) and adds its own pieces through the slots: the money actions
+ * under Payment, the waiver link under Waivers. `closeHref` is where Archive
+ * lands: the list behind the drawer, or the list itself from the page.
  */
-export function BookingQuickView({ booking, closeHref }: { booking: BookingDetailView; closeHref: string }) {
+export function BookingQuickView({
+  booking,
+  closeHref,
+  payment,
+  waivers,
+}: {
+  booking: BookingDetailView;
+  closeHref: string;
+  /** More under Payment: the page's money actions. */
+  payment?: ReactNode;
+  /** More under Waivers: the page's coverage and waiver link. */
+  waivers?: ReactNode;
+}) {
   const { actions } = booking;
   /** The button that fixes a line of "Calendar and messages", if there is one. */
   const followUp: Record<string, ReactNode> = {
@@ -108,6 +125,7 @@ export function BookingQuickView({ booking, closeHref }: { booking: BookingDetai
             <RetryCharge bookingId={booking.id} amount={actions.retryCharge.amount} customer={booking.customer} />
           </div>
         ) : null}
+        {payment ? <div className="mt-4">{payment}</div> : null}
       </Section>
 
       <Section title="Calendar and messages">
@@ -153,6 +171,7 @@ export function BookingQuickView({ booking, closeHref }: { booking: BookingDetai
         ) : (
           <EmptyState title="No waivers signed yet. Riders sign at checkout, or through the waiver link on the booking page." />
         )}
+        {waivers ? <div className="mt-4">{waivers}</div> : null}
       </Section>
 
       <Section title="Manage" subtitle="Each change says what it sets off before it happens.">
