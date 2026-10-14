@@ -60,3 +60,26 @@ export const MOBILE_ACTIONS = {
   start: { line: "flex flex-wrap gap-2", cell: undefined },
   fill: { line: "flex flex-wrap gap-2 @lg:max-w-sm", cell: "min-w-0 grow basis-24 *:w-full" },
 } as const;
+
+/**
+ * La línea de metadatos de las FILAS (`meta · meta · meta`): la línea (`line`),
+ * el punto que separa dos celdas (`separator`) y lo que pinta cada celda
+ * (`content`).
+ *
+ * El punto no va dentro de la celda sino en el hueco entre dos (`gap-x-4` y un
+ * margen negativo del mismo ancho), y la línea recorta lo que sale por su borde
+ * izquierdo (`overflow-x-clip`). Así, cuando la línea se parte, la celda que abre
+ * el renglón nuevo deja su punto fuera, recortado.
+ *
+ * 🪤 Con el punto dentro de la celda, un renglón partido empezaba por "·"
+ * ("· Archived Oct 11, 2026"), en la papelera de FMBGT a 375px.
+ *
+ * Sin `position` en nada de esto: las filas con `rowHref` estiran su enlace por
+ * encima (`after:absolute after:inset-0`), y un `relative` aquí taparía el enlace
+ * justo donde está el texto.
+ */
+export const META_LINE = {
+  line: "flex flex-wrap gap-x-4 overflow-x-clip",
+  separator: "-ml-4 w-4 shrink-0 text-center",
+  content: "inline-flex items-center gap-1.5",
+} as const;

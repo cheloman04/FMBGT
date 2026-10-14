@@ -1,10 +1,10 @@
 {
   "kit": "dashboard",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "source": {
     "repo": "senzai-skills",
     "path": "kit/dashboard",
-    "commit": "77dc7d7f274800e3386c33f9297aaad0cf8ee4f7"
+    "commit": "ac3dcb5d5cbd4df93aa704245a2980b2ceaa58a9"
   },
   "files": {
     "AppShell.tsx": "3066e1758998c4315b721536fd3625f5393be0ed3149c026340361bc20c4f30b",
@@ -26,7 +26,7 @@
     "PeriodFilter.tsx": "9d90b4f536a153d2d3d36309d86560ba561e02e69f77ebe671d94a66889150b4",
     "ProgressBar.tsx": "b0d2106041318b83e19e53df9fc36c4ff592ee71bebe3b82a6d0d0b339134c39",
     "RelativeTime.tsx": "4e42e86ecf4311d7effa5fe5afdbb0bc941d31f54bd1fd5e89b85aa6ccbaf9c0",
-    "ResponsiveList.tsx": "c5a301f449d6702801efecd189d42e4cb899d7b6e796f3cde8970cc6e54a4f0f",
+    "ResponsiveList.tsx": "915acaff3c96d1acdc29d9c8076973bf392e3f707f484a1955c64df4ee9b8d45",
     "Section.tsx": "c942fb9c371c1afc6ce28f0968057d9d54b1346af07760e169bfd7b7513e43cc",
     "SelectMenu.tsx": "36b5d0cba930c1bb4272eac0af0f5d58664e1ea92eee437ec5125a5ff757d619",
     "Skeleton.tsx": "333dce058dd448086f70f16f1af2c2b37570361dd0c733e9d6d1c1e8d85a4a14",
@@ -36,7 +36,7 @@
     "Tabs.tsx": "defb75f551d2fa4bfb00005384f0ee1b2663f7397ddec12932aa753c9ef6830c",
     "_dialogStack.ts": "6c930c63fe515b772935399a9133f9b40deb39bb1b7df3ebfc699b63f5403698",
     "_icons.tsx": "817d33a499b2f70a6ed125f93e4a9573e3e1a1ddbe7507a7b3b4091c78a1bd0b",
-    "_list.ts": "a5cf46958f5045e673fe193ab4fbacafe7def05578cdfa1baadacf82f9095681",
+    "_list.ts": "5dda9e3eb147d239de18d792963892ff4c7d022074fda4ade9cebacdbb7832ec",
     "api.ts": "9cd605b26e83a76864a7d1c3ac5c73d48efaae302e1f859df88713fb6cfe2138",
     "calendar.ts": "0dc8e7768063fd3ade175e638e2f6e5a88dddcded59665ec574b4d86bfe8de4e",
     "chart.ts": "6021d3fb70eb06185b84e15455fbff56e12bf7fe1e0fa280be734cbc37cabab6",
@@ -59,7 +59,7 @@
     "useConfirm.tsx": "ffa55359579e4477ac0ac5ff94deae15c58cf550faa6458264696e93f4a5dda1",
     "useDialogBehavior.ts": "f812ce89273a700bcb5830b49120fc3d234c1a7d67fe09608b88d4af5ef20dea",
     "eslint/_shared.mjs": "59e19e38c3e4cd3a0aaa671d2719af7d42392bd860386e8b87411a1c51fdaf60",
-    "eslint/index.mjs": "fdadafab2adda129c8057fbbb1ae19ca2ccd1736c57c8aee3d8423cffc016d1e",
+    "eslint/index.mjs": "5ff00985e8195be6c659b2e39e8f27d07bd0564f2cb2131c93b8970bb3955f6f",
     "eslint/no-dark-variant.mjs": "ec5d8f839c8bd4be552e5c64a2bb850e4a383a1ebed24b89f4da7c74fccd2a90",
     "eslint/no-duplicate-color-utility.mjs": "152b9f09bfafbc650db2bda1fa0d1f01df37407ec3cb3eefbe9345686a4b7379",
     "eslint/no-emoji-in-ui.mjs": "d9bc92fa02eb880b16239db7328272e3ec5cda1e09bb6bca41aa2d4040f5eb31",

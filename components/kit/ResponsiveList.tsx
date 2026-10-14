@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { MOBILE_ACTIONS, TABLE_FROM, defaultTableFrom, isEmptyCell, type TableFrom } from "./_list";
+import { META_LINE, MOBILE_ACTIONS, TABLE_FROM, defaultTableFrom, isEmptyCell, type TableFrom } from "./_list";
 import { cx } from "./cx";
 
 /**
@@ -221,11 +221,15 @@ export function ResponsiveList<T>({
                 </div>
               ))}
               {meta.length ? (
-                <div className="flex flex-wrap gap-x-1.5 text-xs text-fg-muted">
+                <div className={cx(META_LINE.line, "text-xs text-fg-muted")}>
                   {meta.map((c, i) => (
-                    <span key={c.key} className="inline-flex items-center gap-1.5">
-                      {i > 0 ? <span aria-hidden="true">·</span> : null}
-                      {c.content}
+                    <span key={c.key} className="inline-flex items-center">
+                      {i > 0 ? (
+                        <span aria-hidden="true" className={META_LINE.separator}>
+                          ·
+                        </span>
+                      ) : null}
+                      <span className={META_LINE.content}>{c.content}</span>
                     </span>
                   ))}
                 </div>
