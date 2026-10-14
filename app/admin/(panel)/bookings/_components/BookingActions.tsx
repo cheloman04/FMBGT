@@ -187,7 +187,7 @@ export function ArchiveBooking({ bookingId, customer, closeHref }: { bookingId: 
     const ok = await confirm({
       title: `Archive ${customer}'s booking?`,
       description:
-        'It leaves this list and its calendar slot is freed. With payment history it goes to the Trash, where it can be restored; without any, it is deleted for good.',
+        'It leaves the bookings list and its calendar slot is freed. With payment history it goes to the Trash, where it can be restored; without any, it is deleted for good.',
       confirmLabel: 'Archive booking',
       danger: true,
     });

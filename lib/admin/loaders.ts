@@ -36,6 +36,8 @@ import {
 } from './leads';
 import { ilikeAny } from './params';
 import type { TrashedBookingRecord, TrashedLeadRecord } from './trash';
+import type { FormLocation } from './booking-form';
+import type { BookingPageRecord, HistoryRecord } from './booking-page';
 import type { GiftCardRecord } from './gift-cards';
 import type { ReferralPartnerRecord } from './referrals';
 import {
@@ -348,6 +350,55 @@ export async function loadBookingDetail(
   const record = toRecord(found[0]);
   const [waivers, reviews] = await Promise.all([loadWaivers<WaiverRecord>([record], WAIVER_COLUMNS), loadReviews([id])]);
   return { record, waivers: await signWaivers(groupWaivers([record], waivers).get(id) ?? []), review: reviews.get(id) ?? null };
+}
+
+// ─── One booking (/admin/bookings/[id] and its edit page) ───────────────────
+
+const BOOKING_PAGE_SELECT = `${BOOKING_COLUMNS}, skill_level, addons, payment_method, admin_notes, waiver_accepted, waiver_link_token, customers(name, email, phone), locations(name)`;
+
+type JoinedPageBooking = Omit<BookingPageRecord, 'customer_name' | 'customer_email' | 'customer_phone' | 'location_name'> &
+  Pick<JoinedBooking, 'customers' | 'locations'>;
+
+/** A booking that isn't archived, as its page and the edit form read it; null if there is none. */
+async function bookingPageRecord(id: string): Promise<BookingPageRecord | null> {
+  const found = await rows<JoinedPageBooking>(
+    'booking',
+    from('bookings').select(BOOKING_PAGE_SELECT).eq('id', id).is('deleted_at', null).limit(1),
+  );
+  // toRecord() keeps the extra columns: it only flattens the customer and the location.
+  return found[0] ? (toRecord(found[0]) as BookingPageRecord) : null;
+}
+
+/** The booking, its signed waivers, its review request and its last 50 Financial log events. */
+export async function loadBookingPage(
+  id: string,
+): Promise<{ record: BookingPageRecord; waivers: WaiverRecord[]; review: ReviewEnrollment | null; history: HistoryRecord[] } | null> {
+  const record = await bookingPageRecord(id);
+  if (!record) return null;
+  const [waivers, reviews, history] = await Promise.all([
+    loadWaivers<WaiverRecord>([record], WAIVER_COLUMNS),
+    loadReviews([id]),
+    rows<HistoryRecord>(
+      'booking',
+      from('financial_event_logs')
+        .select('id, event_name, message, amount, occurred_at')
+        .eq('booking_id', id)
+        .order('occurred_at', { ascending: false })
+        .limit(50),
+    ),
+  ]);
+  return { record, waivers: await signWaivers(groupWaivers([record], waivers).get(id) ?? []), review: reviews.get(id) ?? null, history };
+}
+
+/** The booking to edit and the locations it can move to (active, same kind of tour). */
+export async function loadBookingForEdit(id: string): Promise<{ record: BookingPageRecord; locations: FormLocation[] } | null> {
+  const record = await bookingPageRecord(id);
+  if (!record) return null;
+  const locations = await rows<FormLocation>(
+    'booking',
+    from('locations').select('id, name, tour_type, skill_levels').eq('active', true).eq('tour_type', record.trail_type).order('name'),
+  );
+  return { record, locations };
 }
 
 // ─── Leads (/admin/leads) ───────────────────────────────────────────────────

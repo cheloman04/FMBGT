@@ -6,8 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { cookies } from 'next/headers';
-import { getAdminUserFromCookieStore } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 import { applyBookingPayment } from '@/lib/booking-payments';
 
 const Amount = z.number().int().min(1).max(100_000_00);
@@ -33,8 +32,9 @@ const PaymentSchema = z.discriminatedUnion('action', [
 ]);
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await getAdminUserFromCookieStore(await cookies());
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // The session first, before any work: an API answers 401, never a redirect.
+  const admin = await getOperator();
+  if (!admin) return unauthorized();
 
   const { id } = await params;
   const parsed = PaymentSchema.safeParse(await req.json().catch(() => null));

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { requireAdminUser } from '@/lib/admin-auth';
+import { getOperator, unauthorized } from '@/lib/admin/auth';
 import {
   MANUAL_BOOKING_LIST_COLUMNS,
   finalizeManualBooking,
@@ -79,8 +79,10 @@ const PatchSchema = z.discriminatedUnion('action', [
 
 // GET — list manual bookings (newest first)
 export async function GET() {
+  // The session first, outside the try: an API answers 401, never a redirect
+  // (requireAdminUser()'s redirect inside the try came out as a 500).
+  if (!(await getOperator())) return unauthorized();
   try {
-    await requireAdminUser();
     const supabase = getSupabaseAdmin();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
@@ -99,9 +101,11 @@ export async function GET() {
 
 // POST — create a manual (cash / off-platform) booking and finalize it (no Stripe)
 export async function POST(req: NextRequest) {
+  const admin = await getOperator();
+  if (!admin) return unauthorized();
   try {
-    const admin = await requireAdminUser();
-    const parsed = CreateSchema.safeParse(await req.json());
+    // A malformed body is a 400, not a 500.
+    const parsed = CreateSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid data', details: parsed.error.flatten() }, { status: 400 });
     }
@@ -220,9 +224,10 @@ export async function POST(req: NextRequest) {
 // PATCH — act on an existing manual booking: resend the confirmation email,
 // edit it, or record a payment toward its balance.
 export async function PATCH(req: NextRequest) {
+  const admin = await getOperator();
+  if (!admin) return unauthorized();
   try {
-    const admin = await requireAdminUser();
-    const parsed = PatchSchema.safeParse(await req.json());
+    const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid data', details: parsed.error.flatten() }, { status: 400 });
     }
