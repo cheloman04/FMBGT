@@ -13,6 +13,7 @@ describe('ADMIN_NAV', () => {
       'Dashboard',
       'Bookings',
       'Leads',
+      'Conversations',
       'Manual booking',
       'Financial log',
       'Referrals',
@@ -27,6 +28,12 @@ describe('ADMIN_NAV', () => {
 
   it('the badges are the ones loadNavBadges() counts', () => {
     expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual(['bookings', 'leads']);
+  });
+
+  it('only Conversations depends on a feature: the layout turns it on when a channel is connected', () => {
+    expect(ADMIN_NAV.flatMap((item) => ('feature' in item && item.feature ? [`${item.href}:${item.feature}`] : []))).toEqual([
+      '/admin/conversations:conversations',
+    ]);
   });
 
   it('every entry is a real page of the panel', () => {

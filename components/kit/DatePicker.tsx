@@ -79,6 +79,10 @@ const LABELS_EN: DatePickerLabels = {
  *
  * 🪤 El portal va al `[data-kit]` más cercano, NO a `document.body`: fuera de él
  * el popup se quedaría sin los tokens del dashboard (§7.3).
+ *
+ * 🪤 Ahí comparte capa con los diálogos (`Modal` z-[70], `Drawer` z-[60]), así que
+ * va POR ENCIMA de ellos (z-[80]): se abre desde dentro de uno. Con z-50 el
+ * calendario de un campo de un `Modal` salía debajo de su veladura.
  */
 export function DatePicker({
   name,
@@ -249,7 +253,7 @@ export function DatePicker({
                 }
               }}
               style={{ position: "fixed", top: coords.top, left: coords.left, width: coords.width }}
-              className="kit-elevated z-50 overflow-hidden rounded-2xl"
+              className="kit-elevated z-[80] overflow-hidden rounded-2xl"
             >
               <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
                 <p className="text-sm font-semibold text-fg">

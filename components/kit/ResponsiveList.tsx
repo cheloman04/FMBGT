@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { isEmptyCell } from "./_list";
+import { MOBILE_ACTIONS, isEmptyCell } from "./_list";
 import { cx } from "./cx";
 
 /**
@@ -11,7 +11,8 @@ import { cx } from "./cx";
  *   [meta · meta · meta]
  *   [actions]
  *
- * `hidden`: solo en escritorio.
+ * `hidden`: solo en escritorio. La línea de `actions` va a su ancho, a la
+ * izquierda; con `mobileActions="fill"` ocupa la fila a partes iguales.
  */
 export type MobileRole = "primary" | "secondary" | "meta" | "status" | "actions" | "hidden";
 
@@ -61,6 +62,7 @@ export function ResponsiveList<T>({
   rowHref,
   caption,
   density = "operate",
+  mobileActions = "start",
   empty,
 }: {
   rows: readonly T[];
@@ -72,6 +74,12 @@ export function ResponsiveList<T>({
   caption: string;
   /** `operate` (filas de 40–44px, el admin) o `report` (56–64px, el portal). §1. */
   density?: keyof typeof ROW_PADDING;
+  /**
+   * La línea de acciones del TELÉFONO: `start`, cada control a su ancho y a la
+   * izquierda; `fill`, la fila entera a partes iguales (dos botones, dos mitades).
+   * En la tabla no cambia nada.
+   */
+  mobileActions?: keyof typeof MOBILE_ACTIONS;
   /** Lo que se pinta sin filas: un `EmptyState`. */
   empty?: ReactNode;
 }) {
@@ -207,9 +215,11 @@ export function ResponsiveList<T>({
                 </div>
               ) : null}
               {actions.length ? (
-                <div className="relative z-[1] mt-1.5 flex flex-wrap gap-2">
+                <div className={cx("relative z-[1] mt-1.5", MOBILE_ACTIONS[mobileActions].line)}>
                   {actions.map((c) => (
-                    <div key={c.key}>{c.content}</div>
+                    <div key={c.key} className={MOBILE_ACTIONS[mobileActions].cell}>
+                      {c.content}
+                    </div>
                   ))}
                 </div>
               ) : null}

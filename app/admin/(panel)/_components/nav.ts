@@ -9,6 +9,9 @@ export const ADMIN_NAV = defineNav([
   { href: '/admin/bookings', label: 'Bookings', badge: 'bookings' },
   // The badge counts the leads active in the last 24 hours: news, not a fault.
   { href: '/admin/leads', label: 'Leads', badge: 'leads' },
+  // Instagram, Messenger and WhatsApp DMs. Hidden until a messaging channel has
+  // an active account in the hub (`conversationsVisible()` in the layout).
+  { href: '/admin/conversations', label: 'Conversations', feature: 'conversations' },
   { href: '/admin/manual-booking', label: 'Manual booking' },
   { href: '/admin/fin-log', label: 'Financial log' },
   { href: '/admin/referrals', label: 'Referrals' },
