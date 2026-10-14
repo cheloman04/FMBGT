@@ -35,10 +35,9 @@ const eslintConfig = defineConfig([
       "app/admin/(panel)/bookings/*.tsx",
       "app/admin/(panel)/bookings/_components/**/*.tsx",
       "app/api/admin/badges/*.ts",
-      // Phase 2, step 3c-1: the leads list, and the Trash's own page (its body,
-      // trash/LegacyTrash.tsx, stays out until 3c-2 rebuilds it).
+      // Phase 2, step 3c-1: the leads list. Step 3c-2: the Trash.
       "app/admin/(panel)/leads/**/*.tsx",
-      "app/admin/(panel)/trash/page.tsx",
+      "app/admin/(panel)/trash/**/*.tsx",
     ],
   }),
   // Override default ignores of eslint-config-next.
