@@ -35,6 +35,7 @@ import {
   type LeadView,
 } from './leads';
 import { ilikeAny } from './params';
+import type { TrashedBookingRecord, TrashedLeadRecord } from './trash';
 import type { GiftCardRecord } from './gift-cards';
 import type { ReferralPartnerRecord } from './referrals';
 import {
@@ -494,54 +495,49 @@ export async function loadLeadDetail(id: string): Promise<{ lead: LeadRecord; en
 
 // ─── Trash (/admin/trash) ───────────────────────────────────────────────────
 
-/**
- * The newest 100 archived bookings and leads, in the shape the legacy Trash
- * reads. TEMPORARY shape: step 3c-2 rebuilds the page on view-models.
- */
-export async function loadTrash() {
-  const [bookings, leads] = await Promise.all([
-    rows<{
-      id: string;
-      status: string;
-      date: string;
-      total_price: number;
-      deposit_amount: number | null;
-      deposit_payment_status: string | null;
-      deleted_at: string;
-      deleted_by: string | null;
-      created_at: string;
+/** The first `limit` archived rows of a table, most recently archived first, and how many there are. */
+async function archived<T>(table: string, columns: string, limit: number): Promise<{ records: T[]; total: number }> {
+  const { data, error, count: total } = await from(table)
+    .select(columns, { count: 'exact' })
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+    // A tie-break, so "Load more" never shows a row twice or skips one.
+    .order('id', { ascending: true })
+    .range(0, limit - 1);
+  if (error) throw new Error(`[admin/trash] ${table}: ${error.message}`);
+  return { records: (data ?? []) as T[], total: total ?? 0 };
+}
+
+const TRASHED_BOOKING_COLUMNS =
+  'id, status, date, time_slot, booking_source, total_price, total_after_discount_cents, deposit_paid_cents, ' +
+  'deposit_payment_status, remaining_balance_amount, remaining_balance_status, extra_paid_cents, refunded_cents, ' +
+  'stripe_payment_method_id, deleted_at, deleted_by, customers(name), locations(name)';
+
+export async function loadTrashedBookings(limit: number): Promise<{ records: TrashedBookingRecord[]; total: number }> {
+  const { records, total } = await archived<
+    Omit<TrashedBookingRecord, 'customer_name' | 'location_name'> & {
+      customers: { name: string | null } | null;
       locations: { name: string | null } | null;
-    }>(
-      'trash',
-      from('bookings')
-        .select('id, status, date, total_price, deposit_amount, deposit_payment_status, deleted_at, deleted_by, created_at, locations(name)')
-        .not('deleted_at', 'is', null)
-        .order('deleted_at', { ascending: false })
-        .limit(100),
-    ),
-    rows<{
-      id: string;
-      full_name: string;
-      email: string;
-      phone: string | null;
-      selected_trail_type: string | null;
-      selected_location_name: string | null;
-      deleted_at: string;
-      deleted_by: string | null;
-      created_at: string;
-    }>(
-      'trash',
-      from('leads')
-        .select('id, full_name, email, phone, selected_trail_type, selected_location_name, deleted_at, deleted_by, created_at')
-        .not('deleted_at', 'is', null)
-        .order('deleted_at', { ascending: false })
-        .limit(100),
-    ),
-  ]);
+    }
+  >('bookings', TRASHED_BOOKING_COLUMNS, limit);
   return {
-    bookings: bookings.map(({ locations, ...b }) => ({ ...b, location_name: locations?.name ?? 'Unknown' })),
-    leads,
+    records: records.map(({ customers, locations, ...b }) => ({
+      ...b,
+      customer_name: customers?.name ?? null,
+      location_name: locations?.name ?? null,
+    })),
+    total,
   };
+}
+
+/** The archived leads, and which of them a payment on one of their bookings converted. */
+export async function loadTrashedLeads(limit: number): Promise<{ records: TrashedLeadRecord[]; total: number; withPaidBooking: Set<string> }> {
+  const { records, total } = await archived<TrashedLeadRecord>(
+    'leads',
+    'id, full_name, email, selected_trail_type, selected_location_name, status, booking_id, converted_at, lost_at, deleted_at, deleted_by',
+    limit,
+  );
+  return { records, total, withPaidBooking: await loadLeadsWithPaymentSignal(records.map((l) => l.id)) };
 }
 
 // ─── The menu's badges (§5.3) ───────────────────────────────────────────────

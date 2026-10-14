@@ -112,6 +112,13 @@ export const LEAD_FOLLOW_UP = {
   converted: { label: 'Converted', tone: 'green' },
 } satisfies Record<string, StatusMeta>;
 
+/** Where a lead stands as a whole (the Trash): booked, lost, or still open. */
+export const LEAD_STATUS = {
+  open: { label: 'Open', tone: 'gray' },
+  converted: LEAD_FOLLOW_UP.converted,
+  lost: LEAD_FOLLOW_UP.lost,
+} satisfies Record<string, StatusMeta>;
+
 export type FollowUpStepStatus = 'pending' | 'sent' | 'skipped' | 'cancelled';
 
 export const FOLLOW_UP_STEP: Record<FollowUpStepStatus, StatusMeta> = {
