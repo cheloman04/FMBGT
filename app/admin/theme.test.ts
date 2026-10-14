@@ -11,7 +11,7 @@ const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 const themeCss = strip(readFileSync(join(root, 'app/admin/theme.css'), 'utf8'));
 const kitCss = strip(readFileSync(join(root, 'components/kit/kit.css'), 'utf8'));
 
-/** The declarations of the first `[data-kit] {` block: the theme itself, not the bridge. */
+/** The declarations of the first `[data-kit] {` block: the theme itself. */
 function themeTokens(): Record<string, string> {
   const block = themeCss.match(/\[data-kit\]\s*\{([^}]*)\}/)?.[1] ?? '';
   return Object.fromEntries([...block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
