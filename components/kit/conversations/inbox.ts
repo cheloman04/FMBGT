@@ -64,8 +64,10 @@ export type InboxLabels = {
   sending: string;
   takeoverWarning: string;
   whatsappWindow: string;
-  handBack: string;
-  handingBack: string;
+  agentSwitch: string;
+  agentOn: string;
+  agentOff: string;
+  tookOver: string;
   handBackConfirmTitle: string;
   handBackConfirmMuted: string;
   handBackConfirmUnconfigured: string;
@@ -151,10 +153,12 @@ export const INBOX_LABELS: InboxLabels = {
   send: "Send",
   sending: "Sending…",
   takeoverWarning:
-    "If you reply, you take over this conversation: the AI agent stops answering it until you hand it back.",
+    "If you reply, you take over this conversation: the AI agent stops answering it until you turn it back on.",
   whatsappWindow: "Their last WhatsApp message is over 24 hours old: a free-text reply may not go out.",
-  handBack: "Hand back to the AI agent",
-  handingBack: "Handing back…",
+  agentSwitch: "AI agent",
+  agentOn: "On",
+  agentOff: "Off",
+  tookOver: "You're handling this conversation. The AI agent won't reply until you turn it back on.",
   handBackConfirmTitle: "Nobody will answer this conversation",
   handBackConfirmMuted: "The AI agent is switched off for {channel}. If you hand this conversation back, nobody replies until you take it again.",
   handBackConfirmUnconfigured: "No AI agent answers {channel} yet. If you hand this conversation back, nobody replies until you take it again.",
@@ -482,6 +486,25 @@ export function handBackWarning(agent: AgentState | string | undefined, channel:
   const name = channelName(channel, labels);
   if (agent === "muted") return fill(labels.handBackConfirmMuted, { channel: name });
   return fill(labels.handBackConfirmUnconfigured, { channel: name });
+}
+
+/**
+ * Lo que hace el interruptor «AI agent» del hilo al moverlo.
+ *
+ * - Encenderlo (`true`) devuelve el hilo al agente (`handler: agent`), y pide
+ *   confirmación si en ese canal no hay agente que conteste.
+ * - Apagarlo (`false`) lo toma sin escribir nada (`handler: human`): para callar al
+ *   agente en ESE hilo cuando se está equivocando. Sin confirmación: no deja a
+ *   nadie sin respuesta, la deja en manos del operador, y se deshace con el mismo
+ *   interruptor.
+ */
+export function agentSwitchPlan(
+  next: boolean,
+  agent: AgentState | string | undefined,
+  channel: string,
+  labels: InboxLabels,
+): { handler: "agent" | "human"; confirm: string | null } {
+  return next ? { handler: "agent", confirm: handBackWarning(agent, channel, labels) } : { handler: "human", confirm: null };
 }
 
 /**
