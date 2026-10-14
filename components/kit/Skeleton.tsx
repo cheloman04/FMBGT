@@ -28,17 +28,19 @@ export function SkeletonText({ lines = 3 }: { lines?: number }) {
   );
 }
 
-/** La forma de una `MetricStrip`. */
+/** La forma de una `MetricStrip`: fila desde 42rem de ancho, como ella (`@container`). */
 export function SkeletonMetrics({ count = 4 }: { count?: number }) {
   return (
-    <div aria-hidden="true" className="grid grid-cols-2 gap-6 border-b border-hairline pb-5 md:flex md:gap-0 md:divide-x md:divide-hairline">
-      {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="space-y-2.5 md:flex-1 md:px-5 md:first:pl-0">
-          <div className={cx(PULSE, "h-2.5 w-20")} />
-          <div className={cx(PULSE, "h-6 w-24")} />
-          <div className={cx(PULSE, "h-2.5 w-16")} />
-        </div>
-      ))}
+    <div className="@container">
+      <div aria-hidden="true" className="grid grid-cols-2 gap-6 border-b border-hairline pb-5 @2xl:flex @2xl:gap-0 @2xl:divide-x @2xl:divide-hairline">
+        {Array.from({ length: count }, (_, i) => (
+          <div key={i} className="space-y-2.5 @2xl:flex-1 @2xl:px-5 @2xl:first:pl-0">
+            <div className={cx(PULSE, "h-2.5 w-20")} />
+            <div className={cx(PULSE, "h-6 w-24")} />
+            <div className={cx(PULSE, "h-2.5 w-16")} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

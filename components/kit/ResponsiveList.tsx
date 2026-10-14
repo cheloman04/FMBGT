@@ -1,31 +1,32 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { MOBILE_ACTIONS, isEmptyCell } from "./_list";
+import { MOBILE_ACTIONS, TABLE_FROM, defaultTableFrom, isEmptyCell, type TableFrom } from "./_list";
 import { cx } from "./cx";
 
 /**
- * Qué papel hace una columna en el TELÉFONO, donde la tabla pasa a filas:
+ * Qué papel hace una columna en las FILAS: la forma de la lista cuando no tiene
+ * ancho de tabla (el teléfono, o una pantalla mediana con el menú abierto):
  *
  *   [primary, en negrita]                   [status]
  *   [secondary]
  *   [meta · meta · meta]
  *   [actions]
  *
- * `hidden`: solo en escritorio. La línea de `actions` va a su ancho, a la
+ * `hidden`: solo en la tabla. La línea de `actions` va a su ancho, a la
  * izquierda; con `mobileActions="fill"` ocupa la fila a partes iguales.
  */
 export type MobileRole = "primary" | "secondary" | "meta" | "status" | "actions" | "hidden";
 
 export type Column<T> = {
   key: string;
-  /** Cabecera de la columna en escritorio. */
+  /** Cabecera de la columna en la tabla. */
   header: string;
   cell: (row: T) => ReactNode;
   /** Las cifras van a la derecha. */
   align?: "left" | "right";
-  /** Ancho en escritorio, como clase (`w-32`, `w-[8rem]`). Solo maquetación. */
+  /** Ancho en la tabla, como clase (`w-32`, `w-[8rem]`). Solo maquetación. */
   width?: string;
-  /** Papel en el teléfono. Por defecto, la primera columna es `primary` y el resto `meta`. */
+  /** Papel en las filas. Por defecto, la primera columna es `primary` y el resto `meta`. */
   mobile?: MobileRole;
   /**
    * La celda tiene botones o enlaces propios. Con `rowHref` toda la fila es un
@@ -35,7 +36,7 @@ export type Column<T> = {
   /**
    * Lo que pinta la TABLA cuando la celda está vacía (`null`, `undefined`, `false`
    * o `""`; un `0` es un dato). Por defecto un "—" apagado; en la columna de
-   * acciones, nada. En el teléfono una celda vacía se omite siempre: un "—" suelto
+   * acciones, nada. En las filas una celda vacía se omite siempre: un "—" suelto
    * al final de la línea de metadatos no dice nada.
    */
   empty?: ReactNode;
@@ -45,15 +46,22 @@ const ALIGN = { left: "text-left", right: "text-right" } as const;
 const ROW_PADDING = { operate: "py-2.5", report: "py-4" } as const;
 
 /**
- * Una lista de registros: TABLA en escritorio y FILAS en el teléfono, desde una
- * sola definición de columnas (§6.4). Nada de escribir la tabla y las tarjetas por
+ * Una lista de registros: TABLA cuando hay sitio y FILAS cuando no, desde una sola
+ * definición de columnas (§6.4). Nada de escribir la tabla y las tarjetas por
  * separado: en FMBGT esa pareja estaba repetida tres veces, y una de las tres
  * copias ya enseñaba datos distintos.
+ *
+ * "Cuando hay sitio" lo decide el ancho de la LISTA (`@container`), no el de la
+ * pantalla: ver `tableFrom`.
  *
  * Filas sobre el lienzo separadas por filetes, sin caja (§7.6). Con `rowHref`
  * toda la fila es un enlace (al detalle, o a `?booking=id` para abrir un Drawer).
  *
  * Sin hooks: sirve igual en una página de servidor que dentro de una isla.
+ *
+ * 🪤 La raíz es un contenedor de tamaño en línea: su ancho no puede salir de lo que
+ * tiene dentro. Dentro de una fila `flex`, dale `flex-1` o `w-full`; con su ancho
+ * "automático" mediría 0.
  */
 export function ResponsiveList<T>({
   rows,
@@ -62,6 +70,7 @@ export function ResponsiveList<T>({
   rowHref,
   caption,
   density = "operate",
+  tableFrom,
   mobileActions = "start",
   empty,
 }: {
@@ -75,7 +84,13 @@ export function ResponsiveList<T>({
   /** `operate` (filas de 40–44px, el admin) o `report` (56–64px, el portal). §1. */
   density?: keyof typeof ROW_PADDING;
   /**
-   * La línea de acciones del TELÉFONO: `start`, cada control a su ancho y a la
+   * Desde qué ancho de la LISTA sale la tabla: `sm` 512px, `md` 672px, `lg` 896px.
+   * Por defecto, según cuántas columnas tiene (hasta 3, `sm`; 4–5, `md`; 6 o más,
+   * `lg`). Súbelo si las celdas son largas; bájalo si son cifras cortas.
+   */
+  tableFrom?: TableFrom;
+  /**
+   * La línea de acciones de las FILAS: `start`, cada control a su ancho y a la
    * izquierda; `fill`, la fila entera a partes iguales (dos botones, dos mitades).
    * En la tabla no cambia nada.
    */
@@ -94,11 +109,12 @@ export function ResponsiveList<T>({
     if (col.empty !== undefined) return col.empty;
     return role(col, i) === "actions" ? null : <span className="text-fg-muted">—</span>;
   };
+  const at = TABLE_FROM[tableFrom ?? defaultTableFrom(columns.length)];
 
   return (
-    <div>
-      {/* ── Escritorio: tabla ─────────────────────────────────────────── */}
-      <div className="hidden overflow-x-auto md:block">
+    <div className="@container">
+      {/* ── Con sitio: tabla ──────────────────────────────────────────── */}
+      <div className={cx("overflow-x-auto", at.table)}>
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead>
@@ -159,10 +175,10 @@ export function ResponsiveList<T>({
         </table>
       </div>
 
-      {/* ── Teléfono: filas ──────────────────────────────────────────────
+      {/* ── Sin sitio: filas ─────────────────────────────────────────────
           Sin filete arriba: el de la Section (o la cabecera) ya separa. Un filete,
           no dos. */}
-      <ul className="divide-y divide-hairline border-b border-hairline md:hidden" aria-label={caption}>
+      <ul className={cx("divide-y divide-hairline border-b border-hairline", at.rows)} aria-label={caption}>
         {rows.map((row) => {
           const href = rowHref?.(row);
           // Las celdas de cada papel, ya renderizadas y sin las vacías.

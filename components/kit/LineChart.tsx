@@ -142,25 +142,30 @@ export function LineChart({
         </div>
       </div>
 
-      <table className="sr-only">
-        <caption>{ariaLabel}</caption>
-        <thead>
-          <tr>
-            <th scope="col" />
-            <th scope="col">{series.label}</th>
-            {compare ? <th scope="col">{compare.label}</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {xLabels.map((label, i) => (
-            <tr key={i}>
-              <th scope="row">{label}</th>
-              <td>{series.values[i] == null ? "—" : formatValue(series.values[i]!)}</td>
-              {compare ? <td>{compare.values[i] == null ? "—" : formatValue(compare.values[i]!)}</td> : null}
+      {/* 🪤 `sr-only` va en un div, no en la tabla: una tabla no encoge a 1px (su
+          ancho mínimo es el de su contenido) y a 320px desbordaba el <main> hacia
+          la derecha. El div sí mide 1px y recorta lo de dentro. */}
+      <div className="sr-only">
+        <table>
+          <caption>{ariaLabel}</caption>
+          <thead>
+            <tr>
+              <th scope="col" />
+              <th scope="col">{series.label}</th>
+              {compare ? <th scope="col">{compare.label}</th> : null}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {xLabels.map((label, i) => (
+              <tr key={i}>
+                <th scope="row">{label}</th>
+                <td>{series.values[i] == null ? "—" : formatValue(series.values[i]!)}</td>
+                {compare ? <td>{compare.values[i] == null ? "—" : formatValue(compare.values[i]!)}</td> : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

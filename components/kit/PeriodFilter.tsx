@@ -5,7 +5,7 @@ import { withParam, type SearchParamsInput } from "./url";
 export type PeriodOption = { value: string; label: string };
 
 const SEGMENT =
-  "inline-flex min-h-8 items-center rounded-md px-3 text-xs font-medium transition-colors duration-150 max-sm:min-h-11 " +
+  "inline-flex min-h-8 items-center rounded-md px-3 text-xs font-medium transition-colors duration-150 max-sm:min-h-11 max-sm:flex-1 max-sm:justify-center " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ac-500/60";
 
 /**
@@ -21,6 +21,11 @@ const SEGMENT =
  *
  * 🪤 El segmento activo es neutro (relleno de superficie), no de acento: el acento
  * es para la acción primaria y la serie del periodo actual, no para un filtro (§7.5).
+ *
+ * En el teléfono (por debajo de `sm`, 640px: §1) ocupa todo el ancho de donde
+ * esté y los segmentos se reparten la fila a partes iguales, con 44px de alto. En
+ * la cabecera de la página eso es la fila entera (`PageHeader` da la fila a sus
+ * acciones en el teléfono); en la acción de una `Section`, su ancho de siempre.
  */
 export function PeriodFilter({
   options,
@@ -41,7 +46,11 @@ export function PeriodFilter({
   ariaLabel?: string;
 }) {
   return (
-    <div role="group" aria-label={ariaLabel} className="inline-flex rounded-lg border border-hairline bg-surface-muted p-0.5">
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      className="inline-flex rounded-lg border border-hairline bg-surface-muted p-0.5 max-sm:flex max-sm:w-full"
+    >
       {options.map((o) => {
         const active = o.value === value;
         const className = cx(SEGMENT, active ? "bg-surface text-fg" : "text-fg-muted hover:text-fg");

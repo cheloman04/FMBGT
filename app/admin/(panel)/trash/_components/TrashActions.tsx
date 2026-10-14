@@ -1,8 +1,6 @@
 'use client';
 
-import { useState, type MouseEvent } from 'react';
-import { createPortal } from 'react-dom';
-import { Button, useAction, useConfirm, type ConfirmRequest } from '@/components/kit';
+import { Button, useAction, useConfirm } from '@/components/kit';
 import { api } from '@/lib/admin/api';
 import type { TrashActionsCopy } from '@/lib/admin/trash';
 
@@ -18,11 +16,6 @@ const BODY_KEY = { booking: 'booking_id', lead: 'lead_id' } as const;
 
 export function TrashActions({ kind, id, restore, purge }: TrashActionsCopy & { kind: 'booking' | 'lead'; id: string }) {
   const { confirm, dialog } = useConfirm();
-  // 🪤 The confirmation can't render in place: these buttons sit in a list cell
-  // lifted over the row (`relative z-[1]`, a stacking context), and every later
-  // row would paint over its veil — and stay clickable. It goes to the nearest
-  // [data-kit], where the theme's tokens still apply (as the kit's DatePicker).
-  const [layer, setLayer] = useState<Element | null>(null);
   const body = { [BODY_KEY[kind]]: id };
   // The menu's counters: a restored lead can be a hot one again, and deleting a
   // booking for good can leave its lead without a paid booking, back among the
@@ -32,28 +25,24 @@ export function TrashActions({ kind, id, restore, purge }: TrashActionsCopy & { 
   const purgeAction = useAction(() => api.post(`/api/admin/purge-${kind}`, body), { badges: kind === 'booking' });
   const busy = restoreAction.pending || purgeAction.pending;
 
-  async function ask(event: MouseEvent<HTMLButtonElement>, request: ConfirmRequest): Promise<boolean> {
-    setLayer(event.currentTarget.closest('[data-kit]') ?? document.body);
-    return confirm(request);
-  }
-
-  async function onRestore(event: MouseEvent<HTMLButtonElement>) {
+  async function onRestore() {
     purgeAction.clearError();
-    if (await ask(event, restore)) await restoreAction.run();
+    if (await confirm(restore)) await restoreAction.run();
   }
 
-  async function onPurge(event: MouseEvent<HTMLButtonElement>) {
+  async function onPurge() {
     restoreAction.clearError();
-    if (await ask(event, purge)) await purgeAction.run();
+    if (await confirm(purge)) await purgeAction.run();
   }
 
   const error = restoreAction.error ?? purgeAction.error;
 
+  // `@2xl:` is the list's width, where it turns into a table (`tableFrom="md"` on
+  // the Trash page). In the rows the list gives this a whole line
+  // (`mobileActions="fill"`): two halves. In the table, side by side on the right.
   return (
-    <div className="flex flex-col gap-1.5 max-md:mt-2 md:items-end">
-      {/* On the phone, the row's last line: two halves. In the table, right
-          aligned; a narrow one stacks them, never breaking "Delete forever" in two. */}
-      <div className="grid grid-cols-2 gap-2 whitespace-nowrap md:flex md:flex-wrap md:justify-end">
+    <div className="flex flex-col gap-1.5 @2xl:items-end">
+      <div className="grid grid-cols-2 gap-2 whitespace-nowrap @2xl:flex @2xl:justify-end">
         <Button size="sm" variant="secondary" loading={restoreAction.pending} disabled={busy} onClick={onRestore}>
           Restore
         </Button>
@@ -62,11 +51,11 @@ export function TrashActions({ kind, id, restore, purge }: TrashActionsCopy & { 
         </Button>
       </div>
       {error ? (
-        <p role="alert" className="text-xs text-tone-red md:max-w-64 md:text-right">
+        <p role="alert" className="text-xs text-tone-red @2xl:max-w-64 @2xl:text-right">
           {error}
         </p>
       ) : null}
-      {dialog && layer ? createPortal(dialog, layer) : null}
+      {dialog}
     </div>
   );
 }

@@ -40,6 +40,10 @@ const PATH = '/admin/leads';
 
 type Params = Record<string, string | string[] | undefined>;
 
+// The list turns into a table from 672px of its own width (`tableFrom="md"`, a
+// container query: the side menu, open or folded, decides as much as the
+// screen). Below, rows. The cells' `@2xl:` / `@max-2xl:` are that same line, so
+// the two must move together.
 const COLUMNS: Column<LeadRow>[] = [
   {
     key: 'lead',
@@ -47,25 +51,25 @@ const COLUMNS: Column<LeadRow>[] = [
     cell: (r) => (
       <>
         <span className="block">{r.name}</span>
-        {/* From lg up: on a tablet the table needs the room, and the drawer has the email. */}
-        <span className="block text-xs font-normal text-fg-muted max-lg:hidden">{r.email}</span>
+        {/* Only on a wide table: a narrow one needs the room, and the drawer has the email. */}
+        <span className="block text-xs font-normal text-fg-muted @max-3xl:hidden">{r.email}</span>
       </>
     ),
   },
   {
     key: 'interest',
     header: 'Interest',
-    // Two lines in the table (what, then how far they got), one on the phone.
+    // Two lines in the table (what, then how far they got), one in the rows.
     cell: (r) =>
       r.interest || r.stage ? (
         <>
-          <span className="md:block">{r.interest ?? '—'}</span>
+          <span className="@2xl:block">{r.interest ?? '—'}</span>
           {r.stage ? (
             <>
-              <span aria-hidden="true" className="md:hidden">
+              <span aria-hidden="true" className="@2xl:hidden">
                 {' · '}
               </span>
-              <span className="text-xs text-fg-muted md:block">
+              <span className="text-xs text-fg-muted @2xl:block">
                 {r.stage} · {r.progress}%
               </span>
             </>
@@ -79,9 +83,9 @@ const COLUMNS: Column<LeadRow>[] = [
     key: 'followUp',
     header: 'Follow-up',
     cell: (r) => (
-      <span className="inline-flex flex-col items-end gap-1 md:items-start">
+      <span className="inline-flex flex-col items-end gap-1 @2xl:items-start">
         <StatusBadge meta={r.followUp} size="sm" />
-        <span className="text-xs text-fg-muted max-xl:hidden">{r.followUpDetail}</span>
+        <span className="text-xs text-fg-muted @max-4xl:hidden">{r.followUpDetail}</span>
       </span>
     ),
     mobile: 'status',
@@ -179,6 +183,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             rowKey={(r) => r.id}
             rowHref={(r) => withParam(PATH, params, 'lead', r.id, { keepPage: true })}
             caption={LEAD_VIEW_TITLE[view]}
+            tableFrom="md"
             empty={<EmptyState title={leadsEmpty(view, q)} />}
           />
           {rows.length ? (

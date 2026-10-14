@@ -29,20 +29,19 @@ const PATH = '/admin/trash';
 
 type Params = Record<string, string | string[] | undefined>;
 
-// On the phone a row is its lines over the full width, then the two buttons as
-// one last line, each half of it. The kit's `actions` role keeps buttons at
-// their own width, so they go as the last `secondary` line, and what comes
-// before them (the money, the archive date) is `secondary` too, styled as meta.
-const PHONE_META = 'max-md:text-xs max-md:text-fg-muted';
+// The lists turn into a table from 672px of their own width (`tableFrom="md"`,
+// a container query: the side menu, open or folded, decides as much as the
+// screen). Below, rows. The cells' `@2xl:` / `@max-2xl:` are that same line, so
+// the two must move together.
 
-/** When and by whom. The email only from xl: at 768 the table needs the room. */
+/** When and by whom. Who only on a wide table. */
 function Archived({ on, by }: { on: string; by: string | null }) {
   return (
-    <span className={`block ${PHONE_META}`}>
-      {/* On the phone the line needs to say what the date is. */}
-      <span className="md:hidden">Archived </span>
-      <span className="md:block md:whitespace-nowrap">{on}</span>
-      {by ? <span className="block whitespace-nowrap text-xs text-fg-muted max-xl:hidden">by {by}</span> : null}
+    <span className="@2xl:block">
+      {/* In the rows the line needs to say what the date is. */}
+      <span className="@2xl:hidden">Archived </span>
+      <span className="@2xl:block @2xl:whitespace-nowrap">{on}</span>
+      {by ? <span className="block whitespace-nowrap text-xs text-fg-muted @max-4xl:hidden">by {by}</span> : null}
     </span>
   );
 }
@@ -51,21 +50,21 @@ const BOOKING_COLUMNS: Column<TrashedBookingRow>[] = [
   {
     key: 'booking',
     header: 'Booking',
-    // Who, then where and when, in one column: at 768 the table has ~485px.
-    // Where and when are two lines in the table, one on the phone.
+    // Who, then where and when, in one column. Where and when are two lines in
+    // the table, one in the rows.
     cell: (r) => (
       <>
         <span className="block">{r.customer}</span>
         <span className="block text-xs font-normal text-fg-muted">
           {r.location ? (
             <>
-              <span className="text-fg-2 md:block">{r.location}</span>
-              <span aria-hidden="true" className="md:hidden">
+              <span className="text-fg-2 @2xl:block">{r.location}</span>
+              <span aria-hidden="true" className="@2xl:hidden">
                 {' · '}
               </span>
             </>
           ) : null}
-          <span className="md:block">{r.when}</span>
+          <span className="@2xl:block">{r.when}</span>
         </span>
       </>
     ),
@@ -74,26 +73,23 @@ const BOOKING_COLUMNS: Column<TrashedBookingRow>[] = [
     key: 'money',
     header: 'Total',
     cell: (r) => (
-      <span className={`block ${PHONE_META}`}>
-        <span className="md:block">{r.total}</span>
-        <span aria-hidden="true" className="md:hidden">
+      <span>
+        <span className="@2xl:block">{r.total}</span>
+        <span aria-hidden="true" className="@2xl:hidden">
           {' · '}
         </span>
-        <span className="text-xs text-fg-muted md:block">{r.money}</span>
+        <span className="text-xs text-fg-muted @2xl:block">{r.money}</span>
       </span>
     ),
     align: 'right',
-    mobile: 'secondary',
   },
-  { key: 'archived', header: 'Archived', cell: (r) => <Archived on={r.archived} by={r.archivedBy} />, mobile: 'secondary' },
+  { key: 'archived', header: 'Archived', cell: (r) => <Archived on={r.archived} by={r.archivedBy} /> },
   {
     key: 'actions',
     header: 'Actions',
     cell: (r) => <TrashActions kind="booking" id={r.id} restore={r.restore} purge={r.purge} />,
     align: 'right',
-    // Side by side from lg up; at 768 the table has no room and they stack.
-    width: 'lg:w-52',
-    mobile: 'secondary',
+    mobile: 'actions',
     interactive: true,
   },
 ];
@@ -107,21 +103,19 @@ const LEAD_COLUMNS: Column<TrashedLeadRow>[] = [
       <>
         <span className="block">{r.name}</span>
         {r.interest ? <span className="block text-xs font-normal text-fg-2">{r.interest}</span> : null}
-        {/* From lg up: on a tablet the table needs the room. */}
-        <span className="block text-xs font-normal text-fg-muted max-lg:hidden">{r.email}</span>
+        {/* Only on a wide table: the drawer of the lead has it too. */}
+        <span className="block text-xs font-normal text-fg-muted @max-3xl:hidden">{r.email}</span>
       </>
     ),
   },
   { key: 'status', header: 'Status', cell: (r) => <StatusBadge meta={r.status} size="sm" />, mobile: 'status' },
-  { key: 'archived', header: 'Archived', cell: (r) => <Archived on={r.archived} by={r.archivedBy} />, mobile: 'secondary' },
+  { key: 'archived', header: 'Archived', cell: (r) => <Archived on={r.archived} by={r.archivedBy} /> },
   {
     key: 'actions',
     header: 'Actions',
     cell: (r) => <TrashActions kind="lead" id={r.id} restore={r.restore} purge={r.purge} />,
     align: 'right',
-    // Side by side from lg up; at 768 the table has no room and they stack.
-    width: 'lg:w-52',
-    mobile: 'secondary',
+    mobile: 'actions',
     interactive: true,
   },
 ];
@@ -156,6 +150,8 @@ export default async function TrashPage({ searchParams }: { searchParams: Promis
           columns={BOOKING_COLUMNS}
           rowKey={(r) => r.id}
           caption="Archived bookings"
+          tableFrom="md"
+          mobileActions="fill"
           empty={<EmptyState title={TRASH_EMPTY.bookings} />}
         />
         {bookingRows.length ? (
@@ -175,6 +171,8 @@ export default async function TrashPage({ searchParams }: { searchParams: Promis
             columns={LEAD_COLUMNS}
             rowKey={(r) => r.id}
             caption="Archived leads"
+            tableFrom="md"
+            mobileActions="fill"
             empty={<EmptyState title={TRASH_EMPTY.leads} />}
           />
           {leadRows.length ? (
