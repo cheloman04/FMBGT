@@ -19,7 +19,9 @@ const WIDTH = { md: "md:max-w-md", lg: "md:max-w-2xl" } as const;
  *     el botón Atrás lo cierra.
  *   · `onClose`: desde una isla, con el estado en el cliente.
  *
- * Se pinta en su sitio (sin portal), dentro de `[data-kit]`, como `Modal`.
+ * Se pinta en su sitio (sin portal), dentro de `[data-kit]`: va al nivel de la
+ * página, no dentro de una fila, y así un `?booking=42` sale ya en el HTML del
+ * servidor. `Modal` sí se monta con portal: se abre desde cualquier celda (§6.1).
  */
 export function Drawer({
   open,
