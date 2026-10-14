@@ -12,11 +12,13 @@ describe('ADMIN_NAV', () => {
     expect(ADMIN_NAV.map((item) => item.label)).toEqual([
       'Dashboard',
       'Bookings',
+      'Leads',
       'Conversations',
       'Manual booking',
       'Financial log',
       'Referrals',
       'Gift cards',
+      'Trash',
     ]);
   });
 
@@ -25,7 +27,7 @@ describe('ADMIN_NAV', () => {
   });
 
   it('the badges are the ones loadNavBadges() counts', () => {
-    expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual(['bookings']);
+    expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual(['bookings', 'leads']);
   });
 
   it('only Conversations depends on a feature: the layout turns it on when a channel is connected', () => {

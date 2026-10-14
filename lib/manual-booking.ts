@@ -1,7 +1,7 @@
 // Manually-created (cash / off-platform) bookings. There is no Stripe payment for
 // these, so the Stripe webhook never fires — finalizeManualBooking runs the same
-// post-confirmation work the webhook does (Cal.com event, confirmation email,
-// Senzai, financial log), adapted for a deal closed off-platform.
+// post-confirmation work the webhook does (lead conversion, Cal.com event,
+// confirmation email, Senzai, financial log), adapted for a deal closed off-platform.
 //
 // A manual booking can also HOLD a date before the customer pays: the agreed total
 // lives in total_price, what has actually been collected in deposit_paid_cents, and
@@ -25,6 +25,7 @@ import { getBookingLocationMeta } from '@/lib/location-meta';
 import { getAppUrl } from '@/lib/app-url';
 import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
+import { convertLead } from '@/lib/lead-conversion';
 import { notifySupportAlert, triggerN8nEvent } from '@/lib/n8n';
 import { syncBookingCalendarEvent, type CalendarSyncResult } from '@/lib/booking-calendar';
 import { validateBookingInventory } from '@/lib/inventory';
@@ -197,7 +198,7 @@ export async function finalizeManualBooking(
   const { data: booking, error } = await (supabase as any)
     .from('bookings')
     .select(
-      `id, date, time_slot, duration_hours, participant_count, trail_type, skill_level,
+      `id, lead_id, date, time_slot, duration_hours, participant_count, trail_type, skill_level,
        total_price, deposit_paid_cents, remaining_balance_amount, payment_method,
        admin_notes, waiver_link_token, waiver_session_id,
        customers(name, email, phone), locations(name)`
@@ -218,7 +219,13 @@ export async function finalizeManualBooking(
   const paymentMethod = booking.payment_method ?? 'cash';
   const waiverUrl = booking.waiver_link_token ? `${getAppUrl()}/waiver/${booking.waiver_link_token}` : null;
 
-  // 1. Cal.com booking (guide's calendar event) — avoids double-booking the slot.
+  // 1. Convert the lead → booking (linked at creation when the customer had an
+  //    open lead). Also on a $0 hold: the date is theirs, so no more follow-ups.
+  if (booking.lead_id) {
+    await convertLead(booking.lead_id, bookingId, { source: 'manual-booking' });
+  }
+
+  // 2. Cal.com booking (guide's calendar event) — avoids double-booking the slot.
   //    Alerts ops on failure; the admin can "Retry calendar" later.
   let calBooked = false;
   try {
@@ -227,7 +234,7 @@ export async function finalizeManualBooking(
     console.error('[manual-booking] Cal.com error:', (e as Error).message);
   }
 
-  // 2. n8n — booking confirmed (sends the confirmation email with the waiver link).
+  // 3. n8n — booking confirmed (sends the confirmation email with the waiver link).
   //    Skipped when the admin is only holding the date and will email later.
   let emailQueued = false;
   if (opts.sendConfirmation !== false) {
@@ -248,7 +255,7 @@ export async function finalizeManualBooking(
     }
   }
 
-  // 3. Senzai — booking confirmed (cash, off-platform).
+  // 4. Senzai — booking confirmed (cash, off-platform).
   try {
     await queueSenzaiEvent({
       event_name: 'booking.confirmed',
@@ -261,6 +268,7 @@ export async function finalizeManualBooking(
       entity_id: bookingId,
       refs: {
         booking_id: bookingId,
+        lead_id: booking.lead_id ?? null,
         waiver_session_id: booking.waiver_session_id ?? null,
       },
       data: {
@@ -285,7 +293,7 @@ export async function finalizeManualBooking(
     console.error('[manual-booking] Senzai event failed:', (e as Error).message);
   }
 
-  // 3b. Senzai — money collected at creation is revenue: payment.succeeded with
+  // 4b. Senzai — money collected at creation is revenue: payment.succeeded with
   //     stage + method (the Hub counts only payment.succeeded as collected).
   if (collectedCents > 0) {
     try {
@@ -304,7 +312,7 @@ export async function finalizeManualBooking(
           phone: customer?.phone ?? undefined,
           name: customer?.name ?? undefined,
         },
-        refs: { booking_id: bookingId },
+        refs: { booking_id: bookingId, lead_id: booking.lead_id ?? null },
         data: {
           stage: manualPaymentStage(booking.total_price ?? 0, 0, collectedCents),
           method: paymentMethod,
@@ -319,7 +327,7 @@ export async function finalizeManualBooking(
     }
   }
 
-  // 4. Financial log — cash collected off-platform (keeps the books complete).
+  // 5. Financial log — cash collected off-platform (keeps the books complete).
   try {
     await recordFinancialEvent({
       event_name: 'booking.confirmed_cash',

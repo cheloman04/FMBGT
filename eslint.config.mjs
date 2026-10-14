@@ -35,6 +35,9 @@ const eslintConfig = defineConfig([
       "app/admin/(panel)/bookings/*.tsx",
       "app/admin/(panel)/bookings/_components/**/*.tsx",
       "app/api/admin/badges/*.ts",
+      // Phase 2, step 3c-1: the leads list. Step 3c-2: the Trash.
+      "app/admin/(panel)/leads/**/*.tsx",
+      "app/admin/(panel)/trash/**/*.tsx",
       // The inbox (the kit's `conversations` module): its page and its three
       // proxy routes. `**` crosses the [id] folders without naming them.
       "app/admin/(panel)/conversations/**/*.tsx",

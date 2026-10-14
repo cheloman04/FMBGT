@@ -68,12 +68,9 @@ export function computeOverview(
   };
 }
 
-/** The legacy list below the overview (`?status=`): the leads, or the trash. */
-export type OverviewView = 'leads' | 'trash' | string;
-
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-export function overviewMetrics(stats: OverviewStats, view: OverviewView): Metric[] {
+export function overviewMetrics(stats: OverviewStats): Metric[] {
   return [
     {
       key: 'collected',
@@ -101,8 +98,7 @@ export function overviewMetrics(stats: OverviewStats, view: OverviewView): Metri
       label: 'Open leads',
       value: String(stats.activeLeads),
       sub: stats.conversionRate === null ? 'No leads yet' : `${stats.conversionRate}% converted`,
-      href: '/admin?status=leads',
-      active: view === 'leads',
+      href: '/admin/leads',
     },
   ];
 }

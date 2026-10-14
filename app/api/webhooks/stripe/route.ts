@@ -7,7 +7,7 @@ import { recordStripeDashboardRefund } from '@/lib/booking-payments';
 import { sharedTourExists } from '@/lib/shared-tours';
 import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
-import { cancelActiveFollowUpForConversion } from '@/lib/lead-followup';
+import { convertLead } from '@/lib/lead-conversion';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { confirmLeadSessionAbandoned, markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
@@ -228,28 +228,7 @@ export async function POST(req: NextRequest) {
           ((bookingLeadRow as { attribution_snapshot?: Record<string, unknown> | null } | null)
             ?.attribution_snapshot) ?? null;
         if (leadId) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: leadConvertErr } = await (supabase as any)
-            .from('leads')
-            .update({
-              status: 'converted',
-              booking_id: bookingId,
-              converted_at: new Date().toISOString(),
-              last_step_completed: 'booking_confirmed',
-              last_activity_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', leadId);
-
-          if (leadConvertErr) {
-            console.error(`[stripe-webhook] Failed to convert lead ${leadId}:`, leadConvertErr);
-          } else {
-            console.log(`[stripe-webhook] Lead ${leadId} converted → booking ${bookingId}`);
-          }
-        }
-
-        if (leadId) {
-          await cancelActiveFollowUpForConversion(leadId);
+          await convertLead(leadId, bookingId, { source: 'stripe-webhook' });
         }
 
         if (bookingSessionId) {
