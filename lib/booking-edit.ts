@@ -315,7 +315,8 @@ export async function editOnlineBooking(
   // ── Add-ons (mountain bike) ───────────────────────────────────────────────────
   const oldAddons: Addons = booking.addons ?? {};
   const newAddons: Addons = { ...oldAddons };
-  if (input.addons) {
+  // Paved tours have no GoPro or pickup: any sent for one are ignored.
+  if (input.addons && !isPaved) {
     for (const key of ['gopro', 'pickup_dropoff'] as const) {
       const next = input.addons[key];
       if (next !== undefined && Boolean(next) !== Boolean(oldAddons[key])) {

@@ -66,11 +66,14 @@ export function breadcrumbSchema(crumbs: Crumb[]) {
 
 /**
  * The two tours, priced from lib/pricing.ts so the markup can never drift from
- * what checkout actually charges.
+ * what checkout actually charges. Prices are before the 7% Florida tax.
  *
- * MTB is an AggregateOffer because the price genuinely varies: $89 riding your
- * own bike, $189 with a rental. Quoting only the low number as a fixed `price`
+ * MTB is an AggregateOffer because the price genuinely varies: $89.99 riding your
+ * own bike, $189.99 with a rental. Quoting only the low number as a fixed `price`
  * would be a misrepresentation Google is entitled to penalise.
+ *
+ * The paved tour is priced per group, so its `price` is what one rider pays;
+ * every larger group pays less per rider.
  */
 export function tourOffers() {
   return [
@@ -92,9 +95,9 @@ export function tourOffers() {
       '@type': 'Offer',
       name: 'Scenic Paved Trail Tour',
       description:
-        'Relaxed guided paved trail ride through historic Sanford and scenic Central Florida riverfront routes. Bike included.',
+        'Relaxed guided paved trail ride through historic Sanford and scenic Central Florida riverfront routes. Bike included. Priced per group: the price per rider drops as riders are added.',
       url: `${SITE_URL}/booking`,
-      price: dollars(PRICING.PAVED_FLAT),
+      price: dollars(PRICING.PAVED_GROUP[0]),
       priceCurrency: 'USD',
       availability: 'https://schema.org/InStock',
     },
@@ -191,7 +194,7 @@ function trailOffer(isPaved: boolean) {
     ? {
         '@type': 'Offer',
         url: `${SITE_URL}/booking`,
-        price: dollars(PRICING.PAVED_FLAT),
+        price: dollars(PRICING.PAVED_GROUP[0]),
         priceCurrency: 'USD',
         availability: 'https://schema.org/InStock',
       }

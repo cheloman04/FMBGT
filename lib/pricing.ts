@@ -1,20 +1,24 @@
 import type { BikeRental, Addons, DurationHours, PriceBreakdown, AdditionalParticipant } from '@/types/booking';
 import { resolveFamDiscount, calcDiscountAmount } from '@/lib/discounts';
 
-// All prices in cents (USD)
+// All prices in cents (USD), before the 7% Florida tax. They are Dustin's prices
+// from the strategy interview (Oct 2026), which win over anything older.
 export const PRICING = {
   FLORIDA_STATE_TAX_RATE: 0.07,
   LIVE_TEST_TOTAL: 100,      // $1.00 total all-in for internal live payment verification
-  PAVED_FLAT: 11500,         // $115.00 per rider - paved 2hr tour, bike always included
-  BASE_NO_BIKE: 8900,        // $89.00 - MTB 2hr tour, BYOB (no bike)
-  BASE_WITH_BIKE: 18900,     // $189.00 - MTB 2hr tour, standard bike included
-  ADDITIONAL_HOUR: 5000,     // $50.00 per additional hour (MTB only)
+  // Paved tour (Sanford), 2 hours, bikes included: priced per GROUP (one booking),
+  // so the price per rider drops as riders are added.
+  PAVED_GROUP: [9900, 16000, 23000, 30000], // 1, 2, 3 and 4 riders
+  PAVED_EXTRA_RIDER: 5999,   // $59.99 for each rider after the 4th
+  BASE_NO_BIKE: 8999,        // $89.99 - MTB 2hr tour, BYOB (no bike)
+  BASE_WITH_BIKE: 18999,     // $189.99 - MTB 2hr tour, standard bike included
+  ADDITIONAL_HOUR: 5000,     // $50.00 per rider per additional hour (MTB only)
   BASE_DURATION_HOURS: 2,
 
   ADDONS: {
-    gopro: 4900,             // $49.00
-    pickup_dropoff: 7500,    // $75.00
-    electric_upgrade: 2500,  // $25.00
+    gopro: 4900,             // $49.00 per rider (MTB only)
+    pickup_dropoff: 7500,    // $75.00 per rider, round trip (MTB only)
+    electric_upgrade: 2500,  // $25.00 per rider
   } as const,
 
   BIKE_RENTAL: {
@@ -23,6 +27,25 @@ export const PRICING = {
     electric: 0,      // Electric upgrade is an addon on top of standard
   } as const,
 } as const;
+
+/** Extras sold only on mountain bike tours: a paved tour has no GoPro and no pickup. */
+export const MTB_ONLY_ADDONS = ['gopro', 'pickup_dropoff'] as const;
+
+/** The add-ons a tour can have: on a paved tour, GoPro and pickup are dropped (never an error). */
+export function offeredAddons<T extends Addons>(trailType: string | undefined, addons: T): T {
+  if (trailType !== 'paved') return addons;
+  const offered = { ...addons };
+  for (const key of MTB_ONLY_ADDONS) if (key in offered) offered[key] = false as T[typeof key];
+  return offered;
+}
+
+/** Paved group price (pre-tax, bikes included) for a group of `riders`. */
+export function calculatePavedGroupPrice(riders: number): number {
+  const tiers = PRICING.PAVED_GROUP;
+  const count = Math.max(1, Math.floor(riders));
+  if (count <= tiers.length) return tiers[count - 1];
+  return tiers[tiers.length - 1] + (count - tiers.length) * PRICING.PAVED_EXTRA_RIDER;
+}
 
 interface PricingOptions {
   liveTestMode?: boolean;
@@ -89,17 +112,15 @@ export function calculatePriceBreakdown(
 
   const discount = resolveFamDiscount(options.discountCode);
 
-  // Paved tours: $115 per rider, bike always included, no duration surcharge
+  // Paved tours: one price for the group, bikes included, no duration surcharge,
+  // and no GoPro or pickup (MTB only).
   if (trailType === 'paved') {
-    const base_price = PRICING.PAVED_FLAT * participantCount;
-    const gopro_price = addons.gopro ? PRICING.ADDONS.gopro * participantCount : 0;
-    const pickup_price = addons.pickup_dropoff ? PRICING.ADDONS.pickup_dropoff * participantCount : 0;
+    const base_price = calculatePavedGroupPrice(participantCount);
     // Electric upgrades: count per-rider selections from bike_rental fields
     const rider1Electric = bikeRental === 'electric' ? 1 : 0;
     const addlElectric = additionalParticipants?.filter((p) => p.bike_rental === 'electric').length ?? 0;
     const totalElectric = rider1Electric + addlElectric;
-    const electric_price = totalElectric * PRICING.ADDONS.electric_upgrade;
-    const addons_price = gopro_price + pickup_price + electric_price;
+    const addons_price = totalElectric * PRICING.ADDONS.electric_upgrade;
     const subtotal = base_price + addons_price;
     const tax_amount = calculateFloridaStateTax(subtotal);
     const total = subtotal + tax_amount;
@@ -195,10 +216,11 @@ export function getPriceLineItems(
     ];
   }
 
-  if (trailType === 'paved') {
+  const isPaved = trailType === 'paved';
+  if (isPaved) {
     items.push({
-      label: `Guided Paved Tour - 2 hours (bike included)${countLabel}`,
-      amount: PRICING.PAVED_FLAT * participantCount,
+      label: `Guided Paved Tour - 2 hours, bikes included (${participantCount} rider${participantCount > 1 ? 's' : ''})`,
+      amount: calculatePavedGroupPrice(participantCount),
     });
   } else {
     // Group riders by bike type for cleaner display
@@ -225,17 +247,18 @@ export function getPriceLineItems(
     }
   }
 
-  if (addons.gopro) {
+  if (addons.gopro && !isPaved) {
     items.push({ label: `GoPro Package${countLabel}`, amount: PRICING.ADDONS.gopro * participantCount });
   }
-  if (addons.pickup_dropoff) {
+  if (addons.pickup_dropoff && !isPaved) {
     items.push({ label: `Pickup + Dropoff${countLabel}`, amount: PRICING.ADDONS.pickup_dropoff * participantCount });
   }
 
-  // Electric upgrade: per rider who chose electric plus one optional upgrade selected here.
+  // Electric upgrade: per rider who chose electric plus one optional upgrade selected here
+  // (MTB add-ons step; paved riders pick their e-bike per rider only, as in the breakdown).
   const allBikesForElectric: BikeRental[] = [bikeRental, ...(additionalParticipants?.map((p) => p.bike_rental ?? 'none') ?? [])];
   const electricCount = allBikesForElectric.filter((b) => b === 'electric').length;
-  const addonElectricUpgradeCount = addons.electric_upgrade && bikeRental !== 'none' && bikeRental !== 'electric' ? 1 : 0;
+  const addonElectricUpgradeCount = addons.electric_upgrade && !isPaved && bikeRental !== 'none' && bikeRental !== 'electric' ? 1 : 0;
   const totalElectricUpgradeCount = electricCount + addonElectricUpgradeCount;
   if (totalElectricUpgradeCount > 0) {
     items.push({

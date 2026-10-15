@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createCheckoutSession, createStripeCustomer, getStripeCustomer } from '@/lib/stripe';
 import { validateBookingInventory } from '@/lib/inventory';
-import { calculatePriceBreakdown, PRICING } from '@/lib/pricing';
+import { calculatePriceBreakdown, offeredAddons, PRICING } from '@/lib/pricing';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { markLeadSessionCheckoutStarted } from '@/lib/lead-sessions';
 import type { BookingState, TrailType } from '@/types/booking';
@@ -247,7 +247,13 @@ export async function POST(req: NextRequest) {
     }
 
     const raw = parsed.data;
-    const state = { ...raw, customer: { ...raw.customer, email: raw.customer.email.toLowerCase().trim() } };
+    const state = {
+      ...raw,
+      // GoPro and pickup are mountain bike extras: a paved tour drops them, so
+      // they are neither charged, saved nor held in inventory.
+      addons: offeredAddons(raw.trail_type, raw.addons),
+      customer: { ...raw.customer, email: raw.customer.email.toLowerCase().trim() },
+    };
     const clientIpAddress = getClientIpFromHeaders(req.headers);
     const clientUserAgent = req.headers.get('user-agent');
     const eventSourceUrl = getEventSourceUrlFromHeaders(req.headers);

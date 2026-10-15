@@ -508,9 +508,9 @@ Migration `004_update_location_names.sql` renames all existing rows to match the
 | name | TEXT | |
 | type | TEXT | `paved` or `mtb` |
 | base_duration_hours | INTEGER | 2 |
-| base_price_no_bike | INTEGER | cents (8900 = $89 MTB BYOB; 11500 = $115 paved flat) |
-| base_price_with_bike | INTEGER | cents (18900 = $189 MTB with bike) |
-| additional_hour_price | INTEGER | cents (5000 = $50) |
+| base_price_no_bike | INTEGER | cents — legacy, not read by the code (prices live in `lib/pricing.ts`) |
+| base_price_with_bike | INTEGER | cents — legacy, not read by the code |
+| additional_hour_price | INTEGER | cents — legacy, not read by the code |
 | active | BOOLEAN | |
 
 ### `bookings`
@@ -563,6 +563,8 @@ Migration: `supabase/migrations/002_participant_columns.sql` — adds `participa
 | standard_bike | 10 |
 
 ### `addon_pricing`
+Legacy: the code doesn't read this table. Add-on prices live in `lib/pricing.ts` (GoPro and pickup are MTB only).
+
 | addon_key | name | price (cents) | limited_by_inventory |
 |---|---|---|---|
 | gopro | GoPro Package | 4900 | gopro |
@@ -579,59 +581,70 @@ Migration: `supabase/migrations/002_participant_columns.sql` — adds `participa
 
 Source of truth: `lib/pricing.ts`
 
+Prices are Dustin's, from the strategy interview (Oct 2026): per rider unless said otherwise, and always **before** the 7% Florida tax, which is added on top.
+
 ### Two Pricing Paths
 
-**Paved Tours (flat rate per rider):**
+**Paved Tours (priced per group):**
 ```
-total = ($115 × participant_count) + addons_price
+total = group_price(participant_count) + $25 × count(riders with bike='electric')
 ```
-- Bike is always included — no bike rental upcharge
-- Duration is always 2 hours — no surcharge
-- E-bike upgrade ($25) charged per rider who chose electric (Sanford only)
-- GoPro and Pickup/Dropoff multiply by participant_count
+- One price for the whole group (one booking), so the price per rider drops as riders are added:
+
+| Riders | Group price | Per rider |
+|---|---|---|
+| 1 | $99 | $99 |
+| 2 | $160 | $80 |
+| 3 | $230 | $76.67 |
+| 4 | $300 | $75 |
+| each rider after the 4th | +$59.99 | |
+
+- Bike is always included, duration is always 2 hours, no surcharge
+- E-bike upgrade ($25) per rider who chose electric (Sanford only)
+- **No GoPro and no pickup** on paved tours: `create-checkout` drops them if a request sends them (never an error), so they are never charged, saved or held in inventory
 
 **Mountain Bike Tours (per rider):**
 ```
 rider_prices  = base(rider1.bike) + Σ base(riderN.bike)
 duration_cost = (duration_hours - 2) × $50 × participant_count
 gopro_cost    = gopro ? $49 × participant_count : 0
-pickup_cost   = pickup_dropoff ? $75 × participant_count : 0
+pickup_cost   = pickup_dropoff ? $75 × participant_count : 0   (round trip)
 electric_cost = count(riders with bike='electric') × $25
 
 total = rider_prices + duration_cost + gopro_cost + pickup_cost + electric_cost
 ```
 
-**MTB base prices per rider:**
-| Bike choice | Price |
-|---|---|
-| BYOB (no rental) | $89 |
-| Standard rental | $189 |
-| Electric rental | $189 + $25 upgrade |
+**MTB base prices per rider (2 hours):**
+| Bike choice | 2 h | 3 h | 4 h |
+|---|---|---|---|
+| BYOB (no rental) | $89.99 | $139.99 | $189.99 |
+| Standard rental | $189.99 | $239.99 | $289.99 |
+| Electric rental (Specialized Turbo Levo) | $214.99 | $264.99 | $314.99 |
 
-### MTB Examples (single rider)
+### MTB Examples (single rider, before tax)
 
-| Config | Calculation | Total |
+| Config | Calculation | Subtotal |
 |---|---|---|
-| No bike, 2hr, no addons | $89 + $0 + $0 | **$89** |
-| Standard bike, 2hr, no addons | $189 + $0 + $0 | **$189** |
-| Standard bike, 3hr, GoPro | $189 + $50 + $49 | **$288** |
-| Electric bike, 4hr, Pickup | $189 + $100 + $25 + $75 | **$389** |
+| No bike, 2hr, no addons | $89.99 | **$89.99** |
+| Standard bike, 2hr, no addons | $189.99 | **$189.99** |
+| Standard bike, 3hr, GoPro | $189.99 + $50 + $49 | **$288.99** |
+| Electric bike, 4hr, Pickup | $189.99 + $100 + $25 + $75 | **$389.99** |
 
-### MTB Examples (group)
+### MTB Examples (group, before tax)
 
-| Config | Calculation | Total |
+| Config | Calculation | Subtotal |
 |---|---|---|
-| 2 riders, both standard, 2hr | ($189 × 2) + $0 | **$378** |
-| 3 riders: standard/none/electric, 2hr | $189 + $89 + $189 + $25 | **$492** |
-| 2 riders, standard, 3hr, GoPro | ($189 × 2) + ($50 × 2) + ($49 × 2) | **$576** |
+| 2 riders, both standard, 2hr | $189.99 × 2 | **$379.98** |
+| 3 riders: standard/none/electric, 2hr | $189.99 + $89.99 + $189.99 + $25 | **$494.97** |
+| 2 riders, standard, 3hr, GoPro | ($189.99 × 2) + ($50 × 2) + ($49 × 2) | **$577.98** |
 
-### Paved Examples (Sanford)
+### Paved Examples (Sanford, before tax)
 
-| Config | Calculation | Total |
+| Config | Calculation | Subtotal |
 |---|---|---|
-| 1 rider, standard, no addons | $115 | **$115** |
-| 3 riders (2 std, 1 e-bike) | ($115 × 3) + ($25 × 1) | **$370** |
-| 6 riders (4 std, 2 e-bike), GoPro | ($115 × 6) + ($25 × 2) + ($49 × 6) | **$1,034** |
+| 1 rider, standard | $99 | **$99** |
+| 3 riders (2 std, 1 e-bike) | $230 + $25 | **$255** |
+| 6 riders (4 std, 2 e-bike) | $300 + 2 × $59.99 + 2 × $25 | **$469.98** |
 
 ### Server-Side Overrides in `/api/create-checkout`
 

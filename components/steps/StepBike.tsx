@@ -8,7 +8,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { formatPrice, PRICING, calculatePriceBreakdown } from '@/lib/pricing';
+import { formatPrice, PRICING, calculatePriceBreakdown, calculatePavedGroupPrice } from '@/lib/pricing';
 
 // ── Business rules ────────────────────────────────────────────────────────────
 const MAX_PARTICIPANTS: Record<string, number> = {
@@ -291,8 +291,12 @@ export function StepBike() {
 
         <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
           <p className="text-sm font-medium text-green-800 dark:text-green-300">
-            ✓ Bike included — {formatPrice(PRICING.PAVED_FLAT)} per rider · 2-hour guided tour
+            ✓ Bikes included · 2-hour guided tour · the price per rider drops as your group grows
             {isSanford && ` · E-bike upgrade +${formatPrice(PRICING.ADDONS.electric_upgrade)}/rider`}
+          </p>
+          <p className="mt-1 text-sm text-green-800 dark:text-green-300">
+            Your group of {count}: <span className="font-semibold">{formatPrice(calculatePavedGroupPrice(count))}</span> + tax
+            {count > 1 && ` (${formatPrice(Math.round(calculatePavedGroupPrice(count) / count))} per rider)`}
           </p>
         </div>
 

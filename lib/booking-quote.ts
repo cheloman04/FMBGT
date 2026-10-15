@@ -2,9 +2,6 @@
 // (calculatePriceBreakdown) and the code the customer used: a percentage
 // discount is re-applied to the new total; a gift card keeps the amount it
 // covered (single-use — capped at the new total). Pure.
-//
-// NOTE: calculatePriceBreakdown doesn't take the location yet. When Sanford's
-// per-group price lands there, pass `location_name` through below.
 
 import { calculatePriceBreakdown } from '@/lib/pricing';
 import { calcDiscountAmount } from '@/lib/discounts';

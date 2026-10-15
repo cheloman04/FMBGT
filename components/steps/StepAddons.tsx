@@ -24,7 +24,7 @@ const ADDON_OPTIONS: AddonOption[] = [
   {
     key: 'gopro',
     label: 'GoPro Package',
-    description: 'Capture your adventure with a mounted GoPro camera. Footage delivered digitally.',
+    description: 'Capture your adventure with a mounted GoPro camera. Footage delivered digitally. Per rider.',
     price: PRICING.ADDONS.gopro,
     badge: 'Popular',
     inventoryItem: 'gopro',
@@ -32,13 +32,13 @@ const ADDON_OPTIONS: AddonOption[] = [
   {
     key: 'pickup_dropoff',
     label: 'Pickup + Dropoff',
-    description: 'Door-to-door transportation to and from the trail. Central Florida area.',
+    description: 'Round-trip, door-to-door transportation to and from the trail. Central Florida area. Per rider.',
     price: PRICING.ADDONS.pickup_dropoff,
   },
   {
     key: 'electric_upgrade',
     label: 'Electric Bike Upgrade',
-    description: 'Upgrade to a motor-assisted electric bike. Limited availability.',
+    description: 'Upgrade to a motor-assisted Specialized Turbo Levo e-bike. Limited availability.',
     price: PRICING.ADDONS.electric_upgrade,
     badge: 'Limited',
     inventoryItem: 'electric_bike',
@@ -110,9 +110,10 @@ export function StepAddons() {
   };
 
   const visibleAddons = ADDON_OPTIONS.filter((a) => {
-    if (a.key !== 'electric_upgrade') return true;
-    // E-bike is selected per-rider in StepBike for paved tours — hide addon here
+    // Paved tours have no add-ons: GoPro and pickup are MTB only, and the e-bike
+    // is picked per rider in StepBike.
     if (state.trail_type === 'paved') return false;
+    if (a.key !== 'electric_upgrade') return true;
     // For MTB, hide if rider already chose electric as their bike
     if (state.bike_rental === 'electric') return false;
     if (state.bike_rental === 'none') return false;
