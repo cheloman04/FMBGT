@@ -124,3 +124,29 @@ export type {
   InboxThread,
   SenderType,
 } from "./conversations/types";
+
+// 2b · la campanita: los avisos del dueño (el primero, «Your assistant passed a
+// conversation to you»). 🔒 Como la bandeja, su parte de servidor
+// (`notifications/server.ts`) NO sale por aquí: `@/components/kit/notifications/server`.
+export { NotificationsFeed } from "./notifications/NotificationsFeed";
+export {
+  NOTIFICATIONS_LABELS,
+  mergeNotificationLabels,
+  internalHref,
+  safeHref,
+  mergeRefresh,
+  appendPage,
+  withRead,
+  withAllRead,
+  openLabel,
+  notificationChannel,
+  fillNotification,
+  type NotificationsLabels,
+} from "./notifications/feed";
+export type {
+  NotificationItem,
+  NotificationsData,
+  NotificationsLoad,
+  NotificationsNav,
+  NotificationsReadAllResult,
+} from "./notifications/types";
