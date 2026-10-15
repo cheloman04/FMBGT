@@ -2,6 +2,7 @@
 // The shell sizes them; no size classes here.
 import type { ReactNode } from 'react';
 import {
+  Bell,
   CalendarDays,
   CalendarPlus,
   Gift,
@@ -18,6 +19,7 @@ import type { AdminHref } from './nav';
 
 export const ADMIN_ICONS: Record<AdminHref, ReactNode> = {
   '/admin': <LayoutDashboard aria-hidden="true" />,
+  '/admin/notifications': <Bell aria-hidden="true" />,
   '/admin/bookings': <CalendarDays aria-hidden="true" />,
   '/admin/leads': <Users aria-hidden="true" />,
   '/admin/conversations': <MessagesSquare aria-hidden="true" />,

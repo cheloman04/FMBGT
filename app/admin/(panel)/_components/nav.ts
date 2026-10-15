@@ -5,6 +5,11 @@ import { defineNav, type NavHref } from '@/components/kit';
 
 export const ADMIN_NAV = defineNav([
   { href: '/admin', label: 'Dashboard', exact: true },
+  // The owner's notifications from the hub (the bell), starting with the
+  // conversations the assistant passed to a person. The badge counts the unread
+  // ones; hidden until the site's connection has the notifications:read scope
+  // (`notificationsMenu()` in the layout).
+  { href: '/admin/notifications', label: 'Notifications', badge: 'notifications', feature: 'notifications' },
   // The badge counts the balance charges that failed and can be retried.
   { href: '/admin/bookings', label: 'Bookings', badge: 'bookings' },
   // The badge counts the leads active in the last 24 hours: news, not a fault.

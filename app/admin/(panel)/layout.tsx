@@ -3,6 +3,7 @@ import { AppShell, ShellFooterAction, visibleNav } from '@/components/kit';
 import { requireOperator } from '@/lib/admin/auth';
 import { conversationsVisible } from '@/lib/admin/conversations';
 import { loadNavBadges } from '@/lib/admin/loaders';
+import { notificationsMenu, withNotificationsBadge } from '@/lib/admin/notifications';
 import { ADMIN_ICONS, PASSWORD_ICON, SIGN_OUT_ICON } from './_components/icons';
 import { ADMIN_NAV } from './_components/nav';
 
@@ -13,7 +14,7 @@ const LOGO_URL =
 // (panel) is guarded here once and drawn inside the shell.
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   await requireOperator();
-  const [badges, inbox] = await Promise.all([
+  const [badges, inbox, bell] = await Promise.all([
     // A counter that fails to load shouldn't take the whole admin down: no badge.
     loadNavBadges().catch((error: unknown) => {
       console.error('[admin] nav badges:', error);
@@ -23,17 +24,22 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     // never throws, keeps its answer for a minute, and a hub that fails or is slow
     // (2.5 s) leaves the entry visible.
     conversationsVisible(),
+    // "Notifications" shows once the site's connection has the notifications:read
+    // scope, with the unread count. It never throws; a hub that fails or is slow
+    // (2.5 s) leaves it visible without a number.
+    notificationsMenu(),
   ]);
+  const features = [...(inbox ? ['conversations'] : []), ...(bell.visible ? ['notifications'] : [])];
 
   return (
     <AppShell
-      nav={visibleNav(ADMIN_NAV, inbox ? ['conversations'] : [])}
+      nav={visibleNav(ADMIN_NAV, features)}
       icons={ADMIN_ICONS}
       // The full name is on the logo; the sidebar fits ~110px of text.
       brand={<span className="text-[13px] font-semibold tracking-tight">Florida MTB</span>}
       mark={<Image src={LOGO_URL} alt="" width={28} height={28} className="h-7 w-7 rounded-lg object-contain" />}
       area="Admin"
-      badges={badges}
+      badges={withNotificationsBadge(badges, bell)}
       badgesEndpoint="/api/admin/badges"
       storageKey="fmbgt-admin-sidebar"
       footer={
