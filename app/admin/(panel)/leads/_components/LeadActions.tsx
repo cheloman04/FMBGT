@@ -43,7 +43,8 @@ export function SendFollowUp({ leadId, name, to }: { leadId: string; name: strin
 
   return (
     <Action error={send.error}>
-      <Button size="sm" variant="secondary" loading={send.pending} onClick={onClick}>
+      {/* The drawer's one primary (§7.5): enrolling an unfollowed lead is what it's for. */}
+      <Button size="sm" variant="primary" loading={send.pending} onClick={onClick}>
         Start follow-up
       </Button>
       {dialog}
