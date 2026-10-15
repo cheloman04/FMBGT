@@ -56,10 +56,10 @@ export function renderOgCard() {
             marginTop: 32,
             fontSize: 32,
             color: '#d1fae5',
-            maxWidth: 880,
+            maxWidth: 1040,
           }}
         >
-          Bikes included. All skill levels. Sanford, Mount Dora, DeLand, Ocala & beyond.
+          All skill levels. Sanford, Mount Dora, DeLand, Ocala & beyond.
         </div>
         <div
           style={{

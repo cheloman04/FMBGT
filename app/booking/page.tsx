@@ -10,7 +10,7 @@ const OG_IMAGE = `${SITE_URL}/opengraph-image`;
 
 const TITLE = 'Book a Guided Bike Tour in Central Florida | Florida Mountain Bike Guides';
 const DESCRIPTION =
-  'Reserve your guided mountain bike or paved trail tour in Central Florida. Pick your trail, date, and bike — rentals included, all skill levels welcome.';
+  'Reserve your guided mountain bike or paved trail tour in Central Florida. Pick your trail, date, and bike — all skill levels welcome.';
 
 export const metadata: Metadata = {
   title: TITLE,
