@@ -49,7 +49,7 @@ export function StepDuration() {
       <div className="mb-6 text-center">
         <h2 className="text-2xl font-bold text-foreground">Choose Duration</h2>
         <p className="text-muted-foreground mt-1">
-          Base tour is 2 hours. Additional hours are {formatPrice(PRICING.ADDITIONAL_HOUR)}/hr.
+          Base tour is 2 hours. Additional hours are {formatPrice(PRICING.ADDITIONAL_HOUR)}/hr per rider.
         </p>
       </div>
 

@@ -36,6 +36,7 @@ import {
 import { CTAButton } from "@/components/ui/CTAButton";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { faqItems } from "@/data/faqs";
+import { PRICING } from "@/lib/pricing";
 import { TrailCarousel } from "@/components/landing/TrailCarousel";
 import { SiteFooter } from "@/components/SiteChrome";
 import { StatCard } from "@/components/ui/StatCard";
@@ -122,13 +123,17 @@ const valueProps = [
   },
   {
     title: "Optional rider pickup",
-    text: "Short on time or can't get the car? Pickup and drop-off can be arranged for added convenience.",
+    text: "Short on time or can't get the car? Pickup and drop-off can be added to mountain bike tours for extra convenience.",
     icon: Route,
     image: "/images/rev-pics-update/hero-no-font.png",
     alt: "Guided rider on trail representing an easy, ready-to-go Florida bike experience",
     objectPosition: "center center",
   },
 ];
+
+// "$89.99", "$99": whole dollars without the cents.
+const usd = (cents) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
 
 const tours = [
   {
@@ -138,7 +143,7 @@ const tours = [
       "Guided mountain bike tours designed for riders of every skill level, focused on making Florida's best trails easy, fun, and unforgettable.",
     icon: Mountain,
     duration: "2, 3, or 4-hour guided tours",
-    price: "From $89 / rider",
+    price: `From ${usd(PRICING.BASE_NO_BIKE)} / rider + tax`,
     includes: ["Bike & helmet", "Local guide", "All skill levels"],
     points: ["Guided singletrack", "Bring your own bike or rent one", "Beginner to advanced"],
     cta: "Book a Guide",
@@ -152,8 +157,8 @@ const tours = [
     description:
       "A laid-back way to explore Central Florida on smooth scenic paved trails through historic Sanford and its riverfront views. Blue Spring rides are coming soon.",
     icon: Waves,
-    duration: "2–3 hour guided tour",
-    price: "From $115 / rider",
+    duration: "2-hour guided tour",
+    price: `${usd(PRICING.PAVED_GROUP[0])} / rider + tax · less per rider in groups`,
     includes: ["Bike & helmet", "Local guide", "All ages welcome"],
     points: ["Historic Sanford", "Blue Spring — coming soon", "All ages & levels"],
     cta: "Book This Tour",
@@ -655,7 +660,7 @@ export default function FloridaMountainBikeGuidesLanding() {
               </motion.p>
 
               <motion.p variants={fadeUp} className="mt-4 max-w-2xl text-base leading-7 text-[var(--lp-text-body)]">
-                Just choose your location and date, show up ready to ride, and let the adventure begin. For riders who need a little extra convenience, pickup and drop-off can also be arranged.
+                Just choose your location and date, show up ready to ride, and let the adventure begin. For riders who need a little extra convenience, pickup and drop-off can also be added to mountain bike tours.
               </motion.p>
 
               <motion.p variants={fadeUp} className="mt-3 text-sm text-[var(--lp-text-muted)]">

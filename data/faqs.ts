@@ -7,6 +7,8 @@
  * with the visible page is a spam signal, not a rich result.
  */
 
+import { formatPrice, PRICING } from '@/lib/pricing';
+
 export interface FaqItem {
   q: string;
   a: string;
@@ -35,7 +37,7 @@ export const faqItems: FaqItem[] = [
   },
   {
     q: "Can you arrange pickup from my hotel or Airbnb?",
-    a: "Yes. Pickup and drop-off can be arranged for select locations. Contact us when booking to confirm availability and any additional logistics.",
+    a: `Yes, on mountain bike tours. Round-trip pickup and drop-off is ${formatPrice(PRICING.ADDONS.pickup_dropoff)} per rider plus tax: add it when you book, and contact us to confirm the logistics. Paved tours start at the meeting point and don't include pickup.`,
   },
   {
     q: "Are tours suitable for families and kids?",

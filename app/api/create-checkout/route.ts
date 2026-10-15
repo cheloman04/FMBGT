@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createCheckoutSession, createStripeCustomer, getStripeCustomer } from '@/lib/stripe';
 import { validateBookingInventory } from '@/lib/inventory';
-import { calculatePriceBreakdown, PRICING } from '@/lib/pricing';
+import { addonsNotOfferedOn, calculatePriceBreakdown, PRICING } from '@/lib/pricing';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { markLeadSessionCheckoutStarted } from '@/lib/lead-sessions';
 import type { BookingState, TrailType } from '@/types/booking';
@@ -267,6 +267,15 @@ export async function POST(req: NextRequest) {
     if (state.participant_count > maxParticipants) {
       return NextResponse.json(
         { error: `Maximum ${maxParticipants} riders allowed at ${state.location_name}.` },
+        { status: 400 }
+      );
+    }
+
+    // GoPro and pickup are mountain bike extras: a paved tour doesn't offer them.
+    const notOffered = addonsNotOfferedOn(state.trail_type, state.addons);
+    if (notOffered.length > 0) {
+      return NextResponse.json(
+        { error: 'GoPro and pickup are only available on mountain bike tours.', details: notOffered },
         { status: 400 }
       );
     }
