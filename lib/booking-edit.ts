@@ -14,7 +14,6 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { validateBookingInventory } from '@/lib/inventory';
 import { isLocationComingSoon, COMING_SOON_MESSAGE } from '@/lib/location-status';
 import { overrideQuote, quoteBooking, quoteToBookingPatch } from '@/lib/booking-quote';
-import { addonsNotOfferedOn } from '@/lib/pricing';
 import {
   bookingTotalCents,
   formatUsd,
@@ -316,10 +315,8 @@ export async function editOnlineBooking(
   // ── Add-ons (mountain bike) ───────────────────────────────────────────────────
   const oldAddons: Addons = booking.addons ?? {};
   const newAddons: Addons = { ...oldAddons };
-  if (addonsNotOfferedOn(booking.trail_type, input.addons).length > 0) {
-    return { ok: false, status: 400, error: 'GoPro and pickup are only available on mountain bike tours.' };
-  }
-  if (input.addons) {
+  // Paved tours have no GoPro or pickup: any sent for one are ignored.
+  if (input.addons && !isPaved) {
     for (const key of ['gopro', 'pickup_dropoff'] as const) {
       const next = input.addons[key];
       if (next !== undefined && Boolean(next) !== Boolean(oldAddons[key])) {

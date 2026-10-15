@@ -601,7 +601,7 @@ total = group_price(participant_count) + $25 × count(riders with bike='electric
 
 - Bike is always included, duration is always 2 hours, no surcharge
 - E-bike upgrade ($25) per rider who chose electric (Sanford only)
-- **No GoPro and no pickup** on paved tours: `create-checkout` rejects them (400) and the price never includes them
+- **No GoPro and no pickup** on paved tours: `create-checkout` drops them if a request sends them (never an error), so they are never charged, saved or held in inventory
 
 **Mountain Bike Tours (per rider):**
 ```

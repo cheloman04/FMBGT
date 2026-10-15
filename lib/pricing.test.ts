@@ -5,7 +5,7 @@ vi.mock('@/lib/discounts', () => import('./discounts'));
 
 import {
   PRICING,
-  addonsNotOfferedOn,
+  offeredAddons,
   calculatePavedGroupPrice,
   calculatePriceBreakdown,
   getPriceLineItems,
@@ -87,17 +87,17 @@ describe('paved tour (priced per group, bikes included)', () => {
   });
 });
 
-describe('addonsNotOfferedOn', () => {
-  it('flags GoPro and pickup on a paved tour', () => {
-    expect(addonsNotOfferedOn('paved', { gopro: true, pickup_dropoff: true })).toEqual(['gopro', 'pickup_dropoff']);
-    expect(addonsNotOfferedOn('paved', { pickup_dropoff: true })).toEqual(['pickup_dropoff']);
+describe('offeredAddons', () => {
+  it('drops GoPro and pickup from a paved tour instead of failing', () => {
+    expect(offeredAddons('paved', { gopro: true, pickup_dropoff: true, electric_upgrade: false })).toEqual(NO_ADDONS);
+    expect(offeredAddons('paved', { pickup_dropoff: true })).toEqual({ pickup_dropoff: false });
   });
 
-  it('allows them on mountain bike tours and lets paved riders pick an e-bike', () => {
-    expect(addonsNotOfferedOn('mtb', { gopro: true, pickup_dropoff: true })).toEqual([]);
-    expect(addonsNotOfferedOn('paved', NO_ADDONS)).toEqual([]);
-    expect(addonsNotOfferedOn('paved', { electric_upgrade: true })).toEqual([]);
-    expect(addonsNotOfferedOn('paved', undefined)).toEqual([]);
+  it('keeps them on mountain bike tours and leaves the rest alone', () => {
+    const all = { gopro: true, pickup_dropoff: true, electric_upgrade: true };
+    expect(offeredAddons('mtb', all)).toEqual(all);
+    expect(offeredAddons('paved', { electric_upgrade: true })).toEqual({ electric_upgrade: true });
+    expect(offeredAddons('paved', {})).toEqual({});
   });
 });
 

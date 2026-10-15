@@ -31,10 +31,12 @@ export const PRICING = {
 /** Extras sold only on mountain bike tours: a paved tour has no GoPro and no pickup. */
 export const MTB_ONLY_ADDONS = ['gopro', 'pickup_dropoff'] as const;
 
-/** The MTB-only extras asked for on a paved tour (checkout rejects them). */
-export function addonsNotOfferedOn(trailType: string | undefined, addons: Addons | null | undefined): Array<keyof Addons> {
-  if (trailType !== 'paved' || !addons) return [];
-  return MTB_ONLY_ADDONS.filter((key) => addons[key]);
+/** The add-ons a tour can have: on a paved tour, GoPro and pickup are dropped (never an error). */
+export function offeredAddons<T extends Addons>(trailType: string | undefined, addons: T): T {
+  if (trailType !== 'paved') return addons;
+  const offered = { ...addons };
+  for (const key of MTB_ONLY_ADDONS) if (key in offered) offered[key] = false as T[typeof key];
+  return offered;
 }
 
 /** Paved group price (pre-tax, bikes included) for a group of `riders`. */
