@@ -22,6 +22,7 @@ const eslintConfig = defineConfig([
       "lib/admin/**/*.ts",
       "app/api/admin/badges/*.ts",
       "app/api/admin/conversations/**/*.ts",
+      "app/api/admin/notifications/**/*.ts",
     ],
   }),
   // Override default ignores of eslint-config-next.

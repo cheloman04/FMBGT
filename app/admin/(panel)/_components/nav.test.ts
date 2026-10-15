@@ -11,6 +11,7 @@ describe('ADMIN_NAV', () => {
   it('keeps the menu order', () => {
     expect(ADMIN_NAV.map((item) => item.label)).toEqual([
       'Dashboard',
+      'Notifications',
       'Bookings',
       'Leads',
       'Conversations',
@@ -26,12 +27,17 @@ describe('ADMIN_NAV', () => {
     expect(ADMIN_NAV.filter((item) => 'exact' in item && item.exact).map((item) => item.href)).toEqual(['/admin']);
   });
 
-  it('the badges are the ones loadNavBadges() counts', () => {
-    expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual(['bookings', 'leads']);
+  it('the badges are the ones loadNavBadges() counts, plus the bell from the hub', () => {
+    expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual([
+      'notifications',
+      'bookings',
+      'leads',
+    ]);
   });
 
-  it('only Conversations depends on a feature: the layout turns it on when a channel is connected', () => {
+  it('only the hub-backed entries depend on a feature: the layout turns them on', () => {
     expect(ADMIN_NAV.flatMap((item) => ('feature' in item && item.feature ? [`${item.href}:${item.feature}`] : []))).toEqual([
+      '/admin/notifications:notifications',
       '/admin/conversations:conversations',
     ]);
   });
