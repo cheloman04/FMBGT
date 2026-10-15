@@ -14,7 +14,7 @@ const OG_IMAGE = `${SITE_URL}/opengraph-image`;
 
 const TITLE = 'Guided Mountain Bike Tours in Central Florida | Florida Mountain Bike Guides';
 const DESCRIPTION =
-  'Expert-guided mountain bike and paved trail tours across Central Florida. Bikes included, all skill levels welcome. Ride Sanford, Mount Dora, Ocala, and beyond.';
+  'Expert-guided mountain bike and paved trail tours across Central Florida. All skill levels welcome. Ride Sanford, Mount Dora, Ocala, and beyond.';
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: TITLE,
     description:
-      'All skill levels. Bikes included. Local guides. Book your Central Florida trail adventure today.',
+      'All skill levels. Local guides. Book your Central Florida trail adventure today.',
     images: [`${SITE_URL}/twitter-image`],
   },
   robots: { index: true, follow: true },

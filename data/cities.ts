@@ -68,7 +68,7 @@ export const CITIES: City[] = [
     region: 'Seminole County',
     metaTitle: 'Guided Bike Tours in Sanford, FL — Historic Riverfront & Trails',
     metaDescription:
-      'Guided paved and mountain bike tours in Sanford, Florida. Ride the historic downtown riverfront from Bicikleta Bike Shop, or hit the dirt at Markham Woods. Bikes included.',
+      'Guided paved and mountain bike tours in Sanford, Florida. Ride the historic downtown riverfront from Bicikleta Bike Shop, or hit the dirt at Markham Woods.',
     heading: 'Guided Bike Tours in Sanford, Florida',
     intro:
       'Sanford is our home base. The paved riverfront tour starts from Bicikleta Bike Shop in the historic downtown and rolls out along Lake Monroe — no dirt, no technical riding, and no experience needed. It is the tour we point people to when the group has mixed ability or when riding singletrack is not the point of the day.',
