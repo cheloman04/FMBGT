@@ -47,6 +47,7 @@ export interface FollowUpLeadRecord {
   zip_code: string | null;
   heard_about_us: string | null;
   selected_trail_type: FollowUpTrailType | null;
+  selected_skill_level: string | null;
   selected_location_name: string | null;
   selected_bike: string | null;
   selected_date: string | null;
@@ -102,7 +103,7 @@ async function fetchLeadRecord(leadId: string): Promise<FollowUpLeadRecord | nul
     .from('leads')
     .select(`
       id, full_name, email, phone, zip_code, heard_about_us,
-      selected_trail_type, selected_location_name,
+      selected_trail_type, selected_skill_level, selected_location_name,
       selected_bike, selected_date, selected_time_slot, selected_duration_hours,
       utm_source, utm_medium, utm_campaign, utm_content, utm_term,
       last_step_completed, last_activity_at, source, status, created_at, booking_id,

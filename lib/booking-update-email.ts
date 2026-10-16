@@ -1,7 +1,7 @@
 // "Your booking was updated": the booking_confirmed email sent again with the
-// new details after an admin edit. The n8n workflow (Booking Confirmation Email)
-// switches its subject and intro when `updated` is true and lists
-// `changes_summary`. Manual bookings reuse their own email (waiver link + real
+// new details after an admin edit. The template (lib/email/templates/booking-confirmed.ts,
+// or the n8n workflow while the type isn't switched over) switches its subject and
+// intro when `updated` is true and lists `changes_summary`. Manual bookings reuse their own email (waiver link + real
 // balance); online bookings get the checkout email's fields, rebuilt from the row.
 
 import 'server-only';
@@ -11,7 +11,7 @@ import { addHoursToIso, easternLocalToUtcIso } from '@/lib/booking-datetime';
 import { formatSkillLevel } from '@/lib/booking-email';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { getAppUrl } from '@/lib/app-url';
-import { triggerN8nEvent } from '@/lib/n8n';
+import { sendBookingConfirmedEmail } from '@/lib/email/send';
 import { sendManualBookingEmail } from '@/lib/manual-booking';
 import { bookingTotalCents, netCollectedCents, scheduledChargeCents, type BookingMoneyRow } from '@/lib/booking-money';
 
@@ -60,10 +60,10 @@ export async function sendBookingUpdatedEmail(
   const total = bookingTotalCents(money);
   const collected = netCollectedCents(money);
 
-  const result = await triggerN8nEvent({
-    event: 'booking_confirmed',
+  // A new email each time the operator saves a change (its own idempotency key).
+  const result = await sendBookingConfirmedEmail({
     source: opts.source,
-    envKeys: ['N8N_WEBHOOK_URL'],
+    repeat: true,
     data: {
       booking_id: booking.id,
       resend: true,

@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 
 export type ReviewRequestTrailType = 'paved' | 'mtb';
 export type ReviewRequestEnrollmentStatus = 'active' | 'reviewed' | 'cancelled' | 'completed';
@@ -481,5 +482,55 @@ export async function markReviewRequestReceived(input: {
 
   if (stepsError) {
     console.error(`[review-requests] Failed to cancel pending review steps for enrollment ${input.enrollmentId}:`, stepsError.message);
+  }
+}
+
+/**
+ * A review-request step went out: mark it sent and, the first time only, tell the
+ * hub (`review.requested`). Shared by the n8n events route and the Kigaru email
+ * tick (lib/email/sequences.ts), so both paths report the same event.
+ */
+export async function recordReviewRequestStepSent(input: {
+  enrollmentId: string;
+  stepKey: ReviewRequestStepKey;
+  sourceRoute: string;
+}): Promise<void> {
+  const enrollment = await getReviewRequestEnrollmentById(input.enrollmentId);
+  const steps = await getReviewRequestSteps(input.enrollmentId);
+  const targetStep = steps.find((step) => step.step_key === input.stepKey);
+  const shouldAttemptReviewRequested = targetStep?.status === 'pending';
+
+  await markReviewRequestStepSent({ enrollmentId: input.enrollmentId, stepKey: input.stepKey });
+
+  const updatedSteps = shouldAttemptReviewRequested ? await getReviewRequestSteps(input.enrollmentId) : steps;
+  const updatedTargetStep = updatedSteps.find((step) => step.step_key === input.stepKey);
+
+  if (enrollment && shouldAttemptReviewRequested && updatedTargetStep?.status === 'sent') {
+    await queueSenzaiEvent({
+      event_name: 'review.requested',
+      occurred_at: new Date().toISOString(),
+      source_event_id: `${input.enrollmentId}:${input.stepKey}`,
+      idempotency_key: `review_enrollment:${input.enrollmentId}:step:${input.stepKey}:requested`,
+      source_route: input.sourceRoute,
+      authoritative_source: 'review_request_step_sent',
+      entity_type: 'review_request_enrollment',
+      entity_id: input.enrollmentId,
+      refs: {
+        booking_id: enrollment.booking_id,
+        customer_id: enrollment.customer_id,
+        review_enrollment_id: input.enrollmentId,
+      },
+      data: {
+        enrollment_id: input.enrollmentId,
+        booking_id: enrollment.booking_id,
+        customer_id: enrollment.customer_id,
+        email: enrollment.email,
+        full_name: enrollment.full_name,
+        trail_type: enrollment.trail_type,
+        location_name: enrollment.location_name,
+        sequence_key: enrollment.sequence_key,
+        step_key: input.stepKey,
+      },
+    });
   }
 }

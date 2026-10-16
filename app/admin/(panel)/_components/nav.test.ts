@@ -15,6 +15,7 @@ describe('ADMIN_NAV', () => {
       'Bookings',
       'Leads',
       'Conversations',
+      'Emails',
       'Manual booking',
       'Financial log',
       'Referrals',
@@ -39,6 +40,7 @@ describe('ADMIN_NAV', () => {
     expect(ADMIN_NAV.flatMap((item) => ('feature' in item && item.feature ? [`${item.href}:${item.feature}`] : []))).toEqual([
       '/admin/notifications:notifications',
       '/admin/conversations:conversations',
+      '/admin/emails:emails',
     ]);
   });
 

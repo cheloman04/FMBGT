@@ -6,6 +6,7 @@ import { formatSkillLevel } from '@/lib/booking-email';
 import { getBookingLocationMeta } from '@/lib/location-meta';
 import { getAppUrl } from '@/lib/app-url';
 import { sendManualBookingEmail } from '@/lib/manual-booking';
+import { sendBookingConfirmedEmail } from '@/lib/email/send';
 
 function trimWebhookError(message: string): string {
   return message.replace(/\s+/g, ' ').trim().slice(0, 300);
@@ -92,95 +93,55 @@ export async function POST(
     : null;
 
   const appUrl = getAppUrl();
-  const webhookUrl = process.env.N8N_WEBHOOK_URL;
 
-  if (!webhookUrl || webhookUrl === 'your_n8n_webhook_url_here') {
-    return NextResponse.json({ error: 'N8N_WEBHOOK_URL not configured' }, { status: 503 });
+  // Through Kigaru or n8n (lib/email/send.ts). An email the operator asked for
+  // again: with Kigaru it gets its own idempotency key, so it always goes out.
+  const result = await sendBookingConfirmedEmail({
+    source: '/api/admin/retrigger-webhook',
+    repeat: true,
+    data: {
+      booking_id: bookingId,
+      customer_email: customerRow?.email ?? null,
+      customer_name: customerRow?.name ?? null,
+      customer_phone: customerRow?.phone ?? null,
+      zip_code: b.zip_code,
+      marketing_source: b.marketing_source,
+      deposit_amount: b.deposit_amount,
+      remaining_balance: b.remaining_balance_amount,
+      remaining_balance_due_at: b.remaining_balance_due_at,
+      location: locationName,
+      date: b.date,
+      time: b.time_slot,
+      duration_hours: b.duration_hours,
+      participant_count: b.participant_count,
+      participant_info: b.participant_info,
+      trail_type: b.trail_type,
+      skill_level: formatSkillLevel(b.skill_level ?? undefined),
+      meeting_location_name: locationMeta.meetingPointName,
+      meeting_location_address: locationMeta.meetingPointAddress,
+      meeting_location_url: locationMeta.meetingPointUrl,
+      booking_start_iso: bookingStartIso,
+      booking_end_iso: bookingEndIso,
+      calendar_url: `${appUrl}/api/calendar/${bookingId}`,
+    },
+  });
+  const errorMessage = result.error ? trimWebhookError(result.error) : null;
+
+  await supabase
+    .from('bookings')
+    .update({
+      webhook_sent: result.ok,
+      webhook_last_attempt_at: result.attemptedAt,
+      webhook_last_status_code: result.statusCode,
+      webhook_last_error: result.ok ? null : errorMessage,
+    })
+    .eq('id', bookingId);
+
+  if (!result.ok) {
+    console.error(`[retrigger-webhook] ${errorMessage} (${result.via}) for booking ${bookingId}`);
+    return NextResponse.json({ error: errorMessage ?? 'Failed to send email' }, { status: 502 });
   }
 
-  try {
-    const res = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(8000),
-      body: JSON.stringify({
-        event: 'booking_confirmed',
-        retrigger: true,
-        data: {
-          booking_id: bookingId,
-          customer_email: customerRow?.email ?? null,
-          customer_name: customerRow?.name ?? null,
-          customer_phone: customerRow?.phone ?? null,
-          zip_code: b.zip_code,
-          marketing_source: b.marketing_source,
-          deposit_amount: b.deposit_amount,
-          remaining_balance: b.remaining_balance_amount,
-          remaining_balance_due_at: b.remaining_balance_due_at,
-          location: locationName,
-          date: b.date,
-          time: b.time_slot,
-          duration_hours: b.duration_hours,
-          participant_count: b.participant_count,
-          participant_info: b.participant_info,
-          trail_type: b.trail_type,
-          skill_level: formatSkillLevel(b.skill_level ?? undefined),
-          meeting_location_name: locationMeta.meetingPointName,
-          meeting_location_address: locationMeta.meetingPointAddress,
-          meeting_location_url: locationMeta.meetingPointUrl,
-          booking_start_iso: bookingStartIso,
-          booking_end_iso: bookingEndIso,
-          calendar_url: `${appUrl}/api/calendar/${bookingId}`,
-        },
-        timestamp: new Date().toISOString(),
-      }),
-    });
-
-    if (!res.ok) {
-      const responseText = trimWebhookError(await res.text());
-      const errorMessage = responseText
-        ? `n8n returned ${res.status}: ${responseText}`
-        : `n8n returned ${res.status}`;
-
-      await supabase
-        .from('bookings')
-        .update({
-          webhook_sent: false,
-          webhook_last_attempt_at: new Date().toISOString(),
-          webhook_last_status_code: res.status,
-          webhook_last_error: errorMessage,
-        })
-        .eq('id', bookingId);
-
-      console.error(`[retrigger-webhook] ${errorMessage} for booking ${bookingId}`);
-      return NextResponse.json({ error: errorMessage }, { status: 502 });
-    }
-
-    await supabase
-      .from('bookings')
-      .update({
-        webhook_sent: true,
-        webhook_last_attempt_at: new Date().toISOString(),
-        webhook_last_status_code: res.status,
-        webhook_last_error: null,
-      })
-      .eq('id', bookingId);
-
-    console.log(`[retrigger-webhook] Webhook re-triggered for booking ${bookingId} by admin ${adminUser.email}`);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error('[retrigger-webhook] Failed:', err);
-    const errorMessage = trimWebhookError(err instanceof Error ? err.message : 'Failed to reach n8n');
-
-    await supabase
-      .from('bookings')
-      .update({
-        webhook_sent: false,
-        webhook_last_attempt_at: new Date().toISOString(),
-        webhook_last_status_code: null,
-        webhook_last_error: errorMessage,
-      })
-      .eq('id', bookingId);
-
-    return NextResponse.json({ error: errorMessage }, { status: 502 });
-  }
+  console.log(`[retrigger-webhook] Confirmation re-sent through ${result.via} for booking ${bookingId} by admin ${adminUser.email}`);
+  return NextResponse.json({ ok: true });
 }

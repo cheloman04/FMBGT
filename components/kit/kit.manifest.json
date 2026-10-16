@@ -1,10 +1,10 @@
 {
   "kit": "dashboard",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "source": {
     "repo": "senzai-skills",
     "path": "kit/dashboard",
-    "commit": "82e453f93a606048f9e5b405d6c616249d93689d"
+    "commit": "15ae7bf84326b47b758068eeb69bfae383e8494c"
   },
   "files": {
     "AppShell.tsx": "3066e1758998c4315b721536fd3625f5393be0ed3149c026340361bc20c4f30b",
@@ -51,7 +51,11 @@
     "conversations/useMediaQuery.ts": "c6b8a25ebc6fbadea0421980f284decdcc8da5a85be352ea5ea8a37683c35c70",
     "conversations/usePolling.ts": "9385fd37073d7a142c614241f98f52da9313667b4cf5915435c7465d83931b46",
     "cx.ts": "1b3b1faf2deab0896e7f18eb00b5969b751c541e685341f8a04aa49f79e45eca",
-    "index.ts": "4f934c2fb58fbab3318c93cb005354e5a86aa4b5ab27cca32da44cc49bf632f5",
+    "emails/EmailsLog.tsx": "2a4f0acf9031ed48e31e582ebd83284dc5973a7202f9d0106b97f55658c26102",
+    "emails/log.ts": "67163098fa1605966c0b02fbfa08743233c86520d55cc3b63cf524640be57d06",
+    "emails/server.ts": "152f12c42933a8e8295a1f7fe61ed694a185e8dba25044d298ae6a3d6f7acd69",
+    "emails/types.ts": "b9c421db7a9cc7dd7e62d60b25d94329ca802cd3c9389391cb56bb8aea3107d0",
+    "index.ts": "e6f5cd0ceb55b5b7055ff25e2bb08d7307429dadf64e432c434ac3f2d1564b47",
     "kit.css": "45fe9e2d305269499a8f535ec76924ed7a72e8f308f6fc8fca5511dc107236c6",
     "nav.ts": "43d347dbdfee52e42a4db8009ae9577b17830e4bb4ebff250332259303f0a032",
     "notifications/NotificationsFeed.tsx": "089e22cf9b714ebe1d97b454b2968023449f44a2a26c2567d48cf1df1a7af571",
@@ -65,7 +69,7 @@
     "useConfirm.tsx": "ffa55359579e4477ac0ac5ff94deae15c58cf550faa6458264696e93f4a5dda1",
     "useDialogBehavior.ts": "f812ce89273a700bcb5830b49120fc3d234c1a7d67fe09608b88d4af5ef20dea",
     "eslint/_shared.mjs": "59e19e38c3e4cd3a0aaa671d2719af7d42392bd860386e8b87411a1c51fdaf60",
-    "eslint/index.mjs": "08e1f0b614851efac0e643251cb97cabe37b7153723d64eff9ab5bef6ae7f05d",
+    "eslint/index.mjs": "518f2ccbc42417981488c3647401e555179c6438a5a8c26f4de632039832dba2",
     "eslint/no-dark-variant.mjs": "ec5d8f839c8bd4be552e5c64a2bb850e4a383a1ebed24b89f4da7c74fccd2a90",
     "eslint/no-duplicate-color-utility.mjs": "152b9f09bfafbc650db2bda1fa0d1f01df37407ec3cb3eefbe9345686a4b7379",
     "eslint/no-emoji-in-ui.mjs": "d9bc92fa02eb880b16239db7328272e3ec5cda1e09bb6bca41aa2d4040f5eb31",

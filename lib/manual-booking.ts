@@ -26,7 +26,8 @@ import { getAppUrl } from '@/lib/app-url';
 import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
 import { convertLead } from '@/lib/lead-conversion';
-import { notifySupportAlert, triggerN8nEvent } from '@/lib/n8n';
+import { notifySupportAlert } from '@/lib/n8n';
+import { sendBookingConfirmedEmail } from '@/lib/email/send';
 import { syncBookingCalendarEvent, type CalendarSyncResult } from '@/lib/booking-calendar';
 import { validateBookingInventory } from '@/lib/inventory';
 import type { BikeRental } from '@/types/booking';
@@ -114,10 +115,11 @@ export async function sendManualBookingEmail(
   const startIso = booking.date && booking.time_slot ? easternLocalToUtcIso(booking.date, booking.time_slot) : null;
   const endIso = startIso && booking.duration_hours ? addHoursToIso(startIso, booking.duration_hours) : null;
 
-  const result = await triggerN8nEvent({
-    event: 'booking_confirmed',
+  // Through Kigaru or n8n (lib/email/send.ts). A resend or an update is a new email
+  // the operator asked for, with its own idempotency key; the first one isn't.
+  const result = await sendBookingConfirmedEmail({
     source: opts.source,
-    envKeys: ['N8N_WEBHOOK_URL'],
+    repeat: opts.resend || Boolean(opts.changesSummary?.length),
     data: {
       booking_id: booking.id,
       resend: opts.resend,

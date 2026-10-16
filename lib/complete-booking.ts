@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { notifyCompletedService } from '@/lib/completed-service-alert';
 import { enrollBookingInReviewRequest } from '@/lib/review-requests';
 import { queueSenzaiEvent } from '@/lib/analytics-delivery';
+import { sendsViaKigaru } from '@/lib/email/config';
 
 /**
  * The booking fields needed to fire the completion side effects. Both callers
@@ -31,8 +32,10 @@ export interface ServiceCompletionResult {
 
 /**
  * Fires every side effect of a booking transitioning into `completed`:
- *   1. n8n completed-service alert
- *   2. review-request enrollment
+ *   1. n8n completed-service alert — only while the review requests still go
+ *      through n8n: its review workflow was the only listener. Once `review_request`
+ *      is switched over to Kigaru (KIGARU_EMAIL_TYPES) the app sends them itself.
+ *   2. review-request enrollment (the steps the email tick sends when due)
  *   3. Senzai `service.completed` (carrying refs.lead_id so the hub can pair it
  *      with the prior `lead.created` and compute Lead→Service time-to-close)
  *
@@ -77,27 +80,29 @@ export async function runServiceCompletionEffects(
     console.error('[complete-booking] location fetch error:', locationResult.error);
   }
 
-  const completedServiceWebhookSent = await notifyCompletedService({
-    booking_id: booking.id,
-    customer_id: booking.customer_id,
-    full_name: customerResult.data?.name ?? null,
-    email: customerResult.data?.email ?? null,
-    phone: customerResult.data?.phone ?? null,
-    trail_type: booking.trail_type ?? null,
-    skill_level: booking.skill_level ?? null,
-    location_name: locationResult.data?.name ?? null,
-    meeting_location: null,
-    meeting_address: null,
-    meeting_url: null,
-    date: booking.date ?? null,
-    time_slot: booking.time_slot ?? null,
-    duration_hours: booking.duration_hours ?? null,
-    bike_rental: booking.bike_rental ?? null,
-    participant_count: booking.participant_count ?? null,
-    total_price: booking.total_price ?? null,
-    status: 'completed',
-    completed_at: completedAt,
-  });
+  const completedServiceWebhookSent = sendsViaKigaru('review_request')
+    ? false
+    : await notifyCompletedService({
+        booking_id: booking.id,
+        customer_id: booking.customer_id,
+        full_name: customerResult.data?.name ?? null,
+        email: customerResult.data?.email ?? null,
+        phone: customerResult.data?.phone ?? null,
+        trail_type: booking.trail_type ?? null,
+        skill_level: booking.skill_level ?? null,
+        location_name: locationResult.data?.name ?? null,
+        meeting_location: null,
+        meeting_address: null,
+        meeting_url: null,
+        date: booking.date ?? null,
+        time_slot: booking.time_slot ?? null,
+        duration_hours: booking.duration_hours ?? null,
+        bike_rental: booking.bike_rental ?? null,
+        participant_count: booking.participant_count ?? null,
+        total_price: booking.total_price ?? null,
+        status: 'completed',
+        completed_at: completedAt,
+      });
 
   let reviewRequestEnrollmentId: string | null = null;
   let reviewRequestAlreadyActive = false;

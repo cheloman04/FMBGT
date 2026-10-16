@@ -157,3 +157,36 @@ export type {
   NotificationsNav,
   NotificationsReadAllResult,
 } from "./notifications/types";
+
+// 2c · los correos del negocio a sus clientes, enviados por Kigaru (carril 5): qué
+// salió, qué llegó y qué no. 🔒 Como la bandeja, su parte de servidor
+// (`emails/server.ts`) NO sale por aquí: `@/components/kit/emails/server`.
+export { EmailsLog } from "./emails/EmailsLog";
+export {
+  EMAILS_LABELS,
+  EMAIL_SEGMENTS,
+  EMAIL_PERIODS,
+  EMAIL_PARAMS,
+  DEFAULT_EMAIL_VIEW,
+  mergeEmailLabels,
+  parseEmailView,
+  emailViewKey,
+  emailListUrl,
+  emailStatusMeta,
+  emailTypeName,
+  isEmailAddress,
+  type EmailsLabels,
+  type EmailParamNames,
+} from "./emails/log";
+export type {
+  EmailCounts,
+  EmailDetail,
+  EmailEvent,
+  EmailItem,
+  EmailPeriod,
+  EmailSegment,
+  EmailStatus,
+  EmailView,
+  EmailsData,
+  EmailsLoad,
+} from "./emails/types";
