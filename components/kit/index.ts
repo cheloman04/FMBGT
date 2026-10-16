@@ -94,6 +94,9 @@ export { withParam, type SearchParamsInput } from "./url";
 export { ConversationsInbox } from "./conversations/ConversationsInbox";
 export { ConversationThread } from "./conversations/ConversationThread";
 export { AttachmentStrip } from "./conversations/AttachmentStrip";
+// El canal con su logo (Telegram, WhatsApp, Instagram, Messenger…) y su nombre para el lector.
+export { ChannelGlyph } from "./conversations/ChannelGlyph";
+export { channelLogo } from "./conversations/channelLogos";
 export {
   INBOX_LABELS,
   mergeLabels,
