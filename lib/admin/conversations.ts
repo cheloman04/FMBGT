@@ -20,9 +20,12 @@ export const inboxRoutes = createInboxRoutes({
   authorize: async () => ((await getOperator()) ? null : unauthorized()),
 });
 
-/** The first paint of /admin/conversations. A hub failure comes back with its cause. */
-export function loadConversations() {
-  return loadInbox(hubFromEnv());
+/**
+ * The first paint of /admin/conversations, for the segment (`?segment=`) and the
+ * search (`?q=`) in the URL. A hub failure comes back with its cause.
+ */
+export function loadConversations(sp: { segment?: string; q?: string }) {
+  return loadInbox(hubFromEnv(), { segment: sp.segment, query: sp.q });
 }
 
 /**
