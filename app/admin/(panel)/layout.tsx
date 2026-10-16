@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { AppShell, ShellFooterAction, visibleNav } from '@/components/kit';
 import { requireOperator } from '@/lib/admin/auth';
+import { callsMenu, withCallsBadge } from '@/lib/admin/calls';
 import { conversationsVisible } from '@/lib/admin/conversations';
 import { emailsVisible } from '@/lib/admin/emails';
 import { loadNavBadges } from '@/lib/admin/loaders';
@@ -15,7 +16,7 @@ const LOGO_URL =
 // (panel) is guarded here once and drawn inside the shell.
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   await requireOperator();
-  const [badges, inbox, bell, emails] = await Promise.all([
+  const [badges, inbox, calls, bell, emails] = await Promise.all([
     // A counter that fails to load shouldn't take the whole admin down: no badge.
     loadNavBadges().catch((error: unknown) => {
       console.error('[admin] nav badges:', error);
@@ -25,6 +26,11 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     // never throws, keeps its answer for a minute, and a hub that fails or is slow
     // (2.5 s) leaves the entry visible.
     conversationsVisible(),
+    // "Calls" shows once the voice line has an active account in the hub or there
+    // are calls in the history, with how many need a person. It never throws and
+    // has no cache; a hub that fails or is slow (2.5 s) leaves it visible without
+    // a number.
+    callsMenu(),
     // "Notifications" shows once the site's connection has the notifications:read
     // scope, with the unread count. It never throws; a hub that fails or is slow
     // (2.5 s) leaves it visible without a number.
@@ -36,6 +42,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   ]);
   const features = [
     ...(inbox ? ['conversations'] : []),
+    ...(calls.visible ? ['calls'] : []),
     ...(bell.visible ? ['notifications'] : []),
     ...(emails ? ['emails'] : []),
   ];
@@ -48,7 +55,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       brand={<span className="text-[13px] font-semibold tracking-tight">Florida MTB</span>}
       mark={<Image src={LOGO_URL} alt="" width={28} height={28} className="h-7 w-7 rounded-lg object-contain" />}
       area="Admin"
-      badges={withNotificationsBadge(badges, bell)}
+      badges={withCallsBadge(withNotificationsBadge(badges, bell), calls)}
       badgesEndpoint="/api/admin/badges"
       storageKey="fmbgt-admin-sidebar"
       footer={

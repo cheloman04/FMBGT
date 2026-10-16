@@ -15,6 +15,7 @@ describe('ADMIN_NAV', () => {
       'Bookings',
       'Leads',
       'Conversations',
+      'Calls',
       'Emails',
       'Manual booking',
       'Financial log',
@@ -28,11 +29,12 @@ describe('ADMIN_NAV', () => {
     expect(ADMIN_NAV.filter((item) => 'exact' in item && item.exact).map((item) => item.href)).toEqual(['/admin']);
   });
 
-  it('the badges are the ones loadNavBadges() counts, plus the bell from the hub', () => {
+  it('the badges are the ones loadNavBadges() counts, plus the bell and the calls from the hub', () => {
     expect(ADMIN_NAV.flatMap((item) => ('badge' in item && item.badge ? [item.badge] : []))).toEqual([
       'notifications',
       'bookings',
       'leads',
+      'calls',
     ]);
   });
 
@@ -40,6 +42,7 @@ describe('ADMIN_NAV', () => {
     expect(ADMIN_NAV.flatMap((item) => ('feature' in item && item.feature ? [`${item.href}:${item.feature}`] : []))).toEqual([
       '/admin/notifications:notifications',
       '/admin/conversations:conversations',
+      '/admin/calls:calls',
       '/admin/emails:emails',
     ]);
   });

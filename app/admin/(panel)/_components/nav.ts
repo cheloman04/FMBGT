@@ -17,6 +17,10 @@ export const ADMIN_NAV = defineNav([
   // Instagram, Messenger and WhatsApp DMs. Hidden until a messaging channel has
   // an active account in the hub (`conversationsVisible()` in the layout).
   { href: '/admin/conversations', label: 'Conversations', feature: 'conversations' },
+  // The voice agent's calls. The badge counts the ones that need a person and
+  // nobody has marked as attended yet. Hidden until the voice line has an active
+  // account in the hub or there are calls in the history (`callsMenu()` in the layout).
+  { href: '/admin/calls', label: 'Calls', badge: 'calls', feature: 'calls' },
   // The emails the site sent its guests through Kigaru, and whether they arrived.
   // Hidden until the site's connection has the email:read scope
   // (`emailsVisible()` in the layout).
