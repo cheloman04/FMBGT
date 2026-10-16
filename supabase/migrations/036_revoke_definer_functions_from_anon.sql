@@ -21,6 +21,10 @@
 -- Left alone: rls_auto_enable(), Supabase's function behind the `ensure_rls` event
 -- trigger (turns RLS on for new public tables). It is SECURITY DEFINER too, but it
 -- returns event_trigger, so it cannot be called outside its trigger, by RPC or by hand.
+--
+-- Applied to production (nhgpxegozgljqebxqtnq) on 2026-10-16, after a rehearsal with
+-- rollback, and verified with has_function_privilege and real calls per role:
+-- service_role claims and reserves, anon and authenticated get permission denied.
 
 REVOKE ALL ON FUNCTION claim_analytics_deliveries(integer, text[]) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION claim_analytics_deliveries(integer, text[]) FROM anon, authenticated;
