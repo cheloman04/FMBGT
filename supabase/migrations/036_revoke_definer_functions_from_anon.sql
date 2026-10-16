@@ -17,6 +17,10 @@
 -- (getSupabaseAdmin()): lib/analytics-delivery.ts, app/api/create-checkout and
 -- app/api/webhooks/stripe. Nothing in the browser calls them. claim_email_outbox
 -- (035) already got the same REVOKE.
+--
+-- Left alone: rls_auto_enable(), Supabase's function behind the `ensure_rls` event
+-- trigger (turns RLS on for new public tables). It is SECURITY DEFINER too, but it
+-- returns event_trigger, so it cannot be called outside its trigger, by RPC or by hand.
 
 REVOKE ALL ON FUNCTION claim_analytics_deliveries(integer, text[]) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION claim_analytics_deliveries(integer, text[]) FROM anon, authenticated;
@@ -34,9 +38,17 @@ REVOKE ALL ON FUNCTION release_gift_card(uuid) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION release_gift_card(uuid) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION release_gift_card(uuid) TO service_role;
 
-REVOKE ALL ON FUNCTION increment_referral_uses(uuid) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION increment_referral_uses(uuid) FROM anon, authenticated;
-GRANT EXECUTE ON FUNCTION increment_referral_uses(uuid) TO service_role;
+-- Only where 025 created it: production (nhgpxegozgljqebxqtnq) has no
+-- increment_referral_uses, and a REVOKE on a missing function would abort this file.
+DO $$
+BEGIN
+  IF to_regprocedure('increment_referral_uses(uuid)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION increment_referral_uses(uuid) FROM PUBLIC;
+    REVOKE EXECUTE ON FUNCTION increment_referral_uses(uuid) FROM anon, authenticated;
+    GRANT EXECUTE ON FUNCTION increment_referral_uses(uuid) TO service_role;
+  END IF;
+END;
+$$;
 
 -- Fail the migration if any of them is still callable by anon/authenticated, or if
 -- the server lost it.
@@ -44,13 +56,16 @@ DO $$
 DECLARE
   fn regprocedure;
 BEGIN
-  FOREACH fn IN ARRAY ARRAY[
-    'claim_analytics_deliveries(integer, text[])',
-    'reserve_gift_card(text, uuid)',
-    'redeem_gift_card(uuid, integer)',
-    'release_gift_card(uuid)',
-    'increment_referral_uses(uuid)'
-  ]::regprocedure[]
+  FOR fn IN
+    SELECT to_regprocedure(sig)
+    FROM unnest(ARRAY[
+      'claim_analytics_deliveries(integer, text[])',
+      'reserve_gift_card(text, uuid)',
+      'redeem_gift_card(uuid, integer)',
+      'release_gift_card(uuid)',
+      'increment_referral_uses(uuid)'
+    ]) AS sig
+    WHERE to_regprocedure(sig) IS NOT NULL
   LOOP
     IF has_function_privilege('anon', fn, 'EXECUTE')
        OR has_function_privilege('authenticated', fn, 'EXECUTE') THEN
