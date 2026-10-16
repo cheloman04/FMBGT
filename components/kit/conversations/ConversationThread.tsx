@@ -11,11 +11,11 @@ import { Switch } from "../Switch";
 import { formatDateTime } from "../time";
 import { useConfirm } from "../useConfirm";
 import { AttachmentStrip } from "./AttachmentStrip";
+import { ChannelGlyph } from "./ChannelGlyph";
 import {
   agentSwitchPlan,
   authorOf,
   bubbleOf,
-  channelName,
   contactName,
   deliveryStatus,
   fill,
@@ -26,14 +26,27 @@ import {
 import type { InboxChannel, InboxConversation, InboxHandlerResult, InboxSendResult, InboxThread } from "./types";
 import { usePolling } from "./usePolling";
 
+/** Lo más largo que se deja escribir en una respuesta. */
+const REPLY_MAX = 4000;
+/** Desde aquí se enseña la cuenta: antes no le dice nada a nadie. */
+const REPLY_COUNT_FROM = 3600;
+
 /**
  * Un hilo: los mensajes, responder, y el interruptor «AI agent».
  *
  * 🪤 RESPONDER Y EL INTERRUPTOR VAN JUNTOS. Contestar desde aquí CEDE el hilo (el
- * hub lo marca `human` y el agente se calla); el interruptor, siempre a la vista
- * en la cabecera, dice quién lo lleva y es el camino de vuelta. Uno sin el otro es
- * una puerta que no se puede desandar. También funciona al revés: apagarlo toma el
- * hilo sin escribir, para callar al agente en ESE hilo.
+ * hub lo marca `human` y el agente se calla); el interruptor dice quién lo lleva y
+ * es el camino de vuelta. Uno sin el otro es una puerta que no se puede desandar.
+ * También funciona al revés: apagarlo toma el hilo sin escribir, para callar al
+ * agente en ESE hilo.
+ *
+ * 🪤 Y POR ESO VAN EN EL PIE, al lado de «Send», no en la cabecera (v0.11.0). En
+ * el cajón del teléfono la fila del canal y el interruptor iba DENTRO del scroll:
+ * al subir por un hilo largo se iba con los mensajes, y para devolverle el hilo
+ * al agente había que volver arriba del todo. El pie no se mueve nunca. El canal
+ * se dice con su logo (`ChannelGlyph`), que deja sitio al interruptor en 375 px;
+ * la etiqueta «You're handling it» sale del hilo porque «AI agent · Off» dice lo
+ * mismo (en la fila de la lista se queda).
  *
  * 🪤 SE MONTA CON `key={conversation.id}`. Sin ella, el «Sending…» o el borrador
  * de un hilo sobreviven al cambiar a otro, y una respuesta lenta del primero
@@ -158,17 +171,10 @@ export function ConversationThread({
     }
   }
 
-  const channelLabel = channelName(conversation.channel, labels);
   const windowClosed = conversation.channel === "whatsapp" && loadedAt > 0 && !whatsappWindowOpen(conversation.lastInboundAt, loadedAt);
+  const length = draft.trim().length;
 
-  const meta = (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-      <span>{channelLabel}</span>
-      {handler === "human" ? <StatusBadge meta={{ label: labels.handledByYou, tone: "gray" }} size="sm" dot={false} /> : null}
-    </div>
-  );
-
-  // Quién lleva el hilo, siempre a la vista y en los dos sentidos.
+  // Quién lleva el hilo, en el pie: siempre a la vista y en los dos sentidos.
   const agentSwitch = (
     <Switch
       label={labels.agentSwitch}
@@ -254,17 +260,27 @@ export function ConversationThread({
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         rows={3}
-        maxLength={4000}
+        maxLength={REPLY_MAX}
         placeholder={labels.replyPlaceholder}
         disabled={sending || switching}
+        // La cuenta solo cerca del tope: su sitio de antes, a la izquierda de
+        // «Send», es ahora el del canal y el interruptor.
+        hint={length >= REPLY_COUNT_FROM ? `${length}/${REPLY_MAX}` : undefined}
       />
       {sendError ? <p className="text-xs leading-relaxed text-tone-red">{sendError}</p> : null}
       {notice ? <p className="text-xs leading-relaxed text-fg-2">{notice}</p> : null}
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] text-fg-muted">{draft.trim() ? `${draft.trim().length}/4000` : ""}</span>
-        <Button loading={sending} disabled={!draft.trim() || switching} onClick={() => void send()}>
-          {sending ? labels.sending : labels.send}
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 items-center gap-3">
+          <ChannelGlyph channel={conversation.channel} labels={labels} />
+          {agentSwitch}
+        </div>
+        {/* `ml-auto`: a 320 px la fila no cabe y «Send» baja a otra línea; así
+            se queda a la derecha, donde el pulgar lo busca. */}
+        <div className="ml-auto">
+          <Button loading={sending} disabled={!draft.trim() || switching} onClick={() => void send()}>
+            {sending ? labels.sending : labels.send}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -272,10 +288,6 @@ export function ConversationThread({
   if (layout === "drawer") {
     return (
       <Drawer open title={contact} onClose={onClose} size="lg" closeLabel={labels.close} footer={composer}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          {meta}
-          {agentSwitch}
-        </div>
         {body}
         <div ref={endRef} />
         {dialog}
@@ -285,12 +297,8 @@ export function ConversationThread({
 
   return (
     <section aria-label={contact} className="flex min-h-[28rem] min-w-0 flex-1 flex-col rounded-[14px] border border-hairline">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-hairline px-4 py-3">
-        <div className="min-w-0">
-          <h2 className="truncate text-sm font-semibold text-fg">{contact}</h2>
-          <div className="mt-0.5">{meta}</div>
-        </div>
-        <div className="shrink-0">{agentSwitch}</div>
+      <header className="flex shrink-0 items-center gap-3 border-b border-hairline px-4 py-3">
+        <h2 className="min-w-0 truncate text-sm font-semibold text-fg">{contact}</h2>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {body}
