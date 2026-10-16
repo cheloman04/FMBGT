@@ -110,11 +110,43 @@ export {
   INBOX_SEGMENTS,
   type InboxLabels,
 } from "./conversations/inbox";
+// Las llamadas (contrato §2.3): el registro con «Needs a human» y su detalle.
+export { CallsLog } from "./conversations/CallsLog";
+export { CallDetail } from "./conversations/CallDetail";
+export {
+  CALLS_LABELS,
+  CALL_SEGMENTS,
+  CALL_PERIODS,
+  CALL_DIRECTIONS,
+  CALL_PARAMS,
+  mergeCallLabels,
+  parseCallView,
+  outcomeMeta,
+  formatDuration,
+  formatPhone,
+  callerName,
+  type CallsLabels,
+  type CallParamNames,
+} from "./conversations/calls";
 export { usePolling } from "./conversations/usePolling";
 export { useMediaQuery } from "./conversations/useMediaQuery";
 export type {
   AgentState,
   AttachmentKind,
+  CallAttended,
+  CallAttendedResult,
+  CallCounts,
+  CallDetail as CallDetailData,
+  CallDirection,
+  CallItem,
+  CallOutcome,
+  CallPeriod,
+  CallSegment,
+  CallTurn,
+  CallView,
+  CallsData,
+  CallsLoad,
+  CallsNav,
   InboxAttachment,
   InboxChannel,
   InboxConversation,

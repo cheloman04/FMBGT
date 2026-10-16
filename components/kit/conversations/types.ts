@@ -215,3 +215,132 @@ export type InboxThread = {
 export type InboxSendResult = { sent: true; status: string };
 
 export type InboxHandlerResult = { handler: string; changed: boolean };
+
+// -----------------------------------------------------------------------------
+// Las llamadas (contrato §2.3, «Las llamadas»; decisión 12)
+// -----------------------------------------------------------------------------
+// Una llamada es una fila del registro: la que hizo el agente (`outbound`) o la
+// que le hicieron (`inbound`). Una conversación de voz con seis llamadas son seis
+// filas. El hub ya las da sin los datos de operación (ni ids del proveedor, ni
+// intentos, ni su línea de tiempo): lo que no llega aquí no existe para el spoke.
+
+/** Cómo acabó, con las palabras del hub (`calls.outcomes` del catálogo). El texto lo pone el kit. */
+export type CallOutcome = "in_progress" | "answered" | "voicemail" | "no_answer" | "not_recipient" | "hung_up" | "failed";
+
+/** La marca «atendida»: quién y cuándo. `by` es «Kigaru» si la puso el equipo de Kigaru. */
+export type CallAttended = { at: string; by: string | null };
+
+export type HubCallTurn = { role: string; message: string | null; time_in_call_secs: number | null };
+
+/** Una llamada como la da el hub (`GET /api/channels/calls`). */
+export type HubCall = {
+  id: string;
+  conversation_id: string;
+  direction: string;
+  occurred_at: string;
+  outcome: string;
+  /** Lo que duró la conversación: `null` si nadie habló (un timbre no es una conversación). */
+  duration_secs: number | null;
+  lang: string | null;
+  summary: string | null;
+  needs_human: boolean;
+  human_note: string | null;
+  attended: CallAttended | null;
+  opt_out: boolean;
+  purpose: string | null;
+  label: string | null;
+  recording: boolean;
+  /** En la lista: cuántos turnos tiene la transcripción. */
+  transcript_turns?: number;
+  /** En el detalle (`GET /api/channels/calls/{id}`), en vez de `transcript_turns`. */
+  transcript?: HubCallTurn[];
+  contact: HubConversation["contact"];
+};
+
+/** Los cuatro cortes, sobre el CONJUNTO que acotan periodo, dirección y búsqueda. */
+export type HubCallCounts = { todas: number; contestadas: number; sin_contestar: number; humano: number };
+
+/**
+ * Los cuatro cortes como los nombra la URL del spoke (`?segment=`). En el cable,
+ * como el hub (`filter=humano`). `needs_human` = las PENDIENTES: una ya atendida
+ * no cuenta, aquí ni en Kigaru.
+ */
+export type CallSegment = "all" | "answered" | "unanswered" | "needs_human";
+/** Ventana rodante desde ahora, no días del calendario: no hay zona horaria en la que equivocarse. */
+export type CallPeriod = "all" | "7d" | "30d";
+export type CallDirection = "all" | "inbound" | "outbound";
+
+/** Lo que se pide: la URL de la página y la de la isla dicen lo mismo. */
+export type CallView = {
+  segment: CallSegment;
+  period: CallPeriod;
+  direction: CallDirection;
+  /** Nombre o número. El hub busca sin acentos ni signos, sobre todo el conjunto. */
+  query: string | null;
+};
+
+export type CallCounts = Record<CallSegment, number>;
+
+/** Una llamada en la lista del navegador. */
+export type CallItem = {
+  id: string;
+  /** La conversación de voz: con ella y el `id` se pide la grabación. */
+  conversationId: string;
+  direction: "inbound" | "outbound";
+  at: string;
+  /** Uno que el kit no conoce llega crudo y se enseña tal cual. */
+  outcome: CallOutcome | string;
+  durationSecs: number | null;
+  lang: string | null;
+  summary: string | null;
+  needsHuman: boolean;
+  /** Qué hay que contestarle, en sus palabras. */
+  humanNote: string | null;
+  attended: CallAttended | null;
+  /** Pidió que no la llamen. */
+  optOut: boolean;
+  purpose: string | null;
+  label: string | null;
+  recording: boolean;
+  transcriptTurns: number;
+  /** El nombre de la ficha enlazada, o `null`: la isla pone el teléfono. */
+  name: string | null;
+  /** `+` y los dígitos. Solo si el hub dice que es un teléfono (`phone_digits10`). */
+  phone: string | null;
+};
+
+export type CallTurn = { role: "agent" | "user" | string; text: string; atSecs: number | null };
+
+/** Una llamada entera: lo de la fila más la transcripción y su hilo de mensajería. */
+export type CallDetail = CallItem & {
+  transcript: CallTurn[];
+  /** El hilo de mensajería de la misma persona (mismo número, otro canal), o `null`. */
+  messagingConversationId: string | null;
+};
+
+/** Lo que la ruta proxy entrega: una página de la lista con las cuentas del conjunto. */
+export type CallsData = {
+  /** Para qué se cargó: la isla compara con la URL y relee si no es lo que se pide. */
+  view: CallView;
+  calls: CallItem[];
+  nextCursor: string | null;
+  /** `null` = el hub no las mandó: los cortes salen sin cifra, nunca con 0. */
+  counts: CallCounts | null;
+  /** La media de las contestadas con duración; `null` si no hay ninguna. */
+  avgDurationSecs: number | null;
+  /** Cuántas entraron en la media. */
+  avgDurationOver: number;
+  /** `false` = el conjunto pasa del tope del hub (20 000): cuentas y lista son de lo recorrido. */
+  countsExact: boolean;
+};
+
+/** La carga inicial de la página. Un fallo NO es un registro vacío: se dice cuál. */
+export type CallsLoad =
+  | { ok: true; data: CallsData }
+  | { ok: false; reason: "not_configured" | "hub_error"; error: string; view: CallView };
+
+/** Lo que devuelve marcar o desmarcar. */
+export type CallAttendedResult = { id: string; needsHuman: boolean; attended: CallAttended | null };
+
+/** La entrada «Calls» del menú: si se ve y cuántas piden a una persona (`null` = no se pudo contar). */
+export type CallsNav = { visible: boolean; needsHuman: number | null; exact: boolean };
