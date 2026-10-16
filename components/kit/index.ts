@@ -106,8 +106,9 @@ export {
   deliveryStatus,
   contactName,
   channelName,
+  segmentLabel,
+  INBOX_SEGMENTS,
   type InboxLabels,
-  type InboxTab,
 } from "./conversations/inbox";
 export { usePolling } from "./conversations/usePolling";
 export { useMediaQuery } from "./conversations/useMediaQuery";
@@ -117,11 +118,14 @@ export type {
   InboxAttachment,
   InboxChannel,
   InboxConversation,
+  InboxCounts,
   InboxData,
   InboxHandlerResult,
   InboxLoad,
   InboxMessage,
+  InboxPage,
   InboxPreview,
+  InboxSegment,
   InboxSendResult,
   InboxTemplate,
   InboxThread,

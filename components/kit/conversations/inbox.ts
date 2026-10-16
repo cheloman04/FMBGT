@@ -1,8 +1,8 @@
 // =============================================================================
 // La bandeja de conversaciones — la lógica pura de la isla
 // =============================================================================
-// Qué se lee de cada mensaje, cómo se nombra a quien escribe, qué pestañas hay y
-// qué dice el estado de entrega. Vive aparte de los componentes por dos razones:
+// Qué se lee de cada mensaje, cómo se nombra a quien escribe, qué segmentos hay,
+// cómo se juntan las páginas y qué dice el estado de entrega. Vive aparte de los componentes por dos razones:
 // tiene tests (`node --test`), y la lista y el hilo leen el MISMO mensaje con las
 // mismas palabras — una foto es «Photo» en los dos sitios, nunca «Photo» en uno y
 // «Template» en el otro.
@@ -16,24 +16,48 @@
 // =============================================================================
 
 import type { StatusMeta } from "../status";
-import type { AgentState, InboxAttachment, InboxChannel, InboxConversation, InboxMessage, InboxPreview, InboxTemplate } from "./types";
+import type {
+  AgentState,
+  InboxAttachment,
+  InboxChannel,
+  InboxConversation,
+  InboxCounts,
+  InboxMessage,
+  InboxPage,
+  InboxPreview,
+  InboxSegment,
+  InboxTemplate,
+} from "./types";
 
 export type InboxLabels = {
-  // Pestañas y cabecera
-  tabsLabel: string;
-  all: string;
-  waitingCount: string;
-  nobodyWaiting: string;
+  // Segmentos y cabecera
+  segmentsLabel: string;
+  segmentAll: string;
+  segmentWaiting: string;
+  segmentAgent: string;
+  segmentOperator: string;
+  countsApprox: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  clearSearch: string;
   refresh: string;
   refreshing: string;
   refreshFailed: string;
-  truncated: string;
+  // Más páginas
+  showingCount: string;
+  loadMore: string;
+  loadingMore: string;
+  loadMoreFailed: string;
   // Vacíos y errores
   noChannelsTitle: string;
   noChannelsHint: string;
   emptyTitle: string;
   emptyHint: string;
-  emptyChannelTitle: string;
+  emptyWaitingTitle: string;
+  emptyAgentTitle: string;
+  emptyOperatorTitle: string;
+  noResultsTitle: string;
+  noResultsHint: string;
   loadFailedTitle: string;
   notConfiguredTitle: string;
   retry: string;
@@ -110,20 +134,33 @@ export type InboxLabels = {
 };
 
 export const INBOX_LABELS: InboxLabels = {
-  tabsLabel: "Channels",
-  all: "All",
-  waitingCount: "{count} waiting for a reply",
-  nobodyWaiting: "Nobody is waiting for a reply",
+  segmentsLabel: "Filter conversations",
+  segmentAll: "All",
+  segmentWaiting: "Waiting",
+  segmentAgent: "AI agent",
+  segmentOperator: "Operator",
+  countsApprox: "The counts cover the {count} most recent conversations.",
+  searchLabel: "Search conversations",
+  searchPlaceholder: "Search by name or number",
+  clearSearch: "Clear",
   refresh: "Refresh",
   refreshing: "Refreshing…",
   refreshFailed: "Couldn't refresh: {reason}",
-  truncated: "Showing the {count} most recent conversations.",
+
+  showingCount: "Showing {showing} of {total} conversations",
+  loadMore: "Load more",
+  loadingMore: "Loading…",
+  loadMoreFailed: "Couldn't load more: {reason}",
 
   noChannelsTitle: "No messaging channel is connected yet.",
   noChannelsHint: "When Instagram, Messenger or WhatsApp is connected in Kigaru, the conversations appear here.",
   emptyTitle: "No conversations yet.",
   emptyHint: "Messages people send on {channels} appear here as they arrive.",
-  emptyChannelTitle: "No {channel} conversations yet.",
+  emptyWaitingTitle: "Nobody is waiting for a reply.",
+  emptyAgentTitle: "The AI agent isn't handling any conversation.",
+  emptyOperatorTitle: "Nobody on your team is handling a conversation.",
+  noResultsTitle: "No conversation matches “{query}”.",
+  noResultsHint: "The search looks at names and numbers, not at what was written.",
   loadFailedTitle: "Couldn't load the conversations.",
   notConfiguredTitle: "The inbox isn't connected to Kigaru on this site.",
   retry: "Try again",
@@ -429,29 +466,109 @@ export function authorOf(sender: string, contact: string, labels: InboxLabels): 
 // Canales y agente
 // -----------------------------------------------------------------------------
 
-export type InboxTab = { key: string; label: string; waiting: number };
-
-/** Clave de la pestaña que enseña todo. Ningún canal se llama así. */
-export const ALL_TAB = "all";
-
 /**
- * Las pestañas: «All» y un canal por cada uno con cuentas activas (WhatsApp solo
- * si hay un número conectado). Con un canal solo, no hay pestañas que elegir.
+ * Los cuatro segmentos, en el orden de la tira (decisión 12): los mismos que la
+ * bandeja de Kigaru. Excluyentes: «waiting» mira el último mensaje (lo decide el
+ * hub, `needs_reply`); «agent» y «operator», quién lleva la conversación.
+ *
+ * 🪤 Repetidos en `server.ts`, que no importa valores relativos; un test exige
+ * que sean los mismos.
  */
-export function inboxTabs(channels: InboxChannel[], conversations: InboxConversation[], labels: InboxLabels): InboxTab[] {
-  if (channels.length < 2) return [];
-  const waitingIn = (channel: string | null) =>
-    conversations.filter((c) => c.waiting && (channel === null || c.channel === channel)).length;
-  return [
-    { key: ALL_TAB, label: labels.all, waiting: waitingIn(null) },
-    ...channels.map((c) => ({ key: c.channel, label: channelName(c.channel, labels), waiting: waitingIn(c.channel) })),
-  ];
+export const INBOX_SEGMENTS: readonly InboxSegment[] = ["all", "waiting", "agent", "operator"];
+
+/** El segmento de la URL; uno que no se entiende es «all», que la tira enseña elegido. */
+export function segmentFromParam(value: string | null | undefined): InboxSegment {
+  return value && (INBOX_SEGMENTS as readonly string[]).includes(value) ? (value as InboxSegment) : "all";
 }
 
-/** Los hilos de la pestaña. Una pestaña que ya no existe (el canal se desconectó) cae a todos. */
-export function conversationsIn(conversations: InboxConversation[], tab: string, channels: InboxChannel[]): InboxConversation[] {
-  if (tab === ALL_TAB || !channels.some((c) => c.channel === tab)) return conversations;
-  return conversations.filter((c) => c.channel === tab);
+/** La búsqueda de la URL, como la lee el servidor (`readQuery`): sin espacios de sobra y con tope. */
+export function queryFromParam(value: string | null | undefined): string {
+  return (value ?? "").trim().slice(0, 100);
+}
+
+export function segmentLabel(segment: InboxSegment, labels: InboxLabels): string {
+  switch (segment) {
+    case "waiting":
+      return labels.segmentWaiting;
+    case "agent":
+      return labels.segmentAgent;
+    case "operator":
+      return labels.segmentOperator;
+    default:
+      return labels.segmentAll;
+  }
+}
+
+/** Qué hay en cada segmento, para la tira. Sin cuentas (un hub anterior), sin cifra: nunca un 0. */
+export function segmentCounts(counts: InboxCounts | null): Record<InboxSegment, number | null> {
+  return {
+    all: counts?.all ?? null,
+    waiting: counts?.waiting ?? null,
+    agent: counts?.agent ?? null,
+    operator: counts?.operator ?? null,
+  };
+}
+
+/** El título de una lista vacía: qué se buscó, o qué segmento no tiene a nadie. */
+export function emptyListTitle(segment: InboxSegment, query: string, labels: InboxLabels): string {
+  if (query) return fill(labels.noResultsTitle, { query });
+  if (segment === "waiting") return labels.emptyWaitingTitle;
+  if (segment === "agent") return labels.emptyAgentTitle;
+  if (segment === "operator") return labels.emptyOperatorTitle;
+  return labels.emptyTitle;
+}
+
+/**
+ * El orden de la bandeja: lo último que se movió, primero; lo que no se movió
+ * nunca, al final; y el `id` desempata. Es el orden del hub (`compararBandeja`
+ * en `senzai-v1`), y tiene que serlo: con él se decide qué filas viejas siguen
+ * detrás de una página releída.
+ */
+export function compareInbox(a: Pick<InboxConversation, "id" | "lastMessageAt">, b: Pick<InboxConversation, "id" | "lastMessageAt">): number {
+  const ta = a.lastMessageAt;
+  const tb = b.lastMessageAt;
+  if (ta && tb) {
+    if (ta !== tb) return ta < tb ? 1 : -1;
+  } else if (ta || tb) {
+    return ta ? -1 : 1;
+  }
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** «Load more»: la página siguiente detrás de lo que ya se ve, sin repetir filas. */
+export function appendPage(
+  shown: InboxConversation[],
+  page: Pick<InboxPage, "conversations" | "nextCursor">,
+): { conversations: InboxConversation[]; nextCursor: string | null } {
+  const ids = new Set(shown.map((c) => c.id));
+  return { conversations: [...shown, ...page.conversations.filter((c) => !ids.has(c.id))], nextCursor: page.nextCursor };
+}
+
+/**
+ * Releer sin perder lo que se cargó con «Load more».
+ *
+ * La isla relee pidiendo tantas filas como enseña (hasta el tope del hub), y lo
+ * releído manda en su tramo. Lo que se había cargado MÁS ALLÁ de ese tramo se
+ * queda detrás, con su cursor.
+ *
+ * 🪤 UNA FILA VIEJA QUE CAERÍA DENTRO DEL TRAMO Y NO VINO, YA NO ES DEL SEGMENTO:
+ * alguien le contestó (deja de esperar) o cambió de manos. Se quita; dejarla
+ * enseñaría «Waiting» encima de una conversación que ya no espera.
+ */
+export function mergeRefresh(
+  shown: InboxConversation[],
+  shownCursor: string | null,
+  fresh: Pick<InboxPage, "conversations" | "nextCursor">,
+): { conversations: InboxConversation[]; nextCursor: string | null } {
+  const last = fresh.conversations[fresh.conversations.length - 1];
+  // Lo releído llegó hasta el final (o vino vacío): es la lista entera.
+  if (!fresh.nextCursor || !last) return { conversations: fresh.conversations, nextCursor: fresh.nextCursor };
+  const ids = new Set(fresh.conversations.map((c) => c.id));
+  const behind = shown.filter((c) => !ids.has(c.id) && compareInbox(c, last) > 0);
+  return {
+    conversations: [...fresh.conversations, ...behind],
+    nextCursor: behind.length > 0 ? shownCursor : fresh.nextCursor,
+  };
 }
 
 /**

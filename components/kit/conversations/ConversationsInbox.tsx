@@ -1,30 +1,37 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createApiClient } from "../api";
 import { Button } from "../Button";
 import { cx } from "../cx";
 import { EmptyState } from "../EmptyState";
+import { Input } from "../Field";
+import { LoadMore } from "../LoadMore";
+import { MetricStrip } from "../MetricStrip";
 import { RelativeTime } from "../RelativeTime";
 import { StatusBadge } from "../StatusBadge";
-import { Tabs } from "../Tabs";
 import { withParam } from "../url";
 import { ConversationThread } from "./ConversationThread";
 import {
-  ALL_TAB,
+  INBOX_SEGMENTS,
   agentNotes,
+  appendPage,
   channelName,
   contactName,
-  conversationsIn,
+  emptyListTitle,
   fill,
-  inboxTabs,
   listChannels,
   mergeLabels,
+  mergeRefresh,
   previewLine,
+  queryFromParam,
+  segmentCounts,
+  segmentFromParam,
+  segmentLabel,
   type InboxLabels,
 } from "./inbox";
-import type { InboxConversation, InboxData, InboxLoad } from "./types";
+import type { InboxConversation, InboxData, InboxLoad, InboxPage, InboxSegment } from "./types";
 import { useMediaQuery } from "./useMediaQuery";
 import { usePolling } from "./usePolling";
 
@@ -43,28 +50,58 @@ type Props = {
   pollMs?: number;
   /** El parámetro de la URL con el hilo abierto. */
   param?: string;
-  /** El parámetro de la URL con la pestaña de canal. */
-  channelParam?: string;
+  /** El parámetro de la URL con el segmento (`all` no se escribe). */
+  segmentParam?: string;
+  /** El parámetro de la URL con la búsqueda. */
+  queryParam?: string;
 };
 
 const ROW = "block w-full px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ac-500/60 max-sm:min-h-11";
 const ROW_IDLE = "hover:bg-surface-muted";
 const ROW_OPEN = "bg-surface-muted";
 
+/** Lo que trae cada página, y lo más que se relee de una vez (el tope del hub). */
+const PAGE = 50;
+const MAX_REFRESH = 100;
+/** Cuánto se espera a que se deje de escribir antes de buscar. */
+const SEARCH_DEBOUNCE_MS = 350;
+
+/** Qué se pide: un segmento y una búsqueda. Es lo que compara lo que se ve con la URL. */
+const viewKey = (segment: InboxSegment, query: string | null) => `${segment}\n${query ?? ""}`;
+
+function listUrl(
+  endpoint: string,
+  { segment, query, cursor, limit }: { segment: InboxSegment; query: string; cursor?: string | null; limit?: number },
+): string {
+  const params = new URLSearchParams();
+  if (segment !== "all") params.set("segment", segment);
+  if (query) params.set("q", query);
+  if (cursor) params.set("cursor", cursor);
+  if (limit && limit !== PAGE) params.set("limit", String(limit));
+  const qs = params.toString();
+  return qs ? `${endpoint}?${qs}` : endpoint;
+}
+
 /**
  * La bandeja de conversaciones de un spoke: Instagram, Messenger, WhatsApp…
  *
  *   // app/admin/(panel)/conversations/page.tsx — servidor
- *   const initial = await loadInbox(hubFromEnv());
+ *   const sp = await searchParams;
+ *   const initial = await loadInbox(hubFromEnv(), { segment: sp.segment, query: sp.q });
  *   <PageShell fill>
  *     <PageHeader title="Conversations" />
  *     <ConversationsInbox initial={initial} endpoint="/api/admin/conversations" loginPath="/admin/login" timeZone="America/New_York" />
  *   </PageShell>
  *
+ * - Arriba, los cuatro segmentos de Kigaru (decisión 12) con sus cuentas: All ·
+ *   Waiting · AI agent · Operator. Las cuentas son del conjunto, las da el hub.
+ * - El buscador busca por nombre y número en el hub, sobre todo el conjunto.
+ * - «Load more» trae la página siguiente con el cursor del hub.
  * - Se relee cada `pollMs` (15 s), en pausa con la pestaña oculta e inmediato al
- *   volver a ella.
- * - El hilo abierto y la pestaña viven en la URL (`?c=`, `?channel=`): Atrás
- *   cierra el hilo en el teléfono y un enlace se puede compartir.
+ *   volver a ella, sin perder lo cargado con «Load more».
+ * - El hilo abierto, el segmento y la búsqueda viven en la URL (`?c=`,
+ *   `?segment=`, `?q=`): Atrás cierra el hilo en el teléfono y un enlace se
+ *   puede compartir. Cambiar de segmento o buscar no recarga la página.
  * - En escritorio (`lg`), lista y hilo lado a lado; en el teléfono, el hilo en un
  *   `Drawer` a pantalla entera. Se monta UNO de los dos: el hilo no se lee dos veces.
  * - Con `PageShell fill` la columna del hilo ocupa la altura y hace su propio scroll.
@@ -79,6 +116,9 @@ export function ConversationsInbox(props: Props) {
   );
 }
 
+/** Un intento que falló, con la vista que pedía: el de otra vista no se enseña en esta. */
+type Failure = { key: string; reason: "not_configured" | "hub_error"; error: string };
+
 function Inbox({
   initial,
   endpoint,
@@ -88,7 +128,8 @@ function Inbox({
   labels: overrides,
   pollMs = 15_000,
   param = "c",
-  channelParam = "channel",
+  segmentParam = "segment",
+  queryParam = "q",
 }: Props) {
   const labels = useMemo(() => mergeLabels(overrides), [overrides]);
   const api = useMemo(() => createApiClient({ loginPath }), [loginPath]);
@@ -97,28 +138,89 @@ function Inbox({
   const search = useSearchParams();
   const desktop = useMediaQuery("(min-width: 1024px)");
 
-  const [load, setLoad] = useState<InboxLoad>(initial);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
+  // Lo que se PIDE vive en la URL; lo que se VE, en `data`, con su segmento y su
+  // búsqueda. Cuando no coinciden, se está cambiando de vista.
+  const segment = segmentFromParam(search.get(segmentParam));
+  const query = queryFromParam(search.get(queryParam));
+  const wanted = viewKey(segment, query);
+
+  // `data` es lo último que se cargó bien, de la vista que fuera: de ahí salen los
+  // canales y la tira mientras llega la vista nueva. `failure`, el último intento.
+  const [data, setData] = useState<InboxData | null>(initial.ok ? initial.data : null);
+  const [failure, setFailure] = useState<Failure | null>(
+    initial.ok ? null : { key: wanted, reason: initial.reason, error: initial.error },
+  );
+  const [pending, setPending] = useState(0);
+  const [more, setMore] = useState<{ key: string; loading: boolean; error: string | null }>({ key: wanted, loading: false, error: null });
+  const [draft, setDraft] = useState(query);
+
+  const current = data && viewKey(data.segment, data.query) === wanted ? data : null;
+  const viewFailure = failure && failure.key === wanted ? failure : null;
+  // Cambiando de vista: lo de la vista anterior se ve atenuado hasta que llega la
+  // nueva. Si la nueva falla, se dice, y no se queda atenuado para siempre.
+  const switching = data !== null && current === null && viewFailure === null;
+
+  // Lo último pedido y lo último visto, para lo que corre DESPUÉS del render: el
+  // sondeo y las respuestas que llegan tarde.
+  const latest = useRef({ segment, query, wanted, data });
+  useEffect(() => {
+    latest.current = { segment, query, wanted, data };
+  });
 
   const refresh = useCallback(async () => {
-    setRefreshing(true);
-    const res = await api.get<InboxData>(endpoint);
-    setRefreshing(false);
+    const { segment, query, wanted, data: shown } = latest.current;
+    // Releer lo que se ve pide tantas filas como se enseñan: lo cargado con «Load
+    // more» se relee también, hasta el tope del hub.
+    const same = shown !== null && viewKey(shown.segment, shown.query) === wanted;
+    const limit = same ? Math.min(MAX_REFRESH, Math.max(PAGE, shown.conversations.length)) : PAGE;
+    setPending((n) => n + 1);
+    const res = await api.get<InboxData>(listUrl(endpoint, { segment, query, limit }));
+    setPending((n) => n - 1);
+    // Mientras volaba se pidió otra vista: su propia petición pintará lo suyo.
+    if (latest.current.wanted !== wanted) return;
     if (res.ok) {
-      setLoad({ ok: true, data: res.data });
-      setRefreshError(null);
+      setData((prev) =>
+        prev && viewKey(prev.segment, prev.query) === wanted
+          ? { ...res.data, ...mergeRefresh(prev.conversations, prev.nextCursor, res.data) }
+          : res.data,
+      );
+      setFailure(null);
     } else if (res.status !== 401) {
       // 🪤 Un fallo al RELEER no borra lo que ya se veía: se mantiene y se avisa.
       // Y un fallo sin nada que enseñar se queda como fallo, con su causa: nunca
       // una bandeja vacía que diga «nadie te ha escrito».
-      setLoad((prev) =>
-        prev.ok ? prev : { ok: false, reason: res.status === 503 ? "not_configured" : "hub_error", error: res.error },
-      );
-      setRefreshError(res.error);
+      setFailure({ key: wanted, reason: res.status === 503 ? "not_configured" : "hub_error", error: res.error });
     }
   }, [api, endpoint]);
   usePolling(refresh, { intervalMs: pollMs });
+
+  // Otra vista en la URL (segmento o búsqueda): se pide en el acto, sin esperar al
+  // sondeo. Por un ref, como el sondeo: el efecto solo dispara.
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  });
+  useEffect(() => {
+    if (switching) void refreshRef.current();
+  }, [switching, wanted]);
+
+  const loadMore = useCallback(async () => {
+    const { segment, query, wanted, data: shown } = latest.current;
+    if (!shown || viewKey(shown.segment, shown.query) !== wanted || !shown.nextCursor) return;
+    setMore({ key: wanted, loading: true, error: null });
+    const res = await api.get<InboxPage>(listUrl(endpoint, { segment, query, cursor: shown.nextCursor }));
+    if (latest.current.wanted !== wanted) return setMore({ key: wanted, loading: false, error: null });
+    if (res.ok) {
+      setData((prev) =>
+        prev && viewKey(prev.segment, prev.query) === wanted
+          ? { ...prev, ...appendPage(prev.conversations, res.data), counts: res.data.counts ?? prev.counts, countsExact: res.data.countsExact }
+          : prev,
+      );
+      setMore({ key: wanted, loading: false, error: null });
+    } else {
+      setMore({ key: wanted, loading: false, error: res.status === 401 ? null : res.error });
+    }
+  }, [api, endpoint]);
 
   const navigate = useCallback(
     (key: string, value: string | null, mode: "push" | "replace") => {
@@ -132,13 +234,53 @@ function Inbox({
   const openConversation = useCallback((id: string) => navigate(param, id, "push"), [navigate, param]);
   const close = useCallback(() => navigate(param, null, "replace"), [navigate, param]);
 
-  if (!load.ok) {
+  // 🪤 El segmento y la búsqueda cambian la URL SIN volver al servidor: la isla
+  // pide la vista por la ruta proxy. Con `router.replace` la página volvería a
+  // cargar la bandeja entera (dos saltos al hub) para tirarla, porque la isla ya
+  // tiene la suya. Next sincroniza `useSearchParams` con `history.replaceState`.
+  const setViewParam = useCallback(
+    (key: string, value: string | null) => {
+      window.history.replaceState(null, "", withParam(pathname, search, key, value, { keepPage: true }));
+    },
+    [pathname, search],
+  );
+
+  // Buscar mientras se escribe, cuando se deja de escribir.
+  useEffect(() => {
+    const next = queryFromParam(draft);
+    if (next === query) return;
+    const timer = setTimeout(() => setViewParam(queryParam, next || null), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [draft, query, queryParam, setViewParam]);
+
+  const onSearch = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const next = queryFromParam(draft);
+    if (next !== query) setViewParam(queryParam, next || null);
+  };
+  const clearSearch = () => {
+    setDraft("");
+    if (query) setViewParam(queryParam, null);
+  };
+
+  // 🪤 EL HILO ABIERTO NO SE CIERRA PORQUE SU CONVERSACIÓN SALGA DE LA LISTA. En
+  // «Waiting», contestar hace que deje de esperar y el sondeo la quita: sin esto,
+  // el hilo se cerraría solo justo después de mandar. Se recuerda la última vista
+  // de la conversación abierta mientras la URL la siga pidiendo.
+  const openId = search.get(param);
+  const found = openId && data ? (data.conversations.find((c) => c.id === openId) ?? null) : null;
+  const [kept, setKept] = useState<InboxConversation | null>(null);
+  if (found && found !== kept) setKept(found);
+  const open = found ?? (kept && kept.id === openId ? kept : null);
+
+  if (!data) {
+    // Nunca se cargó nada: el fallo, con su causa y con qué reintentar.
     return (
       <EmptyState
-        title={load.reason === "not_configured" ? labels.notConfiguredTitle : labels.loadFailedTitle}
-        hint={load.error}
+        title={failure?.reason === "not_configured" ? labels.notConfiguredTitle : labels.loadFailedTitle}
+        hint={failure?.error}
         action={
-          <Button variant="secondary" loading={refreshing} onClick={() => void refresh()}>
+          <Button variant="secondary" loading={pending > 0} onClick={() => void refresh()}>
             {labels.retry}
           </Button>
         }
@@ -146,32 +288,38 @@ function Inbox({
     );
   }
 
-  const { channels, conversations, truncated } = load.data;
-  if (channels.length === 0 && conversations.length === 0) {
+  const { channels } = data;
+  if (current && channels.length === 0 && current.conversations.length === 0 && segment === "all" && !query) {
     return <EmptyState title={labels.noChannelsTitle} hint={labels.noChannelsHint} />;
   }
 
-  const tabs = inboxTabs(channels, conversations, labels);
-  const requested = search.get(channelParam);
-  const tab = requested && tabs.some((t) => t.key === requested) ? requested : ALL_TAB;
-  const shown = conversationsIn(conversations, tab, channels);
-  const waiting = shown.filter((c) => c.waiting).length;
-  const notes = agentNotes(tab === ALL_TAB ? channels : channels.filter((c) => c.channel === tab), labels, locale);
-  const openId = search.get(param);
-  const open = openId ? (conversations.find((c) => c.id === openId) ?? null) : null;
+  // Las cuentas no dependen del segmento, pero sí de la búsqueda: las de otra
+  // búsqueda no valen mientras llega la nueva.
+  const counts = (data.query ?? "") === query ? data.counts : null;
+  const figures = segmentCounts(counts);
+  const notes = agentNotes(channels, labels, locale);
+  const rows = current?.conversations ?? (switching ? data.conversations : []);
+  const moreState = more.key === wanted ? more : { loading: false, error: null };
 
   const list =
-    shown.length === 0 ? (
+    !current && viewFailure ? null : current && rows.length === 0 ? (
       <EmptyState
-        title={
-          tab === ALL_TAB ? labels.emptyTitle : fill(labels.emptyChannelTitle, { channel: channelName(tab, labels) })
+        title={emptyListTitle(segment, query, labels)}
+        hint={
+          query
+            ? labels.noResultsHint
+            : segment === "all" && channels.length > 0
+              ? fill(labels.emptyHint, { channels: listChannels(channels, labels, locale) })
+              : undefined
         }
-        hint={tab === ALL_TAB && channels.length > 0 ? fill(labels.emptyHint, { channels: listChannels(channels, labels, locale) }) : undefined}
       />
     ) : (
       <>
-        <ul className="divide-y divide-hairline border-y border-hairline">
-          {shown.map((c) => (
+        <ul
+          className={cx("divide-y divide-hairline border-y border-hairline transition-opacity", switching && "opacity-60")}
+          aria-busy={switching || undefined}
+        >
+          {rows.map((c) => (
             <li key={c.id}>
               <ConversationRow
                 conversation={c}
@@ -184,9 +332,29 @@ function Inbox({
             </li>
           ))}
         </ul>
-        {truncated ? (
-          <p className="mt-3 text-xs text-fg-muted">{fill(labels.truncated, { count: conversations.length })}</p>
+        {current && counts ? (
+          <LoadMore
+            showing={rows.length}
+            // El total del hub manda; si el cursor dice que hay más y las cuentas aún
+            // no lo reflejan (llegaron antes que la última fila), el botón sigue.
+            total={current.nextCursor ? Math.max(counts[segment], rows.length + 1) : Math.max(counts[segment], rows.length)}
+            onLoadMore={current.nextCursor ? () => void loadMore() : undefined}
+            loading={moreState.loading}
+            labels={{
+              showing: (showing, total) =>
+                fill(labels.showingCount, { showing: showing.toLocaleString(locale), total: total.toLocaleString(locale) }),
+              more: labels.loadMore,
+              loading: labels.loadingMore,
+            }}
+          />
+        ) : current?.nextCursor ? (
+          <div className="border-t border-hairline px-1 py-3">
+            <Button variant="ghost" size="sm" loading={moreState.loading} onClick={() => void loadMore()}>
+              {moreState.loading ? labels.loadingMore : labels.loadMore}
+            </Button>
+          </div>
         ) : null}
+        {moreState.error ? <p className="mt-2 text-xs text-tone-red">{fill(labels.loadMoreFailed, { reason: moreState.error })}</p> : null}
       </>
     );
 
@@ -208,67 +376,88 @@ function Inbox({
       />
     ) : null;
 
-  const content = (
-    <div className="lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-6">
-      <div className="min-w-0 lg:min-h-0 lg:overflow-y-auto">{list}</div>
-      {desktop ? (
-        <div className="flex min-w-0 lg:min-h-0">
-          {thread("pane") ?? (
-            <div className="flex min-h-[28rem] flex-1 items-center justify-center rounded-[14px] border border-dashed border-hairline">
-              <p className="px-4 text-center text-sm text-fg-muted">{labels.pickConversation}</p>
-            </div>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      {tabs.length > 0 ? (
-        <Tabs
-          items={tabs.map((t) => ({
-            key: t.key,
-            label: t.label,
-            badge: t.waiting > 0 ? <span className="text-xs tabular-nums text-fg-muted">{t.waiting}</span> : undefined,
-          }))}
-          value={tab}
-          onChange={(key) => navigate(channelParam, key === ALL_TAB ? null : key, "replace")}
-          idBase="kit-inbox"
-          ariaLabel={labels.tabsLabel}
+      <div role="group" aria-label={labels.segmentsLabel}>
+        <MetricStrip
+          metrics={INBOX_SEGMENTS.map((s) => {
+            const value = figures[s];
+            return {
+              key: s,
+              label: segmentLabel(s, labels),
+              // Sin cuentas (un hub anterior, o la búsqueda nueva aún en camino), sin
+              // cifra: «—», nunca un 0 que diga «nadie espera».
+              value: value === null ? "—" : value.toLocaleString(locale),
+              onSelect: () => setViewParam(segmentParam, s === "all" ? null : s),
+              active: s === segment,
+            };
+          })}
         />
-      ) : null}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0 space-y-1">
-          <p className="text-sm text-fg-2">{waiting > 0 ? fill(labels.waitingCount, { count: waiting }) : labels.nobodyWaiting}</p>
+        <form role="search" onSubmit={onSearch} className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-sm">
+          <Input
+            label={labels.searchLabel}
+            labelHidden
+            layout="min-w-0 flex-1"
+            type="search"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={labels.searchPlaceholder}
+            maxLength={100}
+            autoComplete="off"
+          />
+          {draft ? (
+            <Button variant="ghost" size="sm" type="button" onClick={clearSearch}>
+              {labels.clearSearch}
+            </Button>
+          ) : null}
+        </form>
+        <Button variant="ghost" size="sm" loading={pending > 0} onClick={() => void refresh()}>
+          {pending > 0 ? labels.refreshing : labels.refresh}
+        </Button>
+      </div>
+
+      {notes.length > 0 || (current && viewFailure) || (current && !current.countsExact && counts) ? (
+        <div className="space-y-1">
           {notes.map((note) => (
             <p key={note} className="text-xs text-fg-muted">
               {note}
             </p>
           ))}
+          {current && !current.countsExact && counts ? (
+            <p className="text-xs text-fg-muted">{fill(labels.countsApprox, { count: counts.all.toLocaleString(locale) })}</p>
+          ) : null}
+          {current && viewFailure ? <p className="text-xs text-tone-red">{fill(labels.refreshFailed, { reason: viewFailure.error })}</p> : null}
         </div>
-        <Button variant="ghost" size="sm" loading={refreshing} onClick={() => void refresh()}>
-          {refreshing ? labels.refreshing : labels.refresh}
-        </Button>
-      </div>
-      {refreshError ? <p className="text-xs text-tone-red">{fill(labels.refreshFailed, { reason: refreshError })}</p> : null}
+      ) : null}
 
-      {tabs.length > 0 ? (
-        // El panel de la pestaña, a mano y no con `TabPanel`: tiene que seguir la
-        // columna flexible hasta abajo (`PageShell fill`) para que el hilo ocupe la
-        // altura, y aquí solo hay UN panel —la misma lista, filtrada—.
-        <div
-          role="tabpanel"
-          id={`kit-inbox-panel-${tab}`}
-          aria-labelledby={`kit-inbox-tab-${tab}`}
-          className="flex min-h-0 flex-1 flex-col"
-        >
-          {content}
+      <div className="lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-6">
+        <div className="min-w-0 lg:min-h-0 lg:overflow-y-auto">
+          {list ?? (
+            // La vista pedida falló y no hay nada suyo que enseñar: su causa, y reintentar.
+            <EmptyState
+              title={labels.loadFailedTitle}
+              hint={viewFailure?.error}
+              action={
+                <Button variant="secondary" loading={pending > 0} onClick={() => void refresh()}>
+                  {labels.retry}
+                </Button>
+              }
+            />
+          )}
         </div>
-      ) : (
-        content
-      )}
+        {desktop ? (
+          <div className="flex min-w-0 lg:min-h-0">
+            {thread("pane") ?? (
+              <div className="flex min-h-[28rem] flex-1 items-center justify-center rounded-[14px] border border-dashed border-hairline">
+                <p className="px-4 text-center text-sm text-fg-muted">{labels.pickConversation}</p>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
 
       {desktop === false ? thread("drawer") : null}
     </div>

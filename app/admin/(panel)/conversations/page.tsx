@@ -11,9 +11,14 @@ const TIME_ZONE = 'America/New_York';
 // The inbox (§9): Instagram, Messenger and WhatsApp DMs, read and answered here.
 // The first paint comes from the server; the island then re-reads the inbox and
 // the open thread every 15 s through /api/admin/conversations.
-export default async function ConversationsPage() {
+export default async function ConversationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ segment?: string; q?: string }>;
+}) {
   await requireOperator();
-  const initial = await loadConversations();
+  // The first paint is the URL's: a link to `?segment=waiting` opens on "Waiting".
+  const initial = await loadConversations(await searchParams);
 
   return (
     <PageShell fill>

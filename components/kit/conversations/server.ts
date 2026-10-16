@@ -26,15 +26,19 @@ import type {
   HubAttachment,
   HubChannelReport,
   HubConversation,
+  HubInboxCounts,
   HubMessage,
   HubOutcome,
   HubTemplateView,
   InboxChannel,
   InboxConversation,
+  InboxCounts,
   InboxData,
   InboxHandlerResult,
   InboxLoad,
   InboxMessage,
+  InboxPage,
+  InboxSegment,
   InboxSendResult,
   InboxTemplate,
   InboxThread,
@@ -139,19 +143,65 @@ function unreachable(err: unknown, what: string): HubFailure {
   return { ok: false, kind: "unreachable", detail: "could not reach the hub" };
 }
 
-/** Los hilos del cliente, del más reciente al más viejo. */
+/** Qué página de la bandeja se pide. Todo opcional: sin nada, la primera de «all». */
+export type InboxListRequest = {
+  segment?: InboxSegment;
+  /** Nombre o número. El hub busca sin acentos ni signos, sobre todo el conjunto. */
+  query?: string | null;
+  /** El `nextCursor` de la página anterior, tal cual. */
+  cursor?: string | null;
+  limit?: number;
+};
+
+export type HubConversationList = {
+  conversations: HubConversation[];
+  nextCursor: string | null;
+  counts: HubInboxCounts | null;
+  countsExact: boolean;
+};
+
+/**
+ * Una página de hilos del cliente, del que se movió último al primero
+ * (contrato §2.1, «Leer la bandeja»).
+ *
+ * Pide SIEMPRE `kind=messages` y `counts=1`: la voz la deja fuera el hub —sobre
+ * el conjunto, no sobre la página— y las cuentas de los segmentos salen de todo
+ * el conjunto que acotan el tipo y la búsqueda, no de las filas que cupieron.
+ *
+ * 🪤 UN HUB ANTERIOR A LA DECISIÓN 12 ignora esos parámetros y contesta solo
+ * `{ conversations }`: sin `next_cursor` ni `counts`. Se lee como una sola página
+ * sin cifras (`counts: null`), nunca como «0 esperando».
+ */
 export async function listConversations(
   config: HubConfig,
-  { limit = 50 }: { limit?: number } = {},
-): Promise<{ ok: true; conversations: HubConversation[] } | HubFailure> {
+  { segment = "all", query = null, cursor = null, limit = CONVERSATION_LIMIT }: InboxListRequest = {},
+): Promise<({ ok: true } & HubConversationList) | HubFailure> {
+  const params = new URLSearchParams({ kind: "messages", filter: SEGMENT_FILTER[segment], counts: "1", limit: String(limit) });
+  if (query) params.set("q", query);
+  if (cursor) params.set("cursor", cursor);
   try {
-    const res = await hubFetch(config, `/api/channels/conversations?limit=${limit}`);
+    const res = await hubFetch(config, `/api/channels/conversations?${params}`);
     if (!res.ok) return refused(res, "listar");
     const body = await readJson(res);
-    return { ok: true, conversations: listOf<HubConversation>(body?.conversations) };
+    return {
+      ok: true,
+      conversations: listOf<HubConversation>(body?.conversations),
+      nextCursor: typeof body?.next_cursor === "string" && body.next_cursor ? body.next_cursor : null,
+      counts: hubCounts(body?.counts),
+      countsExact: body?.counts_exact !== false,
+    };
   } catch (err) {
     return unreachable(err, "listar");
   }
+}
+
+/** Las cuentas del cuerpo, solo si traen las cuatro como números. Si no, ninguna. */
+function hubCounts(value: unknown): HubInboxCounts | null {
+  if (!value || typeof value !== "object") return null;
+  const c = value as Record<string, unknown>;
+  const keys = ["todas", "esperando", "agente", "operador"] as const;
+  if (!keys.every((k) => typeof c[k] === "number" && Number.isFinite(c[k]))) return null;
+  return { todas: c.todas as number, esperando: c.esperando as number, agente: c.agente as number, operador: c.operador as number };
 }
 
 /** Por canal: cuántas cuentas activas hay y qué hace el agente. */
@@ -291,8 +341,69 @@ export async function fetchMedia(
 /**
  * La voz no entra en esta bandeja: una llamada es su propia burbuja (estado,
  * transcripción, grabación) y a un hilo de voz no se le contesta con texto.
+ *
+ * Los HILOS de voz los deja fuera el hub (`kind=messages`), que es donde tiene
+ * que pasar: filtrarlos aquí, después de paginar, dejaba páginas cortas y cuentas
+ * que no cuadraban con la lista. Este filtro queda para los CANALES (la voz no es
+ * pestaña ni hace visible la bandeja) y como red ante un hub anterior.
  */
 const EXCLUDED_CHANNELS = new Set(["voice"]);
+
+/**
+ * Los cuatro segmentos, en el orden de la tira. La URL del spoke los nombra en
+ * inglés (`?segment=waiting`); el cable, como el hub (`filter=esperando`).
+ *
+ * 🪤 Repetidos en `inbox.ts` (la isla), porque este fichero no importa valores
+ * relativos; un test exige que sean los mismos.
+ */
+export const INBOX_SEGMENTS: readonly InboxSegment[] = ["all", "waiting", "agent", "operator"];
+
+const SEGMENT_FILTER: Record<InboxSegment, keyof HubInboxCounts> = {
+  all: "todas",
+  waiting: "esperando",
+  agent: "agente",
+  operator: "operador",
+};
+
+export function isInboxSegment(value: unknown): value is InboxSegment {
+  return typeof value === "string" && (INBOX_SEGMENTS as readonly string[]).includes(value);
+}
+
+/**
+ * El segmento de la URL de una PÁGINA: uno que no se entiende es «all», que la
+ * tira enseña elegido (se ve, no engaña). La ruta proxy, en cambio, da 400: allí
+ * solo llega lo que manda la isla, y un valor raro es un fallo de quien llama.
+ */
+export function readSegment(value: string | string[] | null | undefined): InboxSegment {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return isInboxSegment(raw) ? raw : "all";
+}
+
+/** Lo más largo que se busca: un nombre y un número caben de sobra. */
+const MAX_QUERY = 100;
+
+/** La búsqueda de la URL de una página: sin espacios de sobra, cortada al tope, o `null`. */
+export function readQuery(value: string | string[] | null | undefined): string | null {
+  const raw = (Array.isArray(value) ? value[0] : value)?.trim();
+  return raw ? raw.slice(0, MAX_QUERY) : null;
+}
+
+/** Las cuentas del cable, con las claves de la isla. */
+export function toInboxCounts(counts: HubInboxCounts | null): InboxCounts | null {
+  if (!counts) return null;
+  return { all: counts.todas, waiting: counts.esperando, agent: counts.agente, operator: counts.operador };
+}
+
+function toPage(list: HubConversationList, request: InboxListRequest): InboxPage {
+  return {
+    segment: request.segment ?? "all",
+    query: request.query ?? null,
+    conversations: list.conversations.filter((c) => !EXCLUDED_CHANNELS.has(c.channel)).map(toInboxConversation),
+    nextCursor: list.nextCursor,
+    counts: toInboxCounts(list.counts),
+    countsExact: list.countsExact,
+  };
+}
 
 /**
  * El orden de las pestañas. Un canal que no está aquí va al final, por nombre.
@@ -305,8 +416,10 @@ function channelRank(channel: string): number {
   return i === -1 ? CHANNEL_ORDER.length : i;
 }
 
-/** Cuántos hilos se piden al hub (su tope es 100). */
+/** Cuántos hilos trae cada página (el tope del hub es 100). */
 export const CONVERSATION_LIMIT = 50;
+/** Lo más que se pide de una vez: el tope del hub. Al releer, la isla pide lo que enseña. */
+const MAX_CONVERSATION_LIMIT = 100;
 /** Cuántos mensajes de un hilo (su tope es 200). */
 export const THREAD_LIMIT = 100;
 
@@ -411,6 +524,8 @@ export type InboxServerMessages = {
   tooLong: string;
   badHandler: string;
   badId: string;
+  badSegment: string;
+  badQuery: string;
   notSent: string;
 };
 
@@ -428,6 +543,8 @@ export const INBOX_SERVER_MESSAGES: InboxServerMessages = {
   tooLong: "The message is too long: 4,000 characters at most.",
   badHandler: "Unknown handler: it is either agent or human.",
   badId: "Invalid conversation id.",
+  badSegment: "Unknown segment: it is all, waiting, agent or operator.",
+  badQuery: "The search is too long: 100 characters at most.",
   notSent: "Not sent: {reason}",
 };
 
@@ -468,23 +585,19 @@ export function failureMessage(f: HubFailure, messages: InboxServerMessages = IN
 // Los cargadores de la página y del menú
 // -----------------------------------------------------------------------------
 
-async function loadData(config: HubConfig): Promise<{ ok: true; data: InboxData } | HubFailure> {
+async function loadData(config: HubConfig, request: InboxListRequest): Promise<{ ok: true; data: InboxData } | HubFailure> {
   // Las dos a la vez: cada salto al hub son ~200 ms.
-  const [list, channels] = await Promise.all([
-    listConversations(config, { limit: CONVERSATION_LIMIT }),
-    fetchChannels(config),
-  ]);
+  const [list, channels] = await Promise.all([listConversations(config, request), fetchChannels(config)]);
   if (!list.ok) return list;
   if (!channels.ok) return channels;
-  const conversations = list.conversations.filter((c) => !EXCLUDED_CHANNELS.has(c.channel));
-  return {
-    ok: true,
-    data: {
-      channels: toInboxChannels(channels.channels),
-      conversations: conversations.map(toInboxConversation),
-      truncated: list.conversations.length >= CONVERSATION_LIMIT,
-    },
-  };
+  return { ok: true, data: { channels: toInboxChannels(channels.channels), ...toPage(list, request) } };
+}
+
+/** Una página siguiente: solo la lista. Los canales ya están pintados. */
+async function loadPage(config: HubConfig, request: InboxListRequest): Promise<{ ok: true; page: InboxPage } | HubFailure> {
+  const list = await listConversations(config, request);
+  if (!list.ok) return list;
+  return { ok: true, page: toPage(list, request) };
 }
 
 /**
@@ -496,10 +609,21 @@ async function loadData(config: HubConfig): Promise<{ ok: true; data: InboxData 
  */
 export async function loadInbox(
   config: HubConfig | null,
-  { messages = INBOX_SERVER_MESSAGES }: { messages?: InboxServerMessages } = {},
+  {
+    segment,
+    query,
+    messages = INBOX_SERVER_MESSAGES,
+  }: {
+    /** El `?segment=` de la página, tal cual: uno que no se entiende es «all». */
+    segment?: string | string[] | null;
+    /** El `?q=` de la página, tal cual. */
+    query?: string | string[] | null;
+    messages?: InboxServerMessages;
+  } = {},
 ): Promise<InboxLoad> {
   if (!config) return { ok: false, reason: "not_configured", error: messages.notConfigured };
-  const result = await loadData(config);
+  // El primer pintado ya es el de la URL: un enlace a «waiting» abre en «waiting».
+  const result = await loadData(config, { segment: readSegment(segment), query: readQuery(query) });
   if (!result.ok) return { ok: false, reason: "hub_error", error: failureMessage(result, messages) };
   return result;
 }
@@ -552,7 +676,10 @@ export async function inboxVisible(
  * aquí y la ruta solo re-exporta.
  */
 export type InboxRoutes = {
-  /** `GET <endpoint>` → `{ data: InboxData }`. */
+  /**
+   * `GET <endpoint>?segment=&q=&limit=` → `{ data: InboxData }`, la primera página
+   * con los canales; con `&cursor=` → `{ data: InboxPage }`, solo la siguiente.
+   */
   list: (req: Request) => Promise<Response>;
   thread: {
     /** `GET <endpoint>/<id>` → `{ data: InboxThread }`. */
@@ -590,6 +717,13 @@ const ROW_ID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-
 const MEDIA_INDEX = /^\d{1,3}$/;
 const MAX_TEXT = 4000;
 
+/** Cuántas filas pedir: las de una página, o las que la isla enseña al releer, hasta el tope del hub. */
+function listLimit(raw: string | null): number {
+  const n = Number(raw);
+  if (!raw || !Number.isInteger(n) || n < 1) return CONVERSATION_LIMIT;
+  return Math.min(n, MAX_CONVERSATION_LIMIT);
+}
+
 function json(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
@@ -618,7 +752,26 @@ export function createInboxRoutes({ authorize, hub = () => hubFromEnv(), message
     async list(req) {
       const opened = await open(req);
       if ("response" in opened) return opened.response;
-      const result = await loadData(opened.config);
+      const params = new URL(req.url).searchParams;
+      // 🪤 Un segmento que no se entiende es un 400, no «all»: aquí solo llega lo
+      // que manda la isla, y la tira enseñaría «Waiting» encima de la lista entera.
+      const segment = params.get("segment");
+      if (segment !== null && !isInboxSegment(segment)) return json({ error: messages.badSegment }, 400);
+      const query = params.get("q")?.trim() || null;
+      if (query && query.length > MAX_QUERY) return json({ error: messages.badQuery }, 400);
+      const request: InboxListRequest = {
+        segment: segment ?? "all",
+        query,
+        // El cursor es opaco: lo valida el hub, que es quien lo escribió (400 si no es suyo).
+        cursor: params.get("cursor") || null,
+        limit: listLimit(params.get("limit")),
+      };
+      if (request.cursor) {
+        const page = await loadPage(opened.config, request);
+        if (!page.ok) return fail(page);
+        return json({ data: page.page });
+      }
+      const result = await loadData(opened.config, request);
       if (!result.ok) return fail(result);
       return json({ data: result.data });
     },
