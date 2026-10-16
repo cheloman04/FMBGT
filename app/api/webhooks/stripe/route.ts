@@ -13,7 +13,13 @@ import { confirmLeadSessionAbandoned, markLeadSessionConverted } from '@/lib/lea
 import { getAppUrl } from '@/lib/app-url';
 import { queueGa4Event, queueMetaEvent, queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
-import { notifySupportAlert, triggerN8nEvent, type N8nWebhookResult } from '@/lib/n8n';
+import { notifySupportAlert, type N8nWebhookResult } from '@/lib/n8n';
+import {
+  sendBookingConfirmedEmail,
+  sendRemainingBalanceFailedEmail,
+  sendRemainingBalancePaidEmail,
+  type EmailSendResult,
+} from '@/lib/email/send';
 import { buildMetaUserData } from '@/lib/meta-capi';
 import { syntheticGaClientId } from '@/lib/ga4-mp';
 
@@ -334,46 +340,53 @@ export async function POST(req: NextRequest) {
         const appUrl = getAppUrl();
         const calendarUrl = `${appUrl}/api/calendar/${bookingId}`;
 
-        const n8nResult = await triggerN8nWebhook('booking_confirmed', {
-          booking_id: bookingId,
-          session_id: session.id,
-          customer_email: customerEmail,
-          customer_name: session.metadata?.customer_name,
-          customer_phone: session.metadata?.customer_phone,
-          zip_code: stripePostalCode || session.metadata?.zip_code,
-          marketing_source: session.metadata?.marketing_source,
-          deposit_amount: depositCents,
-          remaining_balance: remainingCents,
-          remaining_balance_due_at: dueDateIso,
-          total_amount: Number(session.metadata?.total_amount ?? 0),
-          location: locationName,
-          date: session.metadata?.date,
-          time: session.metadata?.time,
-          duration_hours: confirmedBooking?.duration_hours,
-          participant_count: confirmedBooking?.participant_count,
-          participant_info: confirmedBooking?.participant_info,
-          trail_type: confirmedBooking?.trail_type,
-          skill_level: formatSkillLevel(confirmedBooking?.skill_level),
-          meeting_location_name: locationMeta.meetingPointName,
-          meeting_location_address: locationMeta.meetingPointAddress,
-          meeting_location_url: locationMeta.meetingPointUrl,
-          booking_start_iso: bookingStartIso,
-          booking_end_iso: bookingEndIso,
-          calendar_url: calendarUrl,
+        // The confirmation email: through Kigaru or n8n (lib/email/send.ts). The
+        // first confirmation of a booking has one idempotency key, so a redelivered
+        // Stripe event can't send it twice through Kigaru.
+        const confirmationSend = await sendBookingConfirmedEmail({
+          source: '/api/webhooks/stripe',
+          data: {
+            booking_id: bookingId,
+            session_id: session.id,
+            customer_email: customerEmail,
+            customer_name: session.metadata?.customer_name,
+            customer_phone: session.metadata?.customer_phone,
+            zip_code: stripePostalCode || session.metadata?.zip_code,
+            marketing_source: session.metadata?.marketing_source,
+            deposit_amount: depositCents,
+            remaining_balance: remainingCents,
+            remaining_balance_due_at: dueDateIso,
+            total_amount: Number(session.metadata?.total_amount ?? 0),
+            location: locationName,
+            date: session.metadata?.date,
+            time: session.metadata?.time,
+            duration_hours: confirmedBooking?.duration_hours,
+            participant_count: confirmedBooking?.participant_count,
+            participant_info: confirmedBooking?.participant_info,
+            trail_type: confirmedBooking?.trail_type,
+            skill_level: formatSkillLevel(confirmedBooking?.skill_level),
+            meeting_location_name: locationMeta.meetingPointName,
+            meeting_location_address: locationMeta.meetingPointAddress,
+            meeting_location_url: locationMeta.meetingPointUrl,
+            booking_start_iso: bookingStartIso,
+            booking_end_iso: bookingEndIso,
+            calendar_url: calendarUrl,
+          },
         });
+        const confirmationResult = logEmailAttempt('booking_confirmed', confirmationSend);
 
-        await recordBookingWebhookAttempt(supabase, bookingId, n8nResult);
-        if (!n8nResult.ok) {
+        await recordBookingWebhookAttempt(supabase, bookingId, confirmationResult);
+        if (!confirmationResult.ok) {
           await notifySupportAlert({
             source: '/api/webhooks/stripe',
             severity: 'error',
-            summary: `booking_confirmed webhook failed for booking ${bookingId}`,
+            summary: `booking_confirmed email failed (${confirmationSend.via}) for booking ${bookingId}`,
             bookingId,
             stripeSessionId: session.id,
             paymentIntentId: paymentIntentId ?? null,
             details: {
-              webhook_status_code: n8nResult.statusCode,
-              webhook_error: n8nResult.error,
+              webhook_status_code: confirmationResult.statusCode,
+              webhook_error: confirmationResult.error,
             },
           });
         }
@@ -638,7 +651,7 @@ export async function POST(req: NextRequest) {
           throw updateError;
         }
 
-        // n8n webhook — final balance charged
+        // The "balance paid" email — through Kigaru or n8n (lib/email/send.ts), one per PaymentIntent
         const remainingBalanceLocationName = existingBooking.locations?.name ?? 'Florida Mountain Bike Guides';
         const remainingBalanceLocationMeta = getBookingLocationMeta(remainingBalanceLocationName);
         const remainingBalanceStartIso = existingBooking.date && existingBooking.time_slot
@@ -649,9 +662,9 @@ export async function POST(req: NextRequest) {
           : null;
         const remainingBalanceCalendarUrl = `${getAppUrl()}/api/calendar/${bookingId}`;
 
-        await triggerN8nWebhook(
-          'remaining_balance_paid',
-          {
+        const balancePaidSend = await sendRemainingBalancePaidEmail({
+          source: '/api/webhooks/stripe',
+          data: {
             booking_id: bookingId,
             payment_intent_id: pi.id,
             amount: pi.amount,
@@ -676,10 +689,11 @@ export async function POST(req: NextRequest) {
             booking_end_iso: remainingBalanceEndIso,
             calendar_url: remainingBalanceCalendarUrl,
           },
-          {
+          n8n: {
             webhookUrl: process.env.N8N_REMAINING_BALANCE_WEBHOOK_URL || REMAINING_BALANCE_WEBHOOK_URL,
-          }
-        );
+          },
+        });
+        logEmailAttempt('remaining_balance_paid', balancePaidSend);
 
         await queueSenzaiEvent({
           event_name: 'payment.remaining_balance_succeeded',
@@ -885,12 +899,16 @@ export async function POST(req: NextRequest) {
           console.error(`[stripe-webhook] Failed to record balance failure for booking ${bookingId}:`, updateError);
         }
 
-        // n8n webhook — final balance failed, needs admin attention
-        await triggerN8nWebhook('remaining_balance_failed', {
-          booking_id: bookingId,
-          payment_intent_id: pi.id,
-          error_message: pi.last_payment_error?.message ?? 'Unknown error',
+        // The "we couldn't charge your balance" email — through Kigaru (to the guest)
+        // or n8n (the old payload), one per PaymentIntent (lib/email/send.ts)
+        const balanceFailedSend = await sendRemainingBalanceFailedEmail({
+          bookingId,
+          paymentIntentId: pi.id,
+          amount: pi.amount,
+          errorMessage: pi.last_payment_error?.message ?? 'Unknown error',
+          source: '/api/webhooks/stripe',
         });
+        logEmailAttempt('remaining_balance_failed', balanceFailedSend);
 
         await queueSenzaiEvent({
           event_name: 'payment.remaining_balance_failed',
@@ -1176,30 +1194,22 @@ async function recordBookingWebhookAttempt(
   }
 }
 
-async function triggerN8nWebhook(
-  event: string,
-  data: Record<string, unknown>,
-  options?: {
-    envKeys?: string[];
-    webhookUrl?: string | null;
-  }
-): Promise<WebhookAttemptResult> {
-  const result = await triggerN8nEvent({
-    event,
-    data,
-    source: '/api/webhooks/stripe',
-    envKeys: options?.envKeys ?? ['N8N_WEBHOOK_URL'],
-    webhookUrl: options?.webhookUrl,
-  });
-
+/**
+ * A customer email the webhook just handed off (lib/email/send.ts): to Kigaru when
+ * its type is switched over (KIGARU_EMAIL_TYPES), to n8n otherwise. Logged the same
+ * way either way.
+ */
+function logEmailAttempt(event: string, result: EmailSendResult): WebhookAttemptResult {
   if (!result.ok) {
-    console.error(`[stripe-webhook] ${result.error}`);
+    console.error(`[stripe-webhook] ${event} email (${result.via}): ${result.error}`);
   } else {
-    console.log(`[stripe-webhook] n8n notified: ${event}`);
+    console.log(`[stripe-webhook] ${event} email handed to ${result.via}`);
   }
 
   return {
-    ...result,
+    ok: result.ok,
+    attemptedAt: result.attemptedAt,
+    statusCode: result.statusCode,
     error: result.error ? trimWebhookError(result.error) : null,
   };
 }

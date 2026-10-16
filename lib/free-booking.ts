@@ -19,7 +19,8 @@ import { markLeadSessionConverted } from '@/lib/lead-sessions';
 import { getAppUrl } from '@/lib/app-url';
 import { queueSenzaiEvent } from '@/lib/analytics-delivery';
 import { recordFinancialEvent } from '@/lib/financial-log';
-import { notifySupportAlert, triggerN8nEvent } from '@/lib/n8n';
+import { notifySupportAlert } from '@/lib/n8n';
+import { sendBookingConfirmedEmail } from '@/lib/email/send';
 
 type FinalizeResult = { ok: boolean; calBooked: boolean; emailQueued: boolean };
 
@@ -135,18 +136,16 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
     }
   }
 
-  // 5. n8n — booking confirmed (sends the confirmation email). Flagged as gift-card
-  //    covered so the template can show "$0 due / paid with gift card".
+  // 5. The confirmation email — through Kigaru or n8n (lib/email/send.ts). Flagged
+  //    as gift-card covered so the template shows "paid with gift card".
   let emailQueued = false;
   try {
     const locationMeta = getBookingLocationMeta(locationName);
     const startIso = booking.date && booking.time_slot ? easternLocalToUtcIso(booking.date, booking.time_slot) : null;
     const endIso = startIso && booking.duration_hours ? addHoursToIso(startIso, booking.duration_hours) : null;
     const calendarUrl = `${getAppUrl()}/api/calendar/${bookingId}`;
-    const result = await triggerN8nEvent({
-      event: 'booking_confirmed',
+    const result = await sendBookingConfirmedEmail({
       source: '/api/create-checkout (free)',
-      envKeys: ['N8N_WEBHOOK_URL'],
       data: {
         booking_id: bookingId,
         customer_email: customer?.email ?? null,
@@ -186,11 +185,11 @@ export async function finalizeFreeBooking(bookingId: string): Promise<FinalizeRe
         severity: 'error',
         summary: `Confirmation email NOT sent for gift-card booking ${bookingId}`,
         bookingId,
-        details: { n8n_error: result.error, status_code: result.statusCode },
+        details: { email_error: result.error, status_code: result.statusCode, via: result.via },
       });
     }
   } catch (e) {
-    console.error('[free-booking] n8n booking_confirmed failed:', (e as Error).message);
+    console.error('[free-booking] booking_confirmed email failed:', (e as Error).message);
   }
 
   // 6. Senzai — booking confirmed (no cash payment; gift-card covered).

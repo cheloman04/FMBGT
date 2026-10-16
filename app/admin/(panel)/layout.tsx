@@ -2,6 +2,7 @@ import Image from 'next/image';
 import { AppShell, ShellFooterAction, visibleNav } from '@/components/kit';
 import { requireOperator } from '@/lib/admin/auth';
 import { conversationsVisible } from '@/lib/admin/conversations';
+import { emailsVisible } from '@/lib/admin/emails';
 import { loadNavBadges } from '@/lib/admin/loaders';
 import { notificationsMenu, withNotificationsBadge } from '@/lib/admin/notifications';
 import { ADMIN_ICONS, PASSWORD_ICON, SIGN_OUT_ICON } from './_components/icons';
@@ -14,7 +15,7 @@ const LOGO_URL =
 // (panel) is guarded here once and drawn inside the shell.
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   await requireOperator();
-  const [badges, inbox, bell] = await Promise.all([
+  const [badges, inbox, bell, emails] = await Promise.all([
     // A counter that fails to load shouldn't take the whole admin down: no badge.
     loadNavBadges().catch((error: unknown) => {
       console.error('[admin] nav badges:', error);
@@ -28,8 +29,16 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     // scope, with the unread count. It never throws; a hub that fails or is slow
     // (2.5 s) leaves it visible without a number.
     notificationsMenu(),
+    // "Emails" shows once the site's connection has the email:read scope. It never
+    // throws, keeps its answer for a minute, and a hub that fails or is slow leaves
+    // it visible.
+    emailsVisible(),
   ]);
-  const features = [...(inbox ? ['conversations'] : []), ...(bell.visible ? ['notifications'] : [])];
+  const features = [
+    ...(inbox ? ['conversations'] : []),
+    ...(bell.visible ? ['notifications'] : []),
+    ...(emails ? ['emails'] : []),
+  ];
 
   return (
     <AppShell
