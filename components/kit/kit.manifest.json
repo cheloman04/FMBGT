@@ -4,7 +4,7 @@
   "source": {
     "repo": "senzai-skills",
     "path": "kit/dashboard",
-    "commit": "fc2167d63ebd3b9d37a18129699981b2371a8d90"
+    "commit": "15ae7bf84326b47b758068eeb69bfae383e8494c"
   },
   "files": {
     "AppShell.tsx": "3066e1758998c4315b721536fd3625f5393be0ed3149c026340361bc20c4f30b",
