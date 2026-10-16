@@ -83,6 +83,12 @@ export type HubChannelReport = {
   route_configured: boolean;
 };
 
+/**
+ * Las cuentas de la bandeja, sobre el CONJUNTO (`counts=1`, contrato §2.1). Las
+ * claves son las del cable, que son las del hub; la isla las lee ya traducidas.
+ */
+export type HubInboxCounts = { todas: number; esperando: number; agente: number; operador: number };
+
 /** Lo que contesta el hub al mandar: manda `status`, no el código HTTP. */
 export type HubOutcome = {
   status: string;
@@ -139,11 +145,33 @@ export type InboxConversation = {
   last: InboxPreview | null;
 };
 
-export type InboxData = {
-  channels: InboxChannel[];
+/**
+ * Los cuatro segmentos de la bandeja, como los nombra la URL del spoke
+ * (`?segment=`). Excluyentes: «waiting» es por el último mensaje, «agent» y
+ * «operator» por quién lleva la conversación.
+ */
+export type InboxSegment = "all" | "waiting" | "agent" | "operator";
+
+/** Cuántas conversaciones hay en cada segmento, sobre todo el conjunto (no la página). */
+export type InboxCounts = Record<InboxSegment, number>;
+
+/** Una página de la lista: lo que trae «Load more». */
+export type InboxPage = {
+  /** Para qué se cargó: la isla compara con la URL y relee si no es lo que se pide. */
+  segment: InboxSegment;
+  query: string | null;
   conversations: InboxConversation[];
-  /** El hub devolvió el máximo pedido: puede haber hilos más viejos que no se ven. */
-  truncated: boolean;
+  /** De dónde sigue la página siguiente; `null` = no queda nada detrás. */
+  nextCursor: string | null;
+  /** `null` = un hub anterior a la decisión 12, que no cuenta: los segmentos salen sin cifra. */
+  counts: InboxCounts | null;
+  /** `false` = el conjunto pasa del tope del hub y las cuentas son de lo recorrido. */
+  countsExact: boolean;
+};
+
+/** La primera página, con los canales: lo que pinta la bandeja al cargar y al releer. */
+export type InboxData = InboxPage & {
+  channels: InboxChannel[];
 };
 
 /** La carga inicial de la página. Un fallo NO es una bandeja vacía: se dice cuál. */
