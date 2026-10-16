@@ -1,6 +1,11 @@
 import { EmailsLog, PageHeader, PageShell, parseEmailView } from '@/components/kit';
 import { requireOperator } from '@/lib/admin/auth';
 import { EMAIL_TYPE_LABELS, loadEmails } from '@/lib/admin/emails';
+import { TEST_EMAILS } from '@/lib/email/test-samples';
+import { TestEmailButton } from './_components/TestEmailButton';
+
+// The test dialog's menu: built here so the templates stay on the server.
+const TEST_OPTIONS = Object.entries(TEST_EMAILS).map(([value, sample]) => ({ value, label: sample.label }));
 
 export const metadata = { title: 'Emails | Admin' };
 export const dynamic = 'force-dynamic';
@@ -25,6 +30,7 @@ export default async function EmailsPage({
       <PageHeader
         title="Emails"
         subtitle="Booking confirmations, balance emails, follow-ups and review requests your site sent, and whether they arrived."
+        actions={<TestEmailButton options={TEST_OPTIONS} />}
       />
       <EmailsLog
         initial={initial}
