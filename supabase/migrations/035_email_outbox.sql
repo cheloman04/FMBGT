@@ -9,6 +9,8 @@
 -- (`<email_type>:<entity id>`), so retrying a row can never send it twice.
 --
 -- Apply this migration BEFORE deploying the code that writes to it.
+-- Applied to production (nhgpxegozgljqebxqtnq) on 2026-10-16, with the anon/authenticated
+-- REVOKE below, and verified: table, RLS without policies, function grants, claim test.
 
 CREATE TABLE IF NOT EXISTS email_outbox (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -94,7 +96,12 @@ BEGIN
 END;
 $$;
 
+-- Only the server (service_role) may claim. REVOKE FROM PUBLIC is not enough on
+-- Supabase: the public schema's default privileges grant EXECUTE to anon and
+-- authenticated directly, and this function is SECURITY DEFINER — with the anon key
+-- anyone could claim rows over RPC and read customers' emails.
 REVOKE ALL ON FUNCTION claim_email_outbox(integer, text[], boolean) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION claim_email_outbox(integer, text[], boolean) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION claim_email_outbox(integer, text[], boolean) TO service_role;
 
 COMMENT ON TABLE email_outbox IS
