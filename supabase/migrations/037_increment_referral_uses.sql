@@ -11,6 +11,10 @@
 -- a fixed search_path, and closed to anon/authenticated: REVOKE ... FROM PUBLIC is not
 -- enough on Supabase, because the public schema's default privileges grant EXECUTE to
 -- them directly (see 036).
+--
+-- Applied to production (nhgpxegozgljqebxqtnq) on 2026-10-16, after a rehearsal with
+-- rollback, and verified with has_function_privilege and real calls per role:
+-- service_role runs it, anon and authenticated get permission denied.
 
 CREATE OR REPLACE FUNCTION increment_referral_uses(partner_id uuid)
 RETURNS void
