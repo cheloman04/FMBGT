@@ -23,7 +23,23 @@
 
 import type {
   AttachmentKind,
+  CallAttended,
+  CallAttendedResult,
+  CallCounts,
+  CallDetail,
+  CallDirection,
+  CallItem,
+  CallPeriod,
+  CallSegment,
+  CallTurn,
+  CallView,
+  CallsData,
+  CallsLoad,
+  CallsNav,
   HubAttachment,
+  HubCall,
+  HubCallCounts,
+  HubCallTurn,
   HubChannelReport,
   HubConversation,
   HubInboxCounts,
@@ -43,6 +59,7 @@ import type {
   InboxTemplate,
   InboxThread,
 } from "./types";
+import type { NavBadgeValue } from "../nav";
 
 export type * from "./types";
 
@@ -572,7 +589,10 @@ export function failureStatus(f: HubFailure): number {
   return 502;
 }
 
-export function failureMessage(f: HubFailure, messages: InboxServerMessages = INBOX_SERVER_MESSAGES): string {
+/** Los textos que necesita `failureMessage`: los de la bandeja y los de las llamadas los tienen. */
+type FailureMessages = Pick<InboxServerMessages, "unreachable" | "rejected" | "notFound" | "busy" | "hubError">;
+
+export function failureMessage(f: HubFailure, messages: FailureMessages = INBOX_SERVER_MESSAGES): string {
   if (f.kind === "unreachable") return messages.unreachable;
   if (f.status === 401 || f.status === 403) return fill(messages.rejected, { status: f.status });
   if (f.status === 404) return messages.notFound;
@@ -842,6 +862,556 @@ export function createInboxRoutes({ authorize, hub = () => hubFromEnv(), message
       // apuntan a esta ruta y el navegador hace el resto, sin un fetch por foto. Se
       // deja cachear media hora (la firma vive una): repintar el hilo no vuelve a
       // pedirle al hub que firme. Los bytes no pasan por el spoke.
+      return new Response(null, {
+        status: 302,
+        headers: { Location: result.url, "Cache-Control": "private, max-age=1800" },
+      });
+    },
+  };
+}
+
+// =============================================================================
+// Las llamadas (contrato §2.3, «Las llamadas»; decisión 12)
+// =============================================================================
+// El registro de llamadas del estudio, para que su admin atienda las que piden a
+// una persona («Needs a human»). Misma conexión y mismos alcances que la bandeja:
+// `channels:read` para leer y escuchar, `channels:write` para marcar como atendida.
+// Por eso vive en este fichero: reutiliza el `fetch` al hub, los 401/403 que salen
+// como 502 y el 404 sin oráculo, sin copiarlos.
+//
+//   import { callsBadge, callsNav, createCallRoutes, hubFromEnv, loadCalls } from "@/components/kit/conversations/server";
+//
+// 🪤 LA MARCA ES LA MISMA QUE VE KIGARU: atendida aquí, deja de contar en
+// «Requieren humano» también en el admin del hub, y al revés.
+//
+// 🪤 QUIÉN MARCA LO DICE EL SERVIDOR, NO EL NAVEGADOR: `attendedBy(req)` sale de la
+// sesión del área. Un `by` que viniera en el cuerpo se ignora.
+// =============================================================================
+
+/**
+ * Los cuatro cortes, en el orden de la tira. La URL del spoke los nombra en inglés
+ * (`?segment=needs_human`); el cable, como el hub (`filter=humano`).
+ *
+ * 🪤 Repetidos en `calls.ts` (la isla), porque este fichero no importa valores
+ * relativos; un test exige que sean los mismos. Igual los periodos y direcciones.
+ */
+export const CALL_SEGMENTS: readonly CallSegment[] = ["all", "answered", "unanswered", "needs_human"];
+/** En el orden del control. */
+export const CALL_PERIODS: readonly CallPeriod[] = ["7d", "30d", "all"];
+export const CALL_DIRECTIONS: readonly CallDirection[] = ["all", "inbound", "outbound"];
+
+/**
+ * Lo que se ve sin filtros: TODO, como el contrato. 🪤 Con «30 días» por defecto
+ * una llamada pendiente de hace cinco semanas desaparecería de la vista, y la cifra
+ * del menú (que cuenta todas) no cuadraría con la de la tira.
+ */
+export const DEFAULT_CALL_VIEW: CallView = { segment: "all", period: "all", direction: "all", query: null };
+
+const CALL_FILTER: Record<CallSegment, keyof HubCallCounts> = {
+  all: "todas",
+  answered: "contestadas",
+  unanswered: "sin_contestar",
+  needs_human: "humano",
+};
+
+/** Cuántas llamadas trae cada página (el tope del hub es 100). */
+export const CALLS_PAGE_SIZE = 50;
+const MAX_CALLS_LIMIT = 100;
+const NAV_TIMEOUT_MS = 2_500;
+
+export function isCallSegment(value: unknown): value is CallSegment {
+  return typeof value === "string" && (CALL_SEGMENTS as readonly string[]).includes(value);
+}
+
+export function isCallPeriod(value: unknown): value is CallPeriod {
+  return typeof value === "string" && (CALL_PERIODS as readonly string[]).includes(value);
+}
+
+export function isCallDirection(value: unknown): value is CallDirection {
+  return typeof value === "string" && (CALL_DIRECTIONS as readonly string[]).includes(value);
+}
+
+type RawParam = string | string[] | null | undefined;
+const first = (value: RawParam) => (Array.isArray(value) ? value[0] : value);
+
+/**
+ * La vista de la URL de una PÁGINA: lo que no se entiende cae al valor por defecto,
+ * que la tira y los controles enseñan elegido (se ve, no engaña). La ruta proxy, en
+ * cambio, da 400: allí solo llega lo que manda la isla.
+ */
+export function readCallView({
+  segment,
+  period,
+  direction,
+  query,
+}: { segment?: RawParam; period?: RawParam; direction?: RawParam; query?: RawParam } = {}): CallView {
+  const s = first(segment);
+  const p = first(period);
+  const d = first(direction);
+  return {
+    segment: isCallSegment(s) ? s : DEFAULT_CALL_VIEW.segment,
+    period: isCallPeriod(p) ? p : DEFAULT_CALL_VIEW.period,
+    direction: isCallDirection(d) ? d : DEFAULT_CALL_VIEW.direction,
+    query: readQuery(query),
+  };
+}
+
+export type HubCallList = {
+  calls: HubCall[];
+  nextCursor: string | null;
+  counts: HubCallCounts | null;
+  avgDurationSecs: number | null;
+  avgDurationOver: number;
+  countsExact: boolean;
+};
+
+const finiteOrNull = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+
+/** Las cuentas del cuerpo, solo si traen las cuatro como números. Si no, ninguna. */
+function hubCallCounts(value: unknown): HubCallCounts | null {
+  if (!value || typeof value !== "object") return null;
+  const c = value as Record<string, unknown>;
+  const keys = ["todas", "contestadas", "sin_contestar", "humano"] as const;
+  if (!keys.every((k) => typeof c[k] === "number" && Number.isFinite(c[k]))) return null;
+  return {
+    todas: c.todas as number,
+    contestadas: c.contestadas as number,
+    sin_contestar: c.sin_contestar as number,
+    humano: c.humano as number,
+  };
+}
+
+/**
+ * Una página del registro, de la más reciente a la más vieja (contrato §2.3).
+ * Manda SIEMPRE periodo, dirección y corte: el hub da 400 a uno que no entiende, y
+ * así un valor mal escrito no se convierte en «todas» sin avisar.
+ */
+export async function listCalls(
+  config: HubConfig,
+  {
+    view,
+    cursor = null,
+    limit = CALLS_PAGE_SIZE,
+    timeoutMs,
+  }: { view: CallView; cursor?: string | null; limit?: number; timeoutMs?: number },
+): Promise<({ ok: true } & HubCallList) | HubFailure> {
+  const params = new URLSearchParams({
+    period: view.period,
+    direction: view.direction,
+    filter: CALL_FILTER[view.segment],
+    limit: String(limit),
+  });
+  if (view.query) params.set("q", view.query);
+  if (cursor) params.set("cursor", cursor);
+  try {
+    const res = await hubFetch(config, `/api/channels/calls?${params}`, { timeoutMs });
+    if (!res.ok) return refused(res, "listar las llamadas");
+    const body = await readJson(res);
+    return {
+      ok: true,
+      calls: listOf<HubCall>(body?.calls),
+      nextCursor: typeof body?.next_cursor === "string" && body.next_cursor ? body.next_cursor : null,
+      counts: hubCallCounts(body?.counts),
+      avgDurationSecs: finiteOrNull(body?.avg_duration_secs),
+      avgDurationOver: finiteOrNull(body?.avg_duration_over) ?? 0,
+      countsExact: body?.counts_exact !== false,
+    };
+  } catch (err) {
+    return unreachable(err, "listar las llamadas");
+  }
+}
+
+/** Una llamada entera: con su transcripción y el hilo de mensajería de la misma persona. */
+export async function fetchCall(
+  config: HubConfig,
+  callId: string,
+): Promise<{ ok: true; call: HubCall; messagingConversationId: string | null } | HubFailure> {
+  try {
+    const res = await hubFetch(config, `/api/channels/calls/${callId}`);
+    if (!res.ok) return refused(res, "leer la llamada");
+    const body = await readJson(res);
+    const call = body?.call && typeof body.call === "object" ? (body.call as HubCall) : null;
+    if (!call) return { ok: false, kind: "refused", status: 502, detail: "the hub sent no call" };
+    const messaging = body?.messaging_conversation_id;
+    return { ok: true, call, messagingConversationId: typeof messaging === "string" && ROW_ID.test(messaging) ? messaging : null };
+  } catch (err) {
+    return unreachable(err, "leer la llamada");
+  }
+}
+
+/**
+ * Marcar (`true`, con quién) o desmarcar (`false`) una llamada como atendida.
+ *
+ * 🪤 Solo se marca una que pide a una persona: otra da 409. Marcar una ya marcada
+ * no cambia nada: se queda la PRIMERA marca, con su quién y su cuándo. Por eso se
+ * devuelve la marca que dice el hub, no la que se pidió.
+ */
+export async function setCallAttended(
+  config: HubConfig,
+  callId: string,
+  attended: boolean,
+  by?: string,
+): Promise<({ ok: true } & CallAttendedResult) | HubFailure> {
+  try {
+    const res = await hubFetch(config, `/api/channels/calls/${callId}`, {
+      method: "PATCH",
+      body: attended ? { attended: true, by } : { attended: false },
+    });
+    if (!res.ok) return refused(res, "marcar la llamada");
+    const body = await readJson(res);
+    const call = (body?.call ?? {}) as Partial<Pick<HubCall, "id" | "needs_human" | "attended">>;
+    return {
+      ok: true,
+      id: typeof call.id === "string" ? call.id : callId,
+      needsHuman: call.needs_human === true,
+      attended: toAttended(call.attended),
+    };
+  } catch (err) {
+    return unreachable(err, "marcar la llamada");
+  }
+}
+
+/**
+ * La grabación: una URL firmada de una hora, que el hub firma al pedirla (al pulsar
+ * «play», no al listar). El 404 es «no existe, no es tuya o no tiene grabación», todo igual.
+ */
+export async function fetchRecording(
+  config: HubConfig,
+  conversationId: string,
+  callId: string,
+): Promise<{ ok: true; url: string; mimeType: string | null } | HubFailure> {
+  try {
+    const res = await hubFetch(config, `/api/channels/conversations/${conversationId}/messages/${callId}/recording`);
+    if (!res.ok) return refused(res, "leer la grabación");
+    const body = await readJson(res);
+    if (typeof body?.url !== "string" || !body.url) {
+      return { ok: false, kind: "refused", status: 502, detail: "the hub sent no recording URL" };
+    }
+    return { ok: true, url: body.url, mimeType: typeof body.mime_type === "string" ? body.mime_type : null };
+  } catch (err) {
+    return unreachable(err, "leer la grabación");
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Del hub al view-model
+// -----------------------------------------------------------------------------
+
+function toAttended(value: unknown): CallAttended | null {
+  if (!value || typeof value !== "object") return null;
+  const a = value as { at?: unknown; by?: unknown };
+  if (typeof a.at !== "string" || !a.at) return null;
+  return { at: a.at, by: typeof a.by === "string" && a.by.trim() ? a.by.trim() : null };
+}
+
+const textOrNull = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value.trim() : null);
+
+/**
+ * Una llamada como la pinta la lista.
+ *
+ * 🪤 EL TELÉFONO SOLO SALE CON `phone_digits10`, como en la bandeja: lo decide el
+ * hub. Y el `external_user_id` crudo no baja al navegador.
+ */
+export function toCallItem(c: HubCall): CallItem {
+  const digits = c.contact?.phone_digits10 ? (c.contact.external_user_id ?? "").replace(/\D/g, "") : "";
+  return {
+    id: c.id,
+    conversationId: c.conversation_id,
+    direction: c.direction === "inbound" ? "inbound" : "outbound",
+    at: c.occurred_at,
+    outcome: c.outcome,
+    durationSecs: finiteOrNull(c.duration_secs),
+    lang: textOrNull(c.lang),
+    summary: textOrNull(c.summary),
+    needsHuman: c.needs_human === true,
+    humanNote: textOrNull(c.human_note),
+    attended: toAttended(c.attended),
+    optOut: c.opt_out === true,
+    purpose: textOrNull(c.purpose),
+    label: textOrNull(c.label),
+    recording: c.recording === true,
+    transcriptTurns:
+      typeof c.transcript_turns === "number" ? c.transcript_turns : Array.isArray(c.transcript) ? c.transcript.length : 0,
+    name: textOrNull(c.contact?.display_name),
+    phone: digits ? `+${digits}` : null,
+  };
+}
+
+export function toCallDetail(c: HubCall, messagingConversationId: string | null): CallDetail {
+  const transcript: CallTurn[] = listOf<HubCallTurn>(c.transcript)
+    .filter((t) => typeof t?.message === "string" && t.message.trim())
+    .map((t) => ({ role: t.role, text: (t.message as string).trim(), atSecs: finiteOrNull(t.time_in_call_secs) }));
+  return { ...toCallItem(c), transcriptTurns: transcript.length, transcript, messagingConversationId };
+}
+
+/** Las cuentas del cable, con las claves de la isla. */
+export function toCallCounts(counts: HubCallCounts | null): CallCounts | null {
+  if (!counts) return null;
+  return { all: counts.todas, answered: counts.contestadas, unanswered: counts.sin_contestar, needs_human: counts.humano };
+}
+
+export function toCallsData(list: HubCallList, view: CallView): CallsData {
+  return {
+    view,
+    calls: list.calls.map(toCallItem),
+    nextCursor: list.nextCursor,
+    counts: toCallCounts(list.counts),
+    avgDurationSecs: list.avgDurationSecs,
+    avgDurationOver: list.avgDurationOver,
+    countsExact: list.countsExact,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Los textos del servidor
+// -----------------------------------------------------------------------------
+
+export type CallsServerMessages = FailureMessages & {
+  notConfigured: string;
+  recordingNotFound: string;
+  badId: string;
+  badSegment: string;
+  badPeriod: string;
+  badDirection: string;
+  badQuery: string;
+  badAttended: string;
+  noOperator: string;
+  notNeeded: string;
+};
+
+export const CALLS_SERVER_MESSAGES: CallsServerMessages = {
+  notConfigured: INBOX_SERVER_MESSAGES.notConfigured,
+  unreachable: "Couldn't reach Kigaru to read the calls. Try again in a moment.",
+  rejected: INBOX_SERVER_MESSAGES.rejected,
+  notFound: "Call not found.",
+  recordingNotFound: "This call has no recording.",
+  busy: INBOX_SERVER_MESSAGES.busy,
+  hubError: INBOX_SERVER_MESSAGES.hubError,
+  badId: "Invalid call id.",
+  badSegment: "Unknown filter: it is all, answered, unanswered or needs_human.",
+  badPeriod: "Unknown period: it is all, 7d or 30d.",
+  badDirection: "Unknown direction: it is all, inbound or outbound.",
+  badQuery: INBOX_SERVER_MESSAGES.badQuery,
+  badAttended: "Say whether the call is attended: true or false.",
+  noOperator: "Couldn't tell who is signed in, so the call wasn't marked.",
+  notNeeded: "This call doesn't need a person.",
+};
+
+/** Como `failureStatus`, más el 409 de marcar una llamada que no pide a nadie. */
+function callFailureStatus(f: HubFailure): number {
+  return f.kind === "refused" && f.status === 409 ? 409 : failureStatus(f);
+}
+
+function callFailureMessage(f: HubFailure, messages: CallsServerMessages): string {
+  return f.kind === "refused" && f.status === 409 ? messages.notNeeded : failureMessage(f, messages);
+}
+
+// -----------------------------------------------------------------------------
+// La carga de la página y el menú
+// -----------------------------------------------------------------------------
+
+/**
+ * Lo que la página entrega a la isla en el primer pintado: ya la vista de la URL.
+ *
+ * 🪤 UN FALLO DEL HUB NO ES UN REGISTRO VACÍO: «nadie ha llamado» dicho cuando no
+ * pudimos preguntar esconde justo las llamadas que esperan a una persona.
+ */
+export async function loadCalls(
+  config: HubConfig | null,
+  {
+    segment,
+    period,
+    direction,
+    query,
+    messages = CALLS_SERVER_MESSAGES,
+  }: { segment?: RawParam; period?: RawParam; direction?: RawParam; query?: RawParam; messages?: CallsServerMessages } = {},
+): Promise<CallsLoad> {
+  const view = readCallView({ segment, period, direction, query });
+  if (!config) return { ok: false, reason: "not_configured", error: messages.notConfigured, view };
+  const list = await listCalls(config, { view });
+  if (!list.ok) return { ok: false, reason: "hub_error", error: callFailureMessage(list, messages), view };
+  return { ok: true, data: toCallsData(list, view) };
+}
+
+/**
+ * La entrada «Calls» del menú: si se ve y cuántas piden a una persona.
+ *
+ * - Sin conexión configurada: no se ve.
+ * - Se ve si la línea de voz tiene una cuenta activa (`agent-switch`, como la
+ *   bandeja) o si ya hay llamadas en el historial: una línea desconectada no
+ *   esconde las que siguen esperando.
+ * - Un hub sin la API de llamadas (404/405) o una conexión sin `channels:read`
+ *   (403): no se ve. No hay vista que enseñar.
+ * - El hub falla, tarda (2,5 s) o rechaza la credencial (401): SÍ se ve, sin
+ *   número. Un fallo no puede esconder las llamadas de quien las tiene.
+ *
+ * El número es `counts.humano` de `?filter=humano&limit=1`: las PENDIENTES, sobre
+ * todo el historial. Nunca lanza. No se recuerda: el número tiene que ser el de ahora.
+ */
+export async function callsNav(
+  config: HubConfig | null,
+  { timeoutMs = NAV_TIMEOUT_MS }: { timeoutMs?: number } = {},
+): Promise<CallsNav> {
+  if (!config) return { visible: false, needsHuman: null, exact: true };
+  const [channels, pending] = await Promise.all([
+    fetchChannels(config, { timeoutMs }),
+    listCalls(config, { view: { ...DEFAULT_CALL_VIEW, segment: "needs_human" }, limit: 1, timeoutMs }),
+  ]);
+  if (!pending.ok) {
+    const missing = pending.kind === "refused" && (pending.status === 403 || pending.status === 404 || pending.status === 405);
+    return { visible: !missing, needsHuman: null, exact: true };
+  }
+  // Sin poder leer los canales, se ve: el lado seguro.
+  const voice = channels.ok ? channels.channels.some((c) => c.channel === "voice" && Number(c.accounts) > 0) : true;
+  const history = (pending.counts?.todas ?? 0) > 0 || pending.calls.length > 0;
+  return { visible: voice || history, needsHuman: pending.counts?.humano ?? null, exact: pending.countsExact };
+}
+
+/**
+ * El badge del menú: ámbar, porque es alguien esperando a una persona (pide
+ * atención; no es una avería). Sin número si no se pudo contar.
+ */
+export function callsBadge(nav: CallsNav): NavBadgeValue | undefined {
+  if (nav.needsHuman === null) return undefined;
+  // 🪤 `incomplete` con 0 pinta «!»: solo se dice cuando hay algo que contar.
+  return { count: nav.needsHuman, tone: "amber", incomplete: !nav.exact && nav.needsHuman > 0 };
+}
+
+// -----------------------------------------------------------------------------
+// Las rutas proxy
+// -----------------------------------------------------------------------------
+
+/**
+ * Lo que un `route.ts` del spoke re-exporta. Nada más:
+ *
+ *   // app/api/admin/calls/route.ts                → export const GET = callRoutes.list;
+ *   // app/api/admin/calls/[id]/route.ts           → export const { GET, PATCH } = callRoutes.call;
+ *   // app/api/admin/calls/[id]/recording/route.ts → export const GET = callRoutes.recording;
+ *
+ * 🪤 UN `route.ts` SOLO PUEDE EXPORTAR HANDLERS. Un export de más compila con
+ * Turbopack y rompe con `next build --webpack`.
+ */
+export type CallRoutes = {
+  /** `GET <endpoint>?segment=&period=&direction=&q=&cursor=&limit=` → `{ data: CallsData }`. */
+  list: (req: Request) => Promise<Response>;
+  call: {
+    /** `GET <endpoint>/<id>` → `{ data: CallDetail }`. */
+    GET: (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
+    /** `PATCH <endpoint>/<id>` `{ attended }` → `{ data: CallAttendedResult }`. */
+    PATCH: (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
+  };
+  /** `GET <endpoint>/<id>/recording?conversation=<id>` → 302 a la URL firmada. */
+  recording: (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
+};
+
+export type CallRouteOptions = {
+  /** La guarda del área: `null` deja pasar; una `Response` (el 401 del proyecto) corta. Va primero. */
+  authorize: (req: Request) => Promise<Response | null | undefined>;
+  /**
+   * Quién marca la llamada como atendida: el nombre o el correo del admin con
+   * sesión, tal como lo enseña la app (se corta a 120 caracteres). Sale de la
+   * sesión, en el servidor; el navegador no lo manda.
+   */
+  attendedBy: (req: Request) => Promise<string | null | undefined> | string | null | undefined;
+  /** De dónde sale la conexión. Por defecto, `hubFromEnv()`. */
+  hub?: (req: Request) => HubConfig | null;
+  messages?: Partial<CallsServerMessages>;
+};
+
+const MAX_BY = 120;
+
+function callsLimit(raw: string | null): number {
+  const n = Number(raw);
+  if (!raw || !Number.isInteger(n) || n < 1) return CALLS_PAGE_SIZE;
+  return Math.min(n, MAX_CALLS_LIMIT);
+}
+
+export function createCallRoutes({ authorize, attendedBy, hub = () => hubFromEnv(), messages: overrides }: CallRouteOptions): CallRoutes {
+  const messages: CallsServerMessages = { ...CALLS_SERVER_MESSAGES, ...overrides };
+  const fail = (f: HubFailure) => json({ error: callFailureMessage(f, messages) }, callFailureStatus(f));
+
+  async function open(req: Request): Promise<{ response: Response } | { config: HubConfig }> {
+    const denied = await authorize(req);
+    if (denied) return { response: denied };
+    const config = hub(req);
+    if (!config) return { response: json({ error: messages.notConfigured }, 503) };
+    return { config };
+  }
+
+  async function openCall(req: Request, ctx: { params: Promise<{ id: string }> }) {
+    const opened = await open(req);
+    if ("response" in opened) return opened;
+    const { id } = await ctx.params;
+    if (!ROW_ID.test(id)) return { response: json({ error: messages.badId }, 400) };
+    return { config: opened.config, id };
+  }
+
+  return {
+    async list(req) {
+      const opened = await open(req);
+      if ("response" in opened) return opened.response;
+      const params = new URL(req.url).searchParams;
+      // 🪤 Un valor que no se entiende es un 400, no el de por defecto: aquí solo
+      // llega lo que manda la isla, y la tira enseñaría un corte sobre otra lista.
+      const segment = params.get("segment");
+      if (segment !== null && !isCallSegment(segment)) return json({ error: messages.badSegment }, 400);
+      const period = params.get("period");
+      if (period !== null && !isCallPeriod(period)) return json({ error: messages.badPeriod }, 400);
+      const direction = params.get("direction");
+      if (direction !== null && !isCallDirection(direction)) return json({ error: messages.badDirection }, 400);
+      const query = params.get("q")?.trim() || null;
+      if (query && query.length > MAX_QUERY) return json({ error: messages.badQuery }, 400);
+      const view: CallView = {
+        segment: segment ?? DEFAULT_CALL_VIEW.segment,
+        period: period ?? DEFAULT_CALL_VIEW.period,
+        direction: direction ?? DEFAULT_CALL_VIEW.direction,
+        query,
+      };
+      // El cursor es opaco: lo valida el hub, que es quien lo escribió (400 si no es suyo).
+      const list = await listCalls(opened.config, { view, cursor: params.get("cursor") || null, limit: callsLimit(params.get("limit")) });
+      if (!list.ok) return fail(list);
+      return json({ data: toCallsData(list, view) });
+    },
+
+    call: {
+      async GET(req, ctx) {
+        const opened = await openCall(req, ctx);
+        if ("response" in opened) return opened.response;
+        const result = await fetchCall(opened.config, opened.id);
+        if (!result.ok) return fail(result);
+        return json({ data: toCallDetail(result.call, result.messagingConversationId) });
+      },
+
+      async PATCH(req, ctx) {
+        const opened = await openCall(req, ctx);
+        if ("response" in opened) return opened.response;
+        const body = (await req.json().catch(() => null)) as { attended?: unknown } | null;
+        const attended = body?.attended;
+        if (typeof attended !== "boolean") return json({ error: messages.badAttended }, 422);
+        let by: string | undefined;
+        if (attended) {
+          by = (await attendedBy(req))?.trim().slice(0, MAX_BY);
+          // Sin quién, no se marca: la marca es «atendida por X» en los dos lados.
+          if (!by) return json({ error: messages.noOperator }, 500);
+        }
+        const result = await setCallAttended(opened.config, opened.id, attended, by);
+        if (!result.ok) return fail(result);
+        const data: CallAttendedResult = { id: result.id, needsHuman: result.needsHuman, attended: result.attended };
+        return json({ data });
+      },
+    },
+
+    async recording(req, ctx) {
+      const opened = await openCall(req, ctx);
+      if ("response" in opened) return opened.response;
+      const conversationId = new URL(req.url).searchParams.get("conversation") ?? "";
+      if (!ROW_ID.test(conversationId)) return json({ error: messages.badId }, 400);
+      const result = await fetchRecording(opened.config, conversationId, opened.id);
+      if (!result.ok && result.kind === "refused" && result.status === 404) return json({ error: messages.recordingNotFound }, 404);
+      if (!result.ok) return fail(result);
+      // Como un adjunto: un `<audio src>` apunta aquí y el navegador sigue el 302. Se
+      // deja cachear media hora (la firma vive una); los bytes no pasan por el spoke.
       return new Response(null, {
         status: 302,
         headers: { Location: result.url, "Cache-Control": "private, max-age=1800" },

@@ -102,3 +102,47 @@ export const IconEyeOff = (p: IconProps) => (
     <path d="m2 2 20 20" />
   </Svg>
 );
+
+// El auricular de Lucide (`phone`), compartido por la entrante y la saliente.
+const HANDSET =
+  "M13.83 16.57a1 1 0 0 0 1.21-.3l.36-.47A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.47.35a1 1 0 0 0-.29 1.23 14 14 0 0 0 6.39 6.39";
+
+export const IconPhoneIncoming = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M16 2v6h6" />
+    <path d="m22 2-6 6" />
+    <path d={HANDSET} />
+  </Svg>
+);
+
+export const IconPhoneOutgoing = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m16 8 6-6" />
+    <path d="M22 8V2h-6" />
+    <path d={HANDSET} />
+  </Svg>
+);
+
+export const IconAudioLines = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2 10v3" />
+    <path d="M6 6v11" />
+    <path d="M10 3v18" />
+    <path d="M14 8v7" />
+    <path d="M18 5v13" />
+    <path d="M22 10v3" />
+  </Svg>
+);
+
+export const IconMessageSquare = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M22 17a2 2 0 0 1-2 2H6.83a2 2 0 0 0-1.41.59l-2.2 2.2A.71.71 0 0 1 2 21.29V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" />
+  </Svg>
+);
+
+export const IconUser = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </Svg>
+);

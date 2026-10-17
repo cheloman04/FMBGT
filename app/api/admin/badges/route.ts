@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getOperator, unauthorized } from '@/lib/admin/auth';
+import { callsMenu, withCallsBadge } from '@/lib/admin/calls';
 import { loadNavBadges } from '@/lib/admin/loaders';
 import { notificationsMenu, withNotificationsBadge } from '@/lib/admin/notifications';
 
@@ -13,9 +14,11 @@ export async function GET() {
   if (!operator) return unauthorized();
 
   try {
-    // The bell's count comes from the hub; it never throws (no number if the hub fails).
-    const [badges, bell] = await Promise.all([loadNavBadges(), notificationsMenu()]);
-    return NextResponse.json({ data: withNotificationsBadge(badges, bell) });
+    // The bell's and the calls' counts come from the hub; they never throw (no
+    // number if the hub fails). "Mark as attended" asks for these again, so the
+    // calls' number drops without a reload.
+    const [badges, bell, calls] = await Promise.all([loadNavBadges(), notificationsMenu(), callsMenu()]);
+    return NextResponse.json({ data: withCallsBadge(withNotificationsBadge(badges, bell), calls) });
   } catch (error) {
     console.error('[admin/badges]', error);
     return NextResponse.json({ error: 'The menu counters could not be loaded.' }, { status: 500 });
