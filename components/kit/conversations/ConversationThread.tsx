@@ -16,14 +16,24 @@ import {
   agentSwitchPlan,
   authorOf,
   bubbleOf,
+  channelName,
   contactName,
   deliveryStatus,
   fill,
+  lastInboundSeen,
   readMessage,
   whatsappWindowOpen,
   type InboxLabels,
 } from "./inbox";
-import type { InboxChannel, InboxConversation, InboxHandlerResult, InboxSendResult, InboxThread } from "./types";
+import type {
+  InboxArchiveResult,
+  InboxChannel,
+  InboxConversation,
+  InboxDeleteResult,
+  InboxHandlerResult,
+  InboxSendResult,
+  InboxThread,
+} from "./types";
 import { usePolling } from "./usePolling";
 
 /** Lo más largo que se deja escribir en una respuesta. */
@@ -51,6 +61,13 @@ const REPLY_COUNT_FROM = 3600;
  * 🪤 SE MONTA CON `key={conversation.id}`. Sin ella, el «Sending…» o el borrador
  * de un hilo sobreviven al cambiar a otro, y una respuesta lenta del primero
  * pintaría sus mensajes en el segundo.
+ *
+ * ARCHIVAR Y BORRAR (contrato §2.4, v0.15.0) van arriba: en la cabecera del panel,
+ * y en el cajón del teléfono, en la primera fila del hilo. No son de cada mensaje
+ * ni de cada respuesta, así que no van al pie. Archivar manda el último mensaje de
+ * la persona que tenía la pantalla (`lastInboundSeen`): si escribió después, el hub
+ * no la archiva y aquí se dice. Borrar solo sale en una archivada, con `allowDelete`,
+ * y pide confirmación: no se deshace.
  */
 export function ConversationThread({
   conversation,
@@ -62,7 +79,10 @@ export function ConversationThread({
   locale,
   pollMs,
   layout,
+  allowDelete,
   onChanged,
+  onArchived,
+  onDeleted,
   onClose,
 }: {
   conversation: InboxConversation;
@@ -76,8 +96,14 @@ export function ConversationThread({
   pollMs: number;
   /** `pane`: la columna del escritorio. `drawer`: el cajón a pantalla entera del teléfono. */
   layout: "pane" | "drawer";
+  /** Se enseña «Delete forever» en una archivada. La conexión necesita `channels:delete`. */
+  allowDelete: boolean;
   /** Algo cambió (se mandó, se devolvió): la lista se relee. */
   onChanged: () => void;
+  /** Salió bien archivar (`true`) o devolver a la bandeja (`false`): la bandeja cierra el hilo y lo dice. */
+  onArchived: (archived: boolean) => void;
+  /** Se borró para siempre: la bandeja cierra el hilo y lo dice. */
+  onDeleted: () => void;
   onClose: () => void;
 }) {
   const url = `${endpoint}/${encodeURIComponent(conversation.id)}`;
@@ -90,6 +116,7 @@ export function ConversationThread({
   const [sendError, setSendError] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [acting, setActing] = useState<"archive" | "restore" | "delete" | null>(null);
   const { confirm, dialog } = useConfirm();
   const endRef = useRef<HTMLDivElement>(null);
   const seen = useRef(0);
@@ -164,6 +191,48 @@ export function ConversationThread({
     setSwitching(false);
   }
 
+  // Archivar, devolver y borrar. Si sale bien, quien lo dice es la bandeja (cierra
+  // el hilo); si no, se dice aquí, que es lo que se está mirando.
+  async function setArchived(archived: boolean) {
+    setActing(archived ? "archive" : "restore");
+    setSendError(null);
+    setNotice(null);
+    const res = await api.patch<InboxArchiveResult>(
+      url,
+      archived ? { archived, lastInboundAt: lastInboundSeen(conversation.lastInboundAt, thread?.messages) } : { archived },
+    );
+    setActing(null);
+    if (res.ok) return onArchived(archived);
+    if (res.status === 401) return;
+    // Lo normal es el 409 «escribió otra vez»: que se vea su mensaje.
+    setSendError(res.error);
+    await load();
+    onChanged();
+  }
+
+  async function remove() {
+    if (
+      !(await confirm({
+        title: labels.deleteConfirmTitle,
+        description: fill(labels.deleteConfirmBody, { name: contact, channel: channelName(conversation.channel, labels) }),
+        confirmLabel: labels.deleteConfirm,
+        cancelLabel: labels.cancel,
+        closeLabel: labels.close,
+        danger: true,
+      }))
+    ) {
+      return;
+    }
+    setActing("delete");
+    setSendError(null);
+    setNotice(null);
+    const res = await api.delete<InboxDeleteResult>(url);
+    setActing(null);
+    if (res.ok) return onDeleted();
+    if (res.status !== 401) setSendError(res.error);
+    onChanged();
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -181,9 +250,29 @@ export function ConversationThread({
       stateLabels={{ on: labels.agentOn, off: labels.agentOff }}
       checked={handler === "agent"}
       loading={switching}
-      disabled={sending}
+      disabled={sending || acting !== null}
       onChange={(next) => void moveAgent(next)}
     />
+  );
+
+  const archived = conversation.archivedAt !== null;
+  const busy = sending || switching || acting !== null;
+  const actions = archived ? (
+    <>
+      <StatusBadge meta={{ label: labels.archivedBadge, tone: "gray" }} size="sm" dot={false} />
+      <Button variant="secondary" size="sm" loading={acting === "restore"} disabled={busy} onClick={() => void setArchived(false)}>
+        {labels.restore}
+      </Button>
+      {allowDelete ? (
+        <Button variant="danger" size="sm" loading={acting === "delete"} disabled={busy} onClick={() => void remove()}>
+          {labels.deleteForever}
+        </Button>
+      ) : null}
+    </>
+  ) : (
+    <Button variant="secondary" size="sm" loading={acting === "archive"} disabled={busy} onClick={() => void setArchived(true)}>
+      {labels.archive}
+    </Button>
   );
 
   let body: ReactNode;
@@ -262,7 +351,7 @@ export function ConversationThread({
         rows={3}
         maxLength={REPLY_MAX}
         placeholder={labels.replyPlaceholder}
-        disabled={sending || switching}
+        disabled={busy}
         // La cuenta solo cerca del tope: su sitio de antes, a la izquierda de
         // «Send», es ahora el del canal y el interruptor.
         hint={length >= REPLY_COUNT_FROM ? `${length}/${REPLY_MAX}` : undefined}
@@ -277,7 +366,7 @@ export function ConversationThread({
         {/* `ml-auto`: a 320 px la fila no cabe y «Send» baja a otra línea; así
             se queda a la derecha, donde el pulgar lo busca. */}
         <div className="ml-auto">
-          <Button loading={sending} disabled={!draft.trim() || switching} onClick={() => void send()}>
+          <Button loading={sending} disabled={!draft.trim() || switching || acting !== null} onClick={() => void send()}>
             {sending ? labels.sending : labels.send}
           </Button>
         </div>
@@ -288,6 +377,7 @@ export function ConversationThread({
   if (layout === "drawer") {
     return (
       <Drawer open title={contact} onClose={onClose} size="lg" closeLabel={labels.close} footer={composer}>
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">{actions}</div>
         {body}
         <div ref={endRef} />
         {dialog}
@@ -298,7 +388,8 @@ export function ConversationThread({
   return (
     <section aria-label={contact} className="flex min-h-[28rem] min-w-0 flex-1 flex-col rounded-[14px] border border-hairline">
       <header className="flex shrink-0 items-center gap-3 border-b border-hairline px-4 py-3">
-        <h2 className="min-w-0 truncate text-sm font-semibold text-fg">{contact}</h2>
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{contact}</h2>
+        <div className="flex shrink-0 items-center gap-2">{actions}</div>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {body}

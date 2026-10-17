@@ -1,10 +1,10 @@
 {
   "kit": "dashboard",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "source": {
     "repo": "senzai-skills",
     "path": "kit/dashboard",
-    "commit": "303c5d40964d6681736290b1703ee029c5e9e2e5"
+    "commit": "cd69e11bcde051a90bebcd8a6af569db5a2fa52c"
   },
   "files": {
     "AppShell.tsx": "3066e1758998c4315b721536fd3625f5393be0ed3149c026340361bc20c4f30b",
@@ -44,13 +44,13 @@
     "conversations/CallDetail.tsx": "430d9ae08684eb0cbae418210836b900aa2fa207a970995d025d5e644ea94ec8",
     "conversations/CallsLog.tsx": "04e6e743bb134101297d3c0996f4af58358ef3caf6da9611aaf21ea615a74353",
     "conversations/ChannelGlyph.tsx": "2d87c317365f121ce673be846ad7474517a3ad664580ef3fc27b297d2f5b7452",
-    "conversations/ConversationThread.tsx": "847c0e78aaef423fd5333d6d240bc850f186f9d536866ad8f42a2410343a172e",
-    "conversations/ConversationsInbox.tsx": "87785009d580d7eb46893369fbb4fe0f1e7c7f4001871804934cb30aa6c90ba2",
+    "conversations/ConversationThread.tsx": "6e160a38cb269e56dbf27ce38f6d9180070e1023aa8cf1246c4f978517a460d0",
+    "conversations/ConversationsInbox.tsx": "de644b42fdfb97588ca2737f36b13a656e1182e1cd4d432eaa1d31308856a8a0",
     "conversations/calls.ts": "e5ac636875d752f0e45bebb86a048ef11b20dac203e465457b6e8226abba52c9",
     "conversations/channelLogos.ts": "a67d3c71b8a24bafb4e1bfc3d1c036e9be45e2a2c906c1018c71b7bd2f5e3360",
-    "conversations/inbox.ts": "ad2cd5ef42947f8dd198f3793dfecffe7f73e2744b58514bd3f4fc0077219ab9",
-    "conversations/server.ts": "cf2f7720ff7437c987d801e57a167744a1d0cacf5f445106efc7cbd5e996697b",
-    "conversations/types.ts": "928974bccb7776bdb8c0d219259d9d46e2d3cb457a96782b4771617a9c9b2261",
+    "conversations/inbox.ts": "6c1b9103a17e431b42d8fed17d4104a14b154fdf1f02c1bcac2963e83ba4fa51",
+    "conversations/server.ts": "b10a7ea17cf0ea9a59c23cbf865d1aed71dfa6d94abe5d25e75869d731cb54ed",
+    "conversations/types.ts": "77785c85ce35d86571bfbd87084259da285b118f1e8d7318c11619a005b2e191",
     "conversations/useMediaQuery.ts": "c6b8a25ebc6fbadea0421980f284decdcc8da5a85be352ea5ea8a37683c35c70",
     "conversations/usePolling.ts": "9385fd37073d7a142c614241f98f52da9313667b4cf5915435c7465d83931b46",
     "cx.ts": "1b3b1faf2deab0896e7f18eb00b5969b751c541e685341f8a04aa49f79e45eca",
@@ -72,7 +72,7 @@
     "useConfirm.tsx": "ffa55359579e4477ac0ac5ff94deae15c58cf550faa6458264696e93f4a5dda1",
     "useDialogBehavior.ts": "f812ce89273a700bcb5830b49120fc3d234c1a7d67fe09608b88d4af5ef20dea",
     "eslint/_shared.mjs": "59e19e38c3e4cd3a0aaa671d2719af7d42392bd860386e8b87411a1c51fdaf60",
-    "eslint/index.mjs": "87ccf5034c9e21bb7deba66bf7e3e8c07880203483818d0577f549d2e93f6f90",
+    "eslint/index.mjs": "6cee9a00128d4c8bb719088d95dc106ccd37fdc94ca575362e99966023964a9b",
     "eslint/no-dark-variant.mjs": "ec5d8f839c8bd4be552e5c64a2bb850e4a383a1ebed24b89f4da7c74fccd2a90",
     "eslint/no-duplicate-color-utility.mjs": "152b9f09bfafbc650db2bda1fa0d1f01df37407ec3cb3eefbe9345686a4b7379",
     "eslint/no-emoji-in-ui.mjs": "d9bc92fa02eb880b16239db7328272e3ec5cda1e09bb6bca41aa2d4040f5eb31",

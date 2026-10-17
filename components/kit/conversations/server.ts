@@ -46,10 +46,12 @@ import type {
   HubMessage,
   HubOutcome,
   HubTemplateView,
+  InboxArchiveResult,
   InboxChannel,
   InboxConversation,
   InboxCounts,
   InboxData,
+  InboxDeleteResult,
   InboxHandlerResult,
   InboxLoad,
   InboxMessage,
@@ -108,7 +110,8 @@ function originOf(raw: string | undefined): string | null {
 /** `unreachable` = no pudimos preguntar. `refused` = el hub contestó que no. */
 export type HubFailure =
   | { ok: false; kind: "unreachable"; detail: string }
-  | { ok: false; kind: "refused"; status: number; detail: string };
+  /** `code`: el que manda el hub con algunos rechazos (el `409` de archivar y borrar, §2.4). */
+  | { ok: false; kind: "refused"; status: number; detail: string; code?: string };
 
 const READ_TIMEOUT_MS = 10_000;
 // Mandar pasa por el conector de la red a través del hub: dos saltos en serie.
@@ -150,7 +153,8 @@ async function refused(res: Response, what: string): Promise<HubFailure> {
   const body = await readJson(res);
   console.error(`[kit/conversations] el hub devolvió ${res.status} al ${what}`);
   const detail = typeof body?.error === "string" && body.error ? body.error : `hub ${res.status}`;
-  return { ok: false, kind: "refused", status: res.status, detail };
+  const code = typeof body?.code === "string" && body.code ? body.code : undefined;
+  return { ok: false, kind: "refused", status: res.status, detail, ...(code ? { code } : {}) };
 }
 
 function unreachable(err: unknown, what: string): HubFailure {
@@ -168,6 +172,8 @@ export type InboxListRequest = {
   /** El `nextCursor` de la página anterior, tal cual. */
   cursor?: string | null;
   limit?: number;
+  /** `true` = solo las archivadas (contrato §2.4). Sin él, la bandeja sin ellas. */
+  archived?: boolean;
 };
 
 export type HubConversationList = {
@@ -175,6 +181,8 @@ export type HubConversationList = {
   nextCursor: string | null;
   counts: HubInboxCounts | null;
   countsExact: boolean;
+  /** `archived_count` del hub, o `null` si no lo manda (un hub anterior al §2.4). */
+  archivedCount: number | null;
 };
 
 /**
@@ -191,11 +199,14 @@ export type HubConversationList = {
  */
 export async function listConversations(
   config: HubConfig,
-  { segment = "all", query = null, cursor = null, limit = CONVERSATION_LIMIT }: InboxListRequest = {},
+  { segment = "all", query = null, cursor = null, limit = CONVERSATION_LIMIT, archived = false }: InboxListRequest = {},
 ): Promise<({ ok: true } & HubConversationList) | HubFailure> {
   const params = new URLSearchParams({ kind: "messages", filter: SEGMENT_FILTER[segment], counts: "1", limit: String(limit) });
   if (query) params.set("q", query);
   if (cursor) params.set("cursor", cursor);
+  // Sin `archived` el hub ya deja fuera las archivadas en la bandeja con segmentos
+  // (contrato §2.1): solo se manda para pedir la vista «Archived».
+  if (archived) params.set("archived", "1");
   try {
     const res = await hubFetch(config, `/api/channels/conversations?${params}`);
     if (!res.ok) return refused(res, "listar");
@@ -206,6 +217,8 @@ export async function listConversations(
       nextCursor: typeof body?.next_cursor === "string" && body.next_cursor ? body.next_cursor : null,
       counts: hubCounts(body?.counts),
       countsExact: body?.counts_exact !== false,
+      archivedCount:
+        typeof body?.archived_count === "number" && Number.isFinite(body.archived_count) ? body.archived_count : null,
     };
   } catch (err) {
     return unreachable(err, "listar");
@@ -325,6 +338,61 @@ export async function setHandler(
 }
 
 /**
+ * Archivar (`true`) o devolver a la bandeja (`false`), contrato §2.4.
+ *
+ * 🪤 ARCHIVAR LLEVA EL `last_inbound_at` QUE TENÍA LA PANTALLA. Si la persona
+ * escribió después, el hub contesta `409 new_message` y no la archiva: nadie
+ * esconde un mensaje que no llegó a ver. Por eso se manda tal cual lo dio el hub
+ * (`null` si nunca escribió), y nunca se omite.
+ */
+export async function setArchived(
+  config: HubConfig,
+  conversationId: string,
+  archived: boolean,
+  lastInboundAt: string | null,
+): Promise<{ ok: true; archivedAt: string | null; changed: boolean } | HubFailure> {
+  try {
+    const res = await hubFetch(config, `/api/channels/conversations/${conversationId}`, {
+      method: "PATCH",
+      body: archived ? { archived: true, last_inbound_at: lastInboundAt } : { archived: false },
+    });
+    if (!res.ok) return refused(res, archived ? "archivar" : "devolver a la bandeja");
+    const body = await readJson(res);
+    const mark = body?.archived as { at?: unknown } | null | undefined;
+    return {
+      ok: true,
+      archivedAt: mark && typeof mark.at === "string" ? mark.at : null,
+      changed: body?.changed === true,
+    };
+  } catch (err) {
+    return unreachable(err, archived ? "archivar" : "devolver a la bandeja");
+  }
+}
+
+/**
+ * Borrar para siempre una conversación ARCHIVADA (contrato §2.4). Pide el alcance
+ * `channels:delete`, que no tiene ninguna conexión salvo que se le conceda.
+ */
+export async function deleteConversation(
+  config: HubConfig,
+  conversationId: string,
+): Promise<{ ok: true; messages: number; attachments: number } | HubFailure> {
+  try {
+    const res = await hubFetch(config, `/api/channels/conversations/${conversationId}`, { method: "DELETE" });
+    if (!res.ok) return refused(res, "borrar");
+    const body = await readJson(res);
+    const deleted = (body?.deleted ?? {}) as { messages?: unknown; attachments?: unknown };
+    return {
+      ok: true,
+      messages: typeof deleted.messages === "number" ? deleted.messages : 0,
+      attachments: typeof deleted.attachments === "number" ? deleted.attachments : 0,
+    };
+  } catch (err) {
+    return unreachable(err, "borrar");
+  }
+}
+
+/**
  * Un adjunto: una URL firmada de una hora del archivo que el hub copió a su
  * bucket. Se pide al abrir la foto, no al pintar el hilo. El 404 del hub es «no
  * existe, no es tuyo, ese índice no existe o aún no está copiado», todo igual.
@@ -405,6 +473,14 @@ export function readQuery(value: string | string[] | null | undefined): string |
   return raw ? raw.slice(0, MAX_QUERY) : null;
 }
 
+/**
+ * ¿La URL de una página pide la vista «Archived»? Solo `?archived=1`; cualquier otra
+ * cosa es la bandeja, que se ve y no engaña. La ruta proxy, en cambio, da 400.
+ */
+export function readArchived(value: string | string[] | null | undefined): boolean {
+  return (Array.isArray(value) ? value[0] : value) === "1";
+}
+
 /** Las cuentas del cable, con las claves de la isla. */
 export function toInboxCounts(counts: HubInboxCounts | null): InboxCounts | null {
   if (!counts) return null;
@@ -415,10 +491,12 @@ function toPage(list: HubConversationList, request: InboxListRequest): InboxPage
   return {
     segment: request.segment ?? "all",
     query: request.query ?? null,
+    archived: request.archived === true,
     conversations: list.conversations.filter((c) => !EXCLUDED_CHANNELS.has(c.channel)).map(toInboxConversation),
     nextCursor: list.nextCursor,
     counts: toInboxCounts(list.counts),
     countsExact: list.countsExact,
+    archivedCount: list.archivedCount,
   };
 }
 
@@ -479,6 +557,7 @@ export function toInboxConversation(c: HubConversation): InboxConversation {
     phone,
     lastMessageAt: c.last_message_at ?? last?.at ?? null,
     lastInboundAt: c.last_inbound_at ?? null,
+    archivedAt: c.archived && typeof c.archived.at === "string" ? c.archived.at : null,
     // Lo decide el hub (`needs_reply`): una llamada entrante resuelta no espera a
     // nadie. Un hub anterior no lo manda; entonces, la dirección.
     waiting: last ? (last.needs_reply ?? last.direction === "inbound") : false,
@@ -544,6 +623,11 @@ export type InboxServerMessages = {
   badSegment: string;
   badQuery: string;
   notSent: string;
+  badArchive: string;
+  wroteAgain: string;
+  notArchived: string;
+  voiceNotArchived: string;
+  cantDelete: string;
 };
 
 export const INBOX_SERVER_MESSAGES: InboxServerMessages = {
@@ -563,6 +647,12 @@ export const INBOX_SERVER_MESSAGES: InboxServerMessages = {
   badSegment: "Unknown segment: it is all, waiting, agent or operator.",
   badQuery: "The search is too long: 100 characters at most.",
   notSent: "Not sent: {reason}",
+  badArchive: "Send handler or archived (true or false).",
+  wroteAgain: "They wrote again after you opened it, so the conversation stays in the inbox.",
+  notArchived: "Only an archived conversation can be deleted. Archive it first.",
+  voiceNotArchived: "Calls aren't archived or deleted here.",
+  cantDelete:
+    "This site's connection to Kigaru can't delete conversations: it needs the channels:delete scope. Archiving still works.",
 };
 
 function fill(template: string, vars: Record<string, string | number>): string {
@@ -601,6 +691,31 @@ export function failureMessage(f: HubFailure, messages: FailureMessages = INBOX_
   return fill(messages.hubError, { status: f.status });
 }
 
+/**
+ * Los fallos de archivar y borrar (contrato §2.4): como `failureStatus` y
+ * `failureMessage`, más dos casos propios.
+ *
+ * - El `409` sale como `409`, con el texto de su código: «escribió otra vez», «solo
+ *   una archivada», «la voz no». Como 502 diría «Kigaru no contestó», que es falso.
+ * - 🪤 El `403` de BORRAR es que la conexión no tiene `channels:delete`, y se dice
+ *   así. El genérico pediría `channels:read` y `channels:write`, que sí tiene: el
+ *   operador iría a mirar lo que no es.
+ */
+function archiveFailureStatus(f: HubFailure): number {
+  return f.kind === "refused" && f.status === 409 ? 409 : failureStatus(f);
+}
+
+function archiveFailureMessage(f: HubFailure, messages: InboxServerMessages, what: "archive" | "delete"): string {
+  if (f.kind === "refused" && f.status === 409) {
+    if (f.code === "new_message") return messages.wroteAgain;
+    if (f.code === "not_archived") return messages.notArchived;
+    if (f.code === "voice") return messages.voiceNotArchived;
+    return f.detail;
+  }
+  if (what === "delete" && f.kind === "refused" && f.status === 403) return messages.cantDelete;
+  return failureMessage(f, messages);
+}
+
 // -----------------------------------------------------------------------------
 // Los cargadores de la página y del menú
 // -----------------------------------------------------------------------------
@@ -632,18 +747,21 @@ export async function loadInbox(
   {
     segment,
     query,
+    archived,
     messages = INBOX_SERVER_MESSAGES,
   }: {
     /** El `?segment=` de la página, tal cual: uno que no se entiende es «all». */
     segment?: string | string[] | null;
     /** El `?q=` de la página, tal cual. */
     query?: string | string[] | null;
+    /** El `?archived=` de la página, tal cual: solo `1` es la vista «Archived». */
+    archived?: string | string[] | null;
     messages?: InboxServerMessages;
   } = {},
 ): Promise<InboxLoad> {
   if (!config) return { ok: false, reason: "not_configured", error: messages.notConfigured };
   // El primer pintado ya es el de la URL: un enlace a «waiting» abre en «waiting».
-  const result = await loadData(config, { segment: readSegment(segment), query: readQuery(query) });
+  const result = await loadData(config, { segment: readSegment(segment), query: readQuery(query), archived: readArchived(archived) });
   if (!result.ok) return { ok: false, reason: "hub_error", error: failureMessage(result, messages) };
   return result;
 }
@@ -688,7 +806,7 @@ export async function inboxVisible(
  *   import { inboxRoutes } from "@/lib/admin/conversations";
  *   export const dynamic = "force-dynamic";
  *   export const maxDuration = 60;
- *   export const { GET, POST, PATCH } = inboxRoutes.thread;
+ *   export const { GET, POST, PATCH, DELETE } = inboxRoutes.thread;
  *
  * 🪤 UN `route.ts` SOLO PUEDE EXPORTAR HANDLERS (y la config de segmento). Un
  * export de más —la factoría, un helper— compila con Turbopack y rompe con
@@ -706,8 +824,13 @@ export type InboxRoutes = {
     GET: (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
     /** `POST <endpoint>/<id>` `{ text }` → 201 `{ data: InboxSendResult }`, o el motivo de que no saliera. */
     POST: (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
-    /** `PATCH <endpoint>/<id>` `{ handler }` → `{ data: InboxHandlerResult }`. */
+    /**
+     * `PATCH <endpoint>/<id>` `{ handler }` → `{ data: InboxHandlerResult }`;
+     * `{ archived, lastInboundAt }` → `{ data: InboxArchiveResult }` (contrato §2.4).
+     */
     PATCH: (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
+    /** `DELETE <endpoint>/<id>` → `{ data: InboxDeleteResult }`: borra para siempre una archivada. */
+    DELETE: (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
   };
   /** `GET <endpoint>/<id>/messages/<messageId>/media/<index>` → 302 a la URL firmada. */
   media: (
@@ -779,9 +902,13 @@ export function createInboxRoutes({ authorize, hub = () => hubFromEnv(), message
       if (segment !== null && !isInboxSegment(segment)) return json({ error: messages.badSegment }, 400);
       const query = params.get("q")?.trim() || null;
       if (query && query.length > MAX_QUERY) return json({ error: messages.badQuery }, 400);
+      // Como el segmento: aquí solo llega lo que manda la isla (`1` o nada).
+      const archived = params.get("archived");
+      if (archived !== null && archived !== "1" && archived !== "0") return json({ error: messages.badArchive }, 400);
       const request: InboxListRequest = {
         segment: segment ?? "all",
         query,
+        archived: archived === "1",
         // El cursor es opaco: lo valida el hub, que es quien lo escribió (400 si no es suyo).
         cursor: params.get("cursor") || null,
         limit: listLimit(params.get("limit")),
@@ -838,12 +965,33 @@ export function createInboxRoutes({ authorize, hub = () => hubFromEnv(), message
       async PATCH(req, ctx) {
         const opened = await openThread(req, ctx);
         if ("response" in opened) return opened.response;
-        const body = (await req.json().catch(() => null)) as { handler?: unknown } | null;
+        const body = (await req.json().catch(() => null)) as { handler?: unknown; archived?: unknown; lastInboundAt?: unknown } | null;
+
+        // Archivar o devolver a la bandeja (contrato §2.4). Uno por petición: la isla
+        // nunca manda las dos cosas a la vez, y así un fallo dice de cuál fue.
+        if (body && "archived" in body) {
+          if (typeof body.archived !== "boolean") return json({ error: messages.badArchive }, 422);
+          const lastInboundAt = typeof body.lastInboundAt === "string" ? body.lastInboundAt : null;
+          const result = await setArchived(opened.config, opened.id, body.archived, lastInboundAt);
+          if (!result.ok) return json({ error: archiveFailureMessage(result, messages, "archive") }, archiveFailureStatus(result));
+          const data: InboxArchiveResult = { archivedAt: result.archivedAt, changed: result.changed };
+          return json({ data });
+        }
+
         const handler = body?.handler;
         if (handler !== "agent" && handler !== "human") return json({ error: messages.badHandler }, 422);
         const result = await setHandler(opened.config, opened.id, handler);
         if (!result.ok) return fail(result);
         const data: InboxHandlerResult = { handler: result.handler, changed: result.changed };
+        return json({ data });
+      },
+
+      async DELETE(req, ctx) {
+        const opened = await openThread(req, ctx);
+        if ("response" in opened) return opened.response;
+        const result = await deleteConversation(opened.config, opened.id);
+        if (!result.ok) return json({ error: archiveFailureMessage(result, messages, "delete") }, archiveFailureStatus(result));
+        const data: InboxDeleteResult = { deleted: { messages: result.messages, attachments: result.attachments } };
         return json({ data });
       },
     },

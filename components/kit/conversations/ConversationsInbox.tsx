@@ -17,6 +17,7 @@ import {
   INBOX_SEGMENTS,
   agentNotes,
   appendPage,
+  archivedFromParam,
   channelName,
   contactName,
   emptyListTitle,
@@ -31,7 +32,7 @@ import {
   segmentLabel,
   type InboxLabels,
 } from "./inbox";
-import type { InboxConversation, InboxData, InboxLoad, InboxPage, InboxSegment } from "./types";
+import type { InboxArchiveResult, InboxConversation, InboxData, InboxLoad, InboxPage, InboxSegment } from "./types";
 import { useMediaQuery } from "./useMediaQuery";
 import { usePolling } from "./usePolling";
 
@@ -54,6 +55,14 @@ type Props = {
   segmentParam?: string;
   /** El parámetro de la URL con la búsqueda. */
   queryParam?: string;
+  /** El parámetro de la URL de la vista «Archived» (`?archived=1`). */
+  archivedParam?: string;
+  /**
+   * Enseña «Delete forever» en una conversación archivada (contrato §2.4). Pásalo
+   * solo cuando la conexión del spoke tenga el alcance `channels:delete`: sin él el
+   * hub dice que no, y el botón solo serviría para enseñar ese error.
+   */
+  allowDelete?: boolean;
 };
 
 const ROW = "block w-full px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ac-500/60 max-sm:min-h-11";
@@ -66,16 +75,24 @@ const MAX_REFRESH = 100;
 /** Cuánto se espera a que se deje de escribir antes de buscar. */
 const SEARCH_DEBOUNCE_MS = 350;
 
-/** Qué se pide: un segmento y una búsqueda. Es lo que compara lo que se ve con la URL. */
-const viewKey = (segment: InboxSegment, query: string | null) => `${segment}\n${query ?? ""}`;
+/** Qué se pide: un segmento, una búsqueda y si es la vista «Archived». Es lo que compara lo que se ve con la URL. */
+const viewKey = (segment: InboxSegment, query: string | null, archived: boolean) =>
+  `${segment}\n${query ?? ""}\n${archived ? "archived" : "inbox"}`;
 
 function listUrl(
   endpoint: string,
-  { segment, query, cursor, limit }: { segment: InboxSegment; query: string; cursor?: string | null; limit?: number },
+  {
+    segment,
+    query,
+    archived,
+    cursor,
+    limit,
+  }: { segment: InboxSegment; query: string; archived: boolean; cursor?: string | null; limit?: number },
 ): string {
   const params = new URLSearchParams();
   if (segment !== "all") params.set("segment", segment);
   if (query) params.set("q", query);
+  if (archived) params.set("archived", "1");
   if (cursor) params.set("cursor", cursor);
   if (limit && limit !== PAGE) params.set("limit", String(limit));
   const qs = params.toString();
@@ -102,6 +119,10 @@ function listUrl(
  * - El hilo abierto, el segmento y la búsqueda viven en la URL (`?c=`,
  *   `?segment=`, `?q=`): Atrás cierra el hilo en el teléfono y un enlace se
  *   puede compartir. Cambiar de segmento o buscar no recarga la página.
+ * - «Archive» saca una conversación de la bandeja; «Archived · N» enseña las
+ *   archivadas (`?archived=1`), desde donde se restauran o, con `allowDelete`, se
+ *   borran para siempre. Vuelve sola a la bandeja si la persona escribe otra vez
+ *   (contrato §2.4): archivar no puede servir para no enterarse.
  * - En escritorio (`lg`), lista y hilo lado a lado; en el teléfono, el hilo en un
  *   `Drawer` a pantalla entera. Se monta UNO de los dos: el hilo no se lee dos veces.
  * - Con `PageShell fill` la columna del hilo ocupa la altura y hace su propio scroll.
@@ -130,6 +151,8 @@ function Inbox({
   param = "c",
   segmentParam = "segment",
   queryParam = "q",
+  archivedParam = "archived",
+  allowDelete = false,
 }: Props) {
   const labels = useMemo(() => mergeLabels(overrides), [overrides]);
   const api = useMemo(() => createApiClient({ loginPath }), [loginPath]);
@@ -142,7 +165,8 @@ function Inbox({
   // búsqueda. Cuando no coinciden, se está cambiando de vista.
   const segment = segmentFromParam(search.get(segmentParam));
   const query = queryFromParam(search.get(queryParam));
-  const wanted = viewKey(segment, query);
+  const archived = archivedFromParam(search.get(archivedParam));
+  const wanted = viewKey(segment, query, archived);
 
   // `data` es lo último que se cargó bien, de la vista que fuera: de ahí salen los
   // canales y la tira mientras llega la vista nueva. `failure`, el último intento.
@@ -153,8 +177,11 @@ function Inbox({
   const [pending, setPending] = useState(0);
   const [more, setMore] = useState<{ key: string; loading: boolean; error: string | null }>({ key: wanted, loading: false, error: null });
   const [draft, setDraft] = useState(query);
+  /** Lo que acaba de pasar (archivada, devuelta, borrada), con «Undo» si se puede deshacer. */
+  const [done, setDone] = useState<{ text: string; undo?: { id: string; name: string } } | null>(null);
+  const [undoing, setUndoing] = useState(false);
 
-  const current = data && viewKey(data.segment, data.query) === wanted ? data : null;
+  const current = data && viewKey(data.segment, data.query, data.archived) === wanted ? data : null;
   const viewFailure = failure && failure.key === wanted ? failure : null;
   // Cambiando de vista: lo de la vista anterior se ve atenuado hasta que llega la
   // nueva. Si la nueva falla, se dice, y no se queda atenuado para siempre.
@@ -162,25 +189,25 @@ function Inbox({
 
   // Lo último pedido y lo último visto, para lo que corre DESPUÉS del render: el
   // sondeo y las respuestas que llegan tarde.
-  const latest = useRef({ segment, query, wanted, data });
+  const latest = useRef({ segment, query, archived, wanted, data });
   useEffect(() => {
-    latest.current = { segment, query, wanted, data };
+    latest.current = { segment, query, archived, wanted, data };
   });
 
   const refresh = useCallback(async () => {
-    const { segment, query, wanted, data: shown } = latest.current;
+    const { segment, query, archived, wanted, data: shown } = latest.current;
     // Releer lo que se ve pide tantas filas como se enseñan: lo cargado con «Load
     // more» se relee también, hasta el tope del hub.
-    const same = shown !== null && viewKey(shown.segment, shown.query) === wanted;
+    const same = shown !== null && viewKey(shown.segment, shown.query, shown.archived) === wanted;
     const limit = same ? Math.min(MAX_REFRESH, Math.max(PAGE, shown.conversations.length)) : PAGE;
     setPending((n) => n + 1);
-    const res = await api.get<InboxData>(listUrl(endpoint, { segment, query, limit }));
+    const res = await api.get<InboxData>(listUrl(endpoint, { segment, query, archived, limit }));
     setPending((n) => n - 1);
     // Mientras volaba se pidió otra vista: su propia petición pintará lo suyo.
     if (latest.current.wanted !== wanted) return;
     if (res.ok) {
       setData((prev) =>
-        prev && viewKey(prev.segment, prev.query) === wanted
+        prev && viewKey(prev.segment, prev.query, prev.archived) === wanted
           ? { ...res.data, ...mergeRefresh(prev.conversations, prev.nextCursor, res.data) }
           : res.data,
       );
@@ -205,15 +232,21 @@ function Inbox({
   }, [switching, wanted]);
 
   const loadMore = useCallback(async () => {
-    const { segment, query, wanted, data: shown } = latest.current;
-    if (!shown || viewKey(shown.segment, shown.query) !== wanted || !shown.nextCursor) return;
+    const { segment, query, archived, wanted, data: shown } = latest.current;
+    if (!shown || viewKey(shown.segment, shown.query, shown.archived) !== wanted || !shown.nextCursor) return;
     setMore({ key: wanted, loading: true, error: null });
-    const res = await api.get<InboxPage>(listUrl(endpoint, { segment, query, cursor: shown.nextCursor }));
+    const res = await api.get<InboxPage>(listUrl(endpoint, { segment, query, archived, cursor: shown.nextCursor }));
     if (latest.current.wanted !== wanted) return setMore({ key: wanted, loading: false, error: null });
     if (res.ok) {
       setData((prev) =>
-        prev && viewKey(prev.segment, prev.query) === wanted
-          ? { ...prev, ...appendPage(prev.conversations, res.data), counts: res.data.counts ?? prev.counts, countsExact: res.data.countsExact }
+        prev && viewKey(prev.segment, prev.query, prev.archived) === wanted
+          ? {
+              ...prev,
+              ...appendPage(prev.conversations, res.data),
+              counts: res.data.counts ?? prev.counts,
+              countsExact: res.data.countsExact,
+              archivedCount: res.data.archivedCount ?? prev.archivedCount,
+            }
           : prev,
       );
       setMore({ key: wanted, loading: false, error: null });
@@ -263,6 +296,47 @@ function Inbox({
     if (query) setViewParam(queryParam, null);
   };
 
+  // --- Archivar, devolver y borrar (contrato §2.4) ---------------------------
+  // 🪤 LA FILA SE QUITA EN EL ACTO, a mano. Releer no basta: `mergeRefresh` deja
+  // detrás lo que se cargó con «Load more», y una fila que ya no es de esta vista
+  // se quedaría al final hasta recargar (pasó en el admin de Kigaru, 2026-10-17).
+  const dropRow = useCallback((id: string) => {
+    setData((prev) => (prev ? { ...prev, conversations: prev.conversations.filter((c) => c.id !== id) } : prev));
+  }, []);
+
+  const afterArchive = (c: InboxConversation, nowArchived: boolean) => {
+    const name = contactName(c, labels);
+    close();
+    dropRow(c.id);
+    setDone(
+      nowArchived
+        ? { text: fill(labels.archivedDone, { name }), undo: { id: c.id, name } }
+        : { text: fill(labels.restoredDone, { name }) },
+    );
+    void refresh();
+  };
+
+  const afterDelete = (c: InboxConversation) => {
+    close();
+    dropRow(c.id);
+    setDone({ text: fill(labels.deletedDone, { name: contactName(c, labels) }) });
+    void refresh();
+  };
+
+  const undoArchive = async (undo: { id: string; name: string }) => {
+    setUndoing(true);
+    const res = await api.patch<InboxArchiveResult>(`${endpoint}/${encodeURIComponent(undo.id)}`, { archived: false });
+    setUndoing(false);
+    if (res.ok) setDone({ text: fill(labels.restoredDone, { name: undo.name }) });
+    else if (res.status !== 401) setDone({ text: res.error });
+    void refresh();
+  };
+
+  const showArchived = (yes: boolean) => {
+    setDone(null);
+    setViewParam(archivedParam, yes ? "1" : null);
+  };
+
   // 🪤 EL HILO ABIERTO NO SE CIERRA PORQUE SU CONVERSACIÓN SALGA DE LA LISTA. En
   // «Waiting», contestar hace que deje de esperar y el sondeo la quita: sin esto,
   // el hilo se cerraría solo justo después de mandar. Se recuerda la última vista
@@ -289,13 +363,15 @@ function Inbox({
   }
 
   const { channels } = data;
-  if (current && channels.length === 0 && current.conversations.length === 0 && segment === "all" && !query) {
+  if (current && channels.length === 0 && current.conversations.length === 0 && segment === "all" && !query && !archived) {
     return <EmptyState title={labels.noChannelsTitle} hint={labels.noChannelsHint} />;
   }
 
   // Las cuentas no dependen del segmento, pero sí de la búsqueda: las de otra
   // búsqueda no valen mientras llega la nueva.
-  const counts = (data.query ?? "") === query ? data.counts : null;
+  const counts = (data.query ?? "") === query && data.archived === archived ? data.counts : null;
+  // Cuántas archivadas hay, con la misma búsqueda: no depende de la vista.
+  const archivedCount = (data.query ?? "") === query ? data.archivedCount : null;
   const figures = segmentCounts(counts);
   const notes = agentNotes(channels, labels, locale);
   const rows = current?.conversations ?? (switching ? data.conversations : []);
@@ -304,13 +380,17 @@ function Inbox({
   const list =
     !current && viewFailure ? null : current && rows.length === 0 ? (
       <EmptyState
-        title={emptyListTitle(segment, query, labels)}
+        title={emptyListTitle(segment, query, labels, archived)}
         hint={
           query
             ? labels.noResultsHint
-            : segment === "all" && channels.length > 0
-              ? fill(labels.emptyHint, { channels: listChannels(channels, labels, locale) })
-              : undefined
+            : archived
+              ? segment === "all"
+                ? labels.emptyArchivedHint
+                : undefined
+              : segment === "all" && channels.length > 0
+                ? fill(labels.emptyHint, { channels: listChannels(channels, labels, locale) })
+                : undefined
         }
       />
     ) : (
@@ -371,7 +451,10 @@ function Inbox({
         locale={locale}
         pollMs={pollMs}
         layout={layout}
+        allowDelete={allowDelete}
         onChanged={() => void refresh()}
+        onArchived={(nowArchived) => afterArchive(open, nowArchived)}
+        onDeleted={() => afterDelete(open)}
         onClose={close}
       />
     ) : null;
@@ -414,10 +497,45 @@ function Inbox({
             </Button>
           ) : null}
         </form>
-        <Button variant="ghost" size="sm" loading={pending > 0} onClick={() => void refresh()}>
-          {pending > 0 ? labels.refreshing : labels.refresh}
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* «Archived» no es un quinto segmento: es OTRA lista, con sus cuatro
+              segmentos. Por eso va aparte, como enlace; sin archivadas no sale. */}
+          {!archived && archivedCount ? (
+            <Button variant="ghost" size="sm" onClick={() => showArchived(true)}>
+              {labels.archivedLink}
+              <span className="tabular-nums text-fg-muted">{archivedCount.toLocaleString(locale)}</span>
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="sm" loading={pending > 0} onClick={() => void refresh()}>
+            {pending > 0 ? labels.refreshing : labels.refresh}
+          </Button>
+        </div>
       </div>
+
+      {/* La vista «Archived» se dice ARRIBA y con su salida: sin esto, una lista sin
+          la conversación que se busca se leería como «no existe». */}
+      {archived ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-[14px] border border-hairline px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-fg">{labels.archivedTitle}</p>
+            <p className="mt-0.5 text-xs text-fg-muted">{labels.archivedHint}</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => showArchived(false)}>
+            {labels.backToInbox}
+          </Button>
+        </div>
+      ) : null}
+
+      {done ? (
+        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-2">
+          <span>{done.text}</span>
+          {done.undo ? (
+            <Button variant="ghost" size="sm" loading={undoing} onClick={() => void undoArchive(done.undo!)}>
+              {labels.undo}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       {notes.length > 0 || (current && viewFailure) || (current && !current.countsExact && counts) ? (
         <div className="space-y-1">

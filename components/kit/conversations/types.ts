@@ -33,6 +33,8 @@ export type HubConversation = {
   handler: string;
   last_message_at: string | null;
   last_inbound_at: string | null;
+  /** `{ at }` si está archivada (contrato §2.4). Un hub anterior no lo manda: no lo está. */
+  archived?: { at: string } | null;
   contact: {
     display_name: string | null;
     /** El id de la plataforma. En Instagram y Messenger, un PSID: NO es un teléfono. */
@@ -139,7 +141,13 @@ export type InboxConversation = {
    */
   phone: string | null;
   lastMessageAt: string | null;
+  /**
+   * El último mensaje de la persona. Viaja de vuelta al archivar: si escribió después
+   * de lo que tenía la pantalla, el hub no la archiva (contrato §2.4).
+   */
   lastInboundAt: string | null;
+  /** Desde cuándo está archivada, o `null` si se ve en la bandeja. */
+  archivedAt: string | null;
   /** El último mensaje deja a la persona esperando respuesta (lo decide el hub). */
   waiting: boolean;
   last: InboxPreview | null;
@@ -160,6 +168,8 @@ export type InboxPage = {
   /** Para qué se cargó: la isla compara con la URL y relee si no es lo que se pide. */
   segment: InboxSegment;
   query: string | null;
+  /** `true` = la vista «Archived» (`?archived=1`): solo las archivadas. */
+  archived: boolean;
   conversations: InboxConversation[];
   /** De dónde sigue la página siguiente; `null` = no queda nada detrás. */
   nextCursor: string | null;
@@ -167,6 +177,8 @@ export type InboxPage = {
   counts: InboxCounts | null;
   /** `false` = el conjunto pasa del tope del hub y las cuentas son de lo recorrido. */
   countsExact: boolean;
+  /** Cuántas hay archivadas (con la misma búsqueda). `null` = un hub anterior al §2.4. */
+  archivedCount: number | null;
 };
 
 /** La primera página, con los canales: lo que pinta la bandeja al cargar y al releer. */
@@ -215,6 +227,12 @@ export type InboxThread = {
 export type InboxSendResult = { sent: true; status: string };
 
 export type InboxHandlerResult = { handler: string; changed: boolean };
+
+/** Lo que devuelve archivar o devolver a la bandeja (contrato §2.4). */
+export type InboxArchiveResult = { archivedAt: string | null; changed: boolean };
+
+/** Lo que se borró para siempre en Kigaru. */
+export type InboxDeleteResult = { deleted: { messages: number; attachments: number } };
 
 // -----------------------------------------------------------------------------
 // Las llamadas (contrato §2.3, «Las llamadas»; decisión 12)

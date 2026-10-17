@@ -98,6 +98,24 @@ export type InboxLabels = {
   handBackConfirm: string;
   cancel: string;
   handedBack: string;
+  // Archivar y borrar (contrato §2.4)
+  archive: string;
+  restore: string;
+  deleteForever: string;
+  archivedLink: string;
+  archivedTitle: string;
+  archivedHint: string;
+  backToInbox: string;
+  archivedBadge: string;
+  archivedDone: string;
+  restoredDone: string;
+  deletedDone: string;
+  undo: string;
+  deleteConfirmTitle: string;
+  deleteConfirmBody: string;
+  deleteConfirm: string;
+  emptyArchivedTitle: string;
+  emptyArchivedHint: string;
   // Contenido de los mensajes
   template: string;
   templateUntitled: string;
@@ -202,6 +220,25 @@ export const INBOX_LABELS: InboxLabels = {
   handBackConfirm: "Hand it back",
   cancel: "Cancel",
   handedBack: "The AI agent handles this conversation again.",
+
+  archive: "Archive",
+  restore: "Restore",
+  deleteForever: "Delete forever",
+  archivedLink: "Archived",
+  archivedTitle: "Archived conversations",
+  archivedHint: "A conversation goes back to the inbox as soon as the person writes again.",
+  backToInbox: "Back to inbox",
+  archivedBadge: "Archived",
+  archivedDone: "Archived the conversation with {name}",
+  restoredDone: "{name} is back in the inbox.",
+  deletedDone: "Deleted the conversation with {name}",
+  undo: "Undo",
+  deleteConfirmTitle: "Delete this conversation forever?",
+  deleteConfirmBody:
+    "This deletes the messages with {name} and their attachments from Kigaru, and it can't be undone. The chat stays in {channel}: this doesn't delete it there. If they write again, a new conversation starts.",
+  deleteConfirm: "Delete forever",
+  emptyArchivedTitle: "No archived conversations.",
+  emptyArchivedHint: "Archive a conversation to take it out of the inbox. It comes back if the person writes again.",
 
   template: "Template: {title}",
   templateUntitled: "Template sent",
@@ -509,9 +546,15 @@ export function segmentCounts(counts: InboxCounts | null): Record<InboxSegment, 
   };
 }
 
+/** ¿La URL pide la vista «Archived»? Solo `?archived=1`, como lo lee el servidor (`readArchived`). */
+export function archivedFromParam(value: string | null | undefined): boolean {
+  return value === "1";
+}
+
 /** El título de una lista vacía: qué se buscó, o qué segmento no tiene a nadie. */
-export function emptyListTitle(segment: InboxSegment, query: string, labels: InboxLabels): string {
+export function emptyListTitle(segment: InboxSegment, query: string, labels: InboxLabels, archived = false): string {
   if (query) return fill(labels.noResultsTitle, { query });
+  if (archived && segment === "all") return labels.emptyArchivedTitle;
   if (segment === "waiting") return labels.emptyWaitingTitle;
   if (segment === "agent") return labels.emptyAgentTitle;
   if (segment === "operator") return labels.emptyOperatorTitle;
@@ -633,6 +676,33 @@ export function whatsappWindowOpen(lastInboundAt: string | null, now: number): b
   if (!lastInboundAt) return false;
   const at = new Date(lastInboundAt).getTime();
   return Number.isFinite(at) && now - at < 24 * 3600 * 1000;
+}
+
+/**
+ * El último mensaje de la persona que TENÍA LA PANTALLA, para archivar (contrato §2.4).
+ *
+ * El más nuevo de los dos: el de la fila de la lista (puede ir 15 s detrás) y el
+ * último entrante del hilo abierto. Si la persona escribió después, el hub contesta
+ * `409 new_message` y no la archiva. `null` = nunca escribió.
+ *
+ * 🪤 Por instante, nunca como texto: el hub manda `+00:00` y una fecha de JS acaba
+ * en `Z`, y como texto no se ordenan igual.
+ */
+export function lastInboundSeen(
+  rowLastInbound: string | null,
+  messages: ReadonlyArray<Pick<InboxMessage, "direction" | "at">> | null | undefined,
+): string | null {
+  let best = rowLastInbound;
+  let bestAt = best ? Date.parse(best) : Number.NEGATIVE_INFINITY;
+  for (const m of messages ?? []) {
+    if (m.direction !== "inbound") continue;
+    const at = Date.parse(m.at);
+    if (Number.isFinite(at) && at > bestAt) {
+      best = m.at;
+      bestAt = at;
+    }
+  }
+  return best;
 }
 
 /** La ruta proxy del adjunto: la que va en el `src` de la miniatura. */
