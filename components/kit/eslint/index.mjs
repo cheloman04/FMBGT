@@ -38,7 +38,7 @@ import { noRawPaletteColor } from "./no-raw-palette-color.mjs";
 import { noSolidStatusFill } from "./no-solid-status-fill.mjs";
 
 /** La versión del kit. Un test la ata a `package.json`. */
-export const KIT_VERSION = "0.14.0";
+export const KIT_VERSION = "0.15.0";
 
 export const plugin = {
   meta: { name: "kigaru", version: KIT_VERSION },

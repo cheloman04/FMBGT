@@ -1,8 +1,8 @@
 // The /admin inbox: Instagram, Messenger and WhatsApp conversations, which live in
 // the Kigaru hub (KIGARU_DASHBOARD_STANDARD_V1.md §9, the kit's `conversations`
 // module). Server only: it talks to the hub with the site's connection
-// (SENZAI_CONNECTION_KEY / SENZAI_CONNECTION_SECRET, scopes channels:read and
-// channels:write), and that secret never reaches the browser — the page and the
+// (SENZAI_CONNECTION_KEY / SENZAI_CONNECTION_SECRET, scopes channels:read,
+// channels:write and channels:delete), and that secret never reaches the browser — the page and the
 // three /api/admin/conversations routes are the only way in.
 import { createInboxRoutes, hubFromEnv, inboxVisible, loadInbox } from '@/components/kit/conversations/server';
 import { getOperator, unauthorized } from '@/lib/admin/auth';
@@ -21,11 +21,12 @@ export const inboxRoutes = createInboxRoutes({
 });
 
 /**
- * The first paint of /admin/conversations, for the segment (`?segment=`) and the
- * search (`?q=`) in the URL. A hub failure comes back with its cause.
+ * The first paint of /admin/conversations, for the segment (`?segment=`), the
+ * search (`?q=`) and the Archived view (`?archived=1`) in the URL. A hub failure
+ * comes back with its cause.
  */
-export function loadConversations(sp: { segment?: string; q?: string }) {
-  return loadInbox(hubFromEnv(), { segment: sp.segment, query: sp.q });
+export function loadConversations(sp: { segment?: string; q?: string; archived?: string }) {
+  return loadInbox(hubFromEnv(), { segment: sp.segment, query: sp.q, archived: sp.archived });
 }
 
 /**

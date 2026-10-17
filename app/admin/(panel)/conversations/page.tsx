@@ -14,7 +14,7 @@ const TIME_ZONE = 'America/New_York';
 export default async function ConversationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ segment?: string; q?: string }>;
+  searchParams: Promise<{ segment?: string; q?: string; archived?: string }>;
 }) {
   await requireOperator();
   // The first paint is the URL's: a link to `?segment=waiting` opens on "Waiting".
@@ -31,6 +31,9 @@ export default async function ConversationsPage({
         endpoint="/api/admin/conversations"
         loginPath="/admin/login"
         timeZone={TIME_ZONE}
+        // "Delete forever" on an archived conversation. FMBGT's connection to
+        // Kigaru has the channels:delete scope for it (contract §2.4).
+        allowDelete
       />
     </PageShell>
   );
